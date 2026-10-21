@@ -1,0 +1,571 @@
+ {
+    _id: 'run-6',
+    run_id: 'run-6',
+    summary: {
+      rows_selected: 2,
+      rows_processed: 2,
+      rows_failed: 0,
+      monitoring_action_required: 1,
+      agent_invocations: { near_rt_ric: 2, non_rt_ric: 1 }
+    },
+    records: {
+      coloran_0000000: {
+        record_id: 'coloran_0000000',
+        telemetry_record: {
+          use_case_type: 'eMBB video (CBR 4 Mbps/UE)',
+          packet_loss_budget: 0.01,
+          latency_budget_ns: 100000000,
+          jitter_budget_ns: 50000000,
+          data_rate_budget_gbps: 0.0072,
+          required_mobility: 'no',
+          required_connectivity: 'yes',
+          slice_available_transfer_rate_gbps: 0.0038881049999999,
+          slice_latency_ns: 301944038.6439503,
+          slice_packet_loss: 0,
+          slice_jitter_ns: 484278225.58818567,
+          slice_type: 'eMBB',
+          slice_handover: 'no',
+          cell_id: 'bs2',
+          record_id: 'coloran_0000000'
+        },
+        ground_truth: {
+          record_id: 'coloran_0000000',
+          metric_flags: { latency: true, jitter: true, packet_loss: false, throughput: true },
+          sla_violations_raw: "['latency', 'jitter', 'throughput']",
+          sla_violations: [ 'latency', 'jitter', 'throughput' ],
+          sla_evaluation_status: 'violation'
+        },
+        comparison: {
+          metric_matches: { latency: true, jitter: true, packet_loss: true, throughput: true },
+          sla_violations_match: true,
+          evaluation_status_match: true
+        },
+        computed_analysis: {
+          latency: { measured: 301944038.6439503, budget: 100000000, status: 'violation' },
+          jitter: { measured: 484278225.58818567, budget: 50000000, status: 'violation' },
+          packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+          throughput: { measured: 0.0038881049999999, budget: 0.0072, status: 'violation' },
+          violations: [ 'latency', 'jitter', 'throughput' ],
+          unavailable_metrics: []
+        },
+        monitoring_decision: {
+          situation: 'warning',
+          severity: 'high',
+          global_situation: 'warning',
+          action_required: true,
+          sla_analysis: {
+            latency: { measured: 301944038.6439503, budget: 100000000, status: 'violation' },
+            jitter: { measured: 484278225.58818567, budget: 50000000, status: 'violation' },
+            packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+            throughput: { measured: 0.0038881049999999, budget: 0.0072, status: 'violation' },
+            violations: [ 'latency', 'jitter', 'throughput' ],
+            unavailable_metrics: []
+          },
+          selected_agents: [
+            {
+              agent: 'near_rt_ric',
+              responsibility: 'latency',
+              objective: 'latency (301944038.6439503 ns) < 100000000.0 ns',
+              priority: 'high',
+              reason: 'Recent execution: near_rt_ric executed successfully for latency (301944038.6439503 ns)',
+              context: {}
+            },
+            {
+              agent: 'near_rt_ric',
+              responsibility: 'jitter',
+              objective: 'jitter (484278225.58818567 ns) < 50000000.0 ns',
+              priority: 'high',
+              reason: 'Recent execution: near_rt_ric executed successfully for jitter (484278225.58818567 ns)',
+              context: {}
+            },
+            {
+              agent: 'non_rt_ric',
+              responsibility: 'throughput',
+              objective: 'throughput (0.0038881049999999 Gbps) < 0.0072 Gbps',
+              priority: 'medium',
+              reason: 'Recent execution: non_rt_ric executed successfully for throughput (0.0038881049999999 Gbps)',
+              context: {}
+            }
+          ],
+          reason: 'Violations detected: latency (301944038.6439503 ns), jitter (484278225.58818567 ns), throughput (0.0038881049999999 Gbps)',
+          record_id: 'coloran_0000000'
+        },
+        agent_executions: {
+          near_rt_ric: {
+            agent: 'near_rt_ric',
+            invocation: {
+              agent: 'near_rt_ric',
+              responsibility: 'jitter',
+              objective: 'jitter (484278225.58818567 ns) < 50000000.0 ns',
+              priority: 'high',
+              reason: 'Recent execution: near_rt_ric executed successfully for jitter (484278225.58818567 ns)',
+              context: {
+                record_id: 'coloran_0000000',
+                run_id: 'run-6',
+                target: 'bs2',
+                slice_id: 'eMBB',
+                sla_analysis: {
+                  latency: { measured: 301944038.6439503, budget: 100000000, status: 'violation' },
+                  jitter: { measured: 484278225.58818567, budget: 50000000, status: 'violation' },
+                  packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+                  throughput: { measured: 0.0038881049999999, budget: 0.0072, status: 'violation' },
+                  violations: [ 'latency', 'jitter', 'throughput' ],
+                  unavailable_metrics: []
+                }
+              }
+            },
+            result: {
+              status: 'completed',
+              proposal: {
+                tool_name: 'optimize_scheduler',
+                parameters: { slice_id: 'eMBB', scheduler: 'proportional_fair' },
+                target: 'bs2',
+                rationale: "The violated KPI 'throughput' (0.0038881049999999 Gbps) is related to the scheduler configuration. A proportional fair scheduler is designed to balance throughput and fairness. By adjusting the scheduler to 'proportional_fair', we can improve the throughput of the eMBB slice, which is experiencing a throughput violation. The expected effect is an increase in throughput, which will help to reduce the violation. The confidence level is 0.8, as the proportional fair scheduler has been shown to be effective in balancing throughput and fairness in similar scenarios.",
+                expected_effect: 'throughput',
+                evidence_sources: [],
+                confidence: 0.8,
+                invocation_context: {
+                  invocation: {
+                    agent: 'near_rt_ric',
+                    responsibility: 'jitter',
+                    objective: 'jitter (484278225.58818567 ns) < 50000000.0 ns',
+                    priority: 'high',
+                    reason: 'Recent execution: near_rt_ric executed successfully for jitter (484278225.58818567 ns)',
+                    context: {
+                      record_id: 'coloran_0000000',
+                      run_id: 'run-6',
+                      target: 'bs2',
+                      slice_id: 'eMBB',
+                      sla_analysis: {
+                        latency: { measured: 301944038.6439503, budget: 100000000, status: 'violation' },
+                        jitter: { measured: 484278225.58818567, budget: 50000000, status: 'violation' },
+                        packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+                        throughput: { measured: 0.0038881049999999, budget: 0.0072, status: 'violation' },
+                        violations: [ 'latency', 'jitter', 'throughput' ],
+                        unavailable_metrics: []
+                      }
+                    }
+                  }
+                }
+              },
+              governance: {
+                approved: true,
+                reason: "Action passed all governance checks. LLM review: The RIC agent's rationale is coherent and specific, grounded in the evidence provided (the SLA analysis in the context). The action addresses the invocation objective and the violated KPI (throughput), and the expected effect (increase in throughput) plausibly follows from the action. The action is also proportionate to the priority and severity, and confined to the given target and slice. The RIC agent's confidence level is 0.8, which is reasonable given the effectiveness of the proportional fair scheduler in similar scenarios.",
+                failed_stage: null,
+                checks_passed: [ 'schema', 'policy_trust', 'sla', 'resource_safety', 'llm_review' ]
+              },
+              execution: {
+                tool_name: 'optimize_scheduler',
+                status: 'executed',
+                target: 'bs2',
+                parameters: { slice_id: 'eMBB', scheduler: 'proportional_fair', target: 'bs2' },
+                result: {
+                  status: 'success',
+                  tool: 'optimize_scheduler',
+                  target: 'bs2',
+                  slice_id: 'eMBB',
+                  scheduler: 'proportional_fair',
+                  message: "Scheduler 'proportional_fair' configured for eMBB on bs2."
+                },
+                message: null
+              },
+              retrieved_knowledge: []
+            },
+            middleware_audit: [
+              {
+                tool_call_id: 'call_eeb26e185d9a',
+                proposal: {
+                  tool_name: 'optimize_scheduler',
+                  parameters: { slice_id: 'eMBB', scheduler: 'proportional_fair' },
+                  target: 'bs2',
+                  rationale: "The violated KPI 'throughput' (0.0038881049999999 Gbps) is related to the scheduler configuration. A proportional fair scheduler is designed to balance throughput and fairness. By adjusting the scheduler to 'proportional_fair', we can improve the throughput of the eMBB slice, which is experiencing a throughput violation. The expected effect is an increase in throughput, which will help to reduce the violation. The confidence level is 0.8, as the proportional fair scheduler has been shown to be effective in balancing throughput and fairness in similar scenarios.",
+                  expected_effect: 'throughput',
+                  evidence_sources: [],
+                  confidence: 0.8,
+                  invocation_context: {
+                    invocation: {
+                      agent: 'near_rt_ric',
+                      responsibility: 'jitter',
+                      objective: 'jitter (484278225.58818567 ns) < 50000000.0 ns',
+                      priority: 'high',
+                      reason: 'Recent execution: near_rt_ric executed successfully for jitter (484278225.58818567 ns)',
+                      context: {
+                        record_id: 'coloran_0000000',
+                        run_id: 'run-6',
+                        target: 'bs2',
+                        slice_id: 'eMBB',
+                        sla_analysis: {
+                          latency: { measured: 301944038.6439503, budget: 100000000, status: 'violation' },
+                          jitter: { measured: 484278225.58818567, budget: 50000000, status: 'violation' },
+                          packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+                          throughput: { measured: 0.0038881049999999, budget: 0.0072, status: 'violation' },
+                          violations: [ 'latency', 'jitter', 'throughput' ],
+                          unavailable_metrics: []
+                        }
+                      }
+                    }
+                  }
+                },
+                governance: {
+                  approved: true,
+                  reason: "Action passed all governance checks. LLM review: The RIC agent's rationale is coherent and specific, grounded in the evidence provided (the SLA analysis in the context). The action addresses the invocation objective and the violated KPI (throughput), and the expected effect (increase in throughput) plausibly follows from the action. The action is also proportionate to the priority and severity, and confined to the given target and slice. The RIC agent's confidence level is 0.8, which is reasonable given the effectiveness of the proportional fair scheduler in similar scenarios.",
+                  failed_stage: null,
+                  checks_passed: [ 'schema', 'policy_trust', 'sla', 'resource_safety', 'llm_review' ]
+                },
+                execution: {
+                  tool_name: 'optimize_scheduler',
+                  status: 'executed',
+                  target: 'bs2',
+                  parameters: { slice_id: 'eMBB', scheduler: 'proportional_fair', target: 'bs2' },
+                  result: {
+                    status: 'success',
+                    tool: 'optimize_scheduler',
+                    target: 'bs2',
+                    slice_id: 'eMBB',
+                    scheduler: 'proportional_fair',
+                    message: "Scheduler 'proportional_fair' configured for eMBB on bs2."
+                  },
+                  message: null
+                }
+              },
+              {
+                tool_call_id: 'call_hl4n6io3',
+                proposal: null,
+                governance: {
+                  approved: false,
+                  reason: '[invalid_proposal] rationale: Field required; expected_effect: Field required; confidence: Field required',
+                  failed_stage: 'invalid_proposal',
+                  checks_passed: []
+                },
+                execution: {
+                  tool_name: 'adjust_prb_allocation',
+                  status: 'rejected',
+                  target: 'bs2',
+                  parameters: { slice_id: 'eMBB', target: 'bs2' },
+                  result: {},
+                  message: '[invalid_proposal] rationale: Field required; expected_effect: Field required; confidence: Field required'
+                }
+              },
+              {
+                tool_call_id: 'call_bo7lvajg',
+                proposal: {
+                  tool_name: 'adjust_prb_allocation',
+                  parameters: { slice_id: 'eMBB' },
+                  target: 'bs2',
+                  rationale: 'Increasing PRB allocation from 50 to 60 should improve throughput for the eMBB slice on bs2, addressing the throughput violation. The expected effect is an increase in throughput, which will help to reduce the violation. The confidence level is 0.9, as increasing PRB allocation has been shown to improve throughput in similar scenarios.',
+                  expected_effect: 'throughput',
+                  evidence_sources: [],
+                  confidence: 0.9,
+                  invocation_context: {
+                    invocation: {
+                      agent: 'near_rt_ric',
+                      responsibility: 'jitter',
+                      objective: 'jitter (484278225.58818567 ns) < 50000000.0 ns',
+                      priority: 'high',
+                      reason: 'Recent execution: near_rt_ric executed successfully for jitter (484278225.58818567 ns)',
+                      context: {
+                        record_id: 'coloran_0000000',
+                        run_id: 'run-6',
+                        target: 'bs2',
+                        slice_id: 'eMBB',
+                        sla_analysis: {
+                          latency: { measured: 301944038.6439503, budget: 100000000, status: 'violation' },
+                          jitter: { measured: 484278225.58818567, budget: 50000000, status: 'violation' },
+                          packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+                          throughput: { measured: 0.0038881049999999, budget: 0.0072, status: 'violation' },
+                          violations: [ 'latency', 'jitter', 'throughput' ],
+                          unavailable_metrics: []
+                        }
+                      }
+                    }
+                  }
+                },
+                governance: {
+                  approved: false,
+                  reason: '[schema] Invalid action arguments: prb_percentage: Field required',
+                  failed_stage: 'schema',
+                  checks_passed: []
+                },
+                execution: {
+                  tool_name: 'adjust_prb_allocation',
+                  status: 'rejected',
+                  target: 'bs2',
+                  parameters: { slice_id: 'eMBB', target: 'bs2' },
+                  result: {},
+                  message: '[schema] Invalid action arguments: prb_percentage: Field required'
+                }
+              }
+            ]
+          },
+          non_rt_ric: {
+            agent: 'non_rt_ric',
+            invocation: {
+              agent: 'non_rt_ric',
+              responsibility: 'throughput',
+              objective: 'throughput (0.0038881049999999 Gbps) < 0.0072 Gbps',
+              priority: 'medium',
+              reason: 'Recent execution: non_rt_ric executed successfully for throughput (0.0038881049999999 Gbps)',
+              context: {
+                record_id: 'coloran_0000000',
+                run_id: 'run-6',
+                target: 'bs2',
+                slice_id: 'eMBB',
+                sla_analysis: {
+                  latency: { measured: 301944038.6439503, budget: 100000000, status: 'violation' },
+                  jitter: { measured: 484278225.58818567, budget: 50000000, status: 'violation' },
+                  packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+                  throughput: { measured: 0.0038881049999999, budget: 0.0072, status: 'violation' },
+                  violations: [ 'latency', 'jitter', 'throughput' ],
+                  unavailable_metrics: []
+                }
+              }
+            },
+            result: {
+              status: 'completed',
+              proposal: {
+                tool_name: 'update_slice_resource_policy',
+                parameters: { slice_id: 'eMBB', min_prb_ratio_pct: 80, max_prb_ratio_pct: 100 },
+                target: 'bs2',
+                rationale: 'To address the throughput violation, increasing the PRB share is expected to improve throughput.',
+                expected_effect: 'throughput',
+                evidence_sources: [],
+                confidence: 0.8,
+                invocation_context: {
+                  invocation: {
+                    agent: 'non_rt_ric',
+                    responsibility: 'throughput',
+                    objective: 'throughput (0.0038881049999999 Gbps) < 0.0072 Gbps',
+                    priority: 'medium',
+                    reason: 'Recent execution: non_rt_ric executed successfully for throughput (0.0038881049999999 Gbps)',
+                    context: {
+                      record_id: 'coloran_0000000',
+                      run_id: 'run-6',
+                      target: 'bs2',
+                      slice_id: 'eMBB',
+                      sla_analysis: {
+                        latency: { measured: 301944038.6439503, budget: 100000000, status: 'violation' },
+                        jitter: { measured: 484278225.58818567, budget: 50000000, status: 'violation' },
+                        packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+                        throughput: { measured: 0.0038881049999999, budget: 0.0072, status: 'violation' },
+                        violations: [ 'latency', 'jitter', 'throughput' ],
+                        unavailable_metrics: []
+                      }
+                    }
+                  }
+                }
+              },
+              governance: {
+                approved: true,
+                reason: "Action passed all governance checks. LLM review: The RIC agent's rationale is sound because it provides a clear and specific explanation for why increasing the PRB share is expected to improve throughput. The expected effect is directly related to the objective, and the confidence level is moderate. The action is aligned with the goal because it addresses the throughput violation. The behavior is acceptable because it is a policy-level change and does not involve extreme modifications. The action is confined to the target and slice, and there are no hidden side effects.",
+                failed_stage: null,
+                checks_passed: [ 'schema', 'policy_trust', 'sla', 'resource_safety', 'llm_review' ]
+              },
+              execution: {
+                tool_name: 'update_slice_resource_policy',
+                status: 'executed',
+                target: 'bs2',
+                parameters: {
+                  slice_id: 'eMBB',
+                  min_prb_ratio_pct: 80,
+                  max_prb_ratio_pct: 100,
+                  target: 'bs2'
+                },
+                result: {
+                  status: 'success',
+                  tool: 'update_slice_resource_policy',
+                  channel: 'A1',
+                  target: 'bs2',
+                  slice_id: 'eMBB',
+                  min_prb_ratio_pct: 80,
+                  max_prb_ratio_pct: 100,
+                  message: 'Resource policy for eMBB on bs2: 80%-100% PRB.'
+                },
+                message: null
+              },
+              retrieved_knowledge: []
+            },
+            middleware_audit: [
+              {
+                tool_call_id: 'call_jc8kzerx',
+                proposal: {
+                  tool_name: 'update_slice_resource_policy',
+                  parameters: { slice_id: 'eMBB', min_prb_ratio_pct: 80, max_prb_ratio_pct: 100 },
+                  target: 'bs2',
+                  rationale: 'To address the throughput violation, increasing the PRB share is expected to improve throughput.',
+                  expected_effect: 'throughput',
+                  evidence_sources: [],
+                  confidence: 0.8,
+                  invocation_context: {
+                    invocation: {
+                      agent: 'non_rt_ric',
+                      responsibility: 'throughput',
+                      objective: 'throughput (0.0038881049999999 Gbps) < 0.0072 Gbps',
+                      priority: 'medium',
+                      reason: 'Recent execution: non_rt_ric executed successfully for throughput (0.0038881049999999 Gbps)',
+                      context: {
+                        record_id: 'coloran_0000000',
+                        run_id: 'run-6',
+                        target: 'bs2',
+                        slice_id: 'eMBB',
+                        sla_analysis: {
+                          latency: { measured: 301944038.6439503, budget: 100000000, status: 'violation' },
+                          jitter: { measured: 484278225.58818567, budget: 50000000, status: 'violation' },
+                          packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+                          throughput: { measured: 0.0038881049999999, budget: 0.0072, status: 'violation' },
+                          violations: [ 'latency', 'jitter', 'throughput' ],
+                          unavailable_metrics: []
+                        }
+                      }
+                    }
+                  }
+                },
+                governance: {
+                  approved: true,
+                  reason: "Action passed all governance checks. LLM review: The RIC agent's rationale is sound because it provides a clear and specific explanation for why increasing the PRB share is expected to improve throughput. The expected effect is directly related to the objective, and the confidence level is moderate. The action is aligned with the goal because it addresses the throughput violation. The behavior is acceptable because it is a policy-level change and does not involve extreme modifications. The action is confined to the target and slice, and there are no hidden side effects.",
+                  failed_stage: null,
+                  checks_passed: [ 'schema', 'policy_trust', 'sla', 'resource_safety', 'llm_review' ]
+                },
+                execution: {
+                  tool_name: 'update_slice_resource_policy',
+                  status: 'executed',
+                  target: 'bs2',
+                  parameters: {
+                    slice_id: 'eMBB',
+                    min_prb_ratio_pct: 80,
+                    max_prb_ratio_pct: 100,
+                    target: 'bs2'
+                  },
+                  result: {
+                    status: 'success',
+                    tool: 'update_slice_resource_policy',
+                    channel: 'A1',
+                    target: 'bs2',
+                    slice_id: 'eMBB',
+                    min_prb_ratio_pct: 80,
+                    max_prb_ratio_pct: 100,
+                    message: 'Resource policy for eMBB on bs2: 80%-100% PRB.'
+                  },
+                  message: null
+                }
+              },
+              {
+                tool_call_id: 'call_p38j1nn3',
+                proposal: {
+                  tool_name: 'update_traffic_steering_policy',
+                  parameters: { steering_mode: 'load_balancing' },
+                  target: 'bs2',
+                  rationale: 'To address the throughput violation, load balancing is expected to improve throughput by distributing traffic more efficiently.',
+                  expected_effect: 'throughput',
+                  evidence_sources: [],
+                  confidence: 0.8,
+                  invocation_context: {
+                    invocation: {
+                      agent: 'non_rt_ric',
+                      responsibility: 'throughput',
+                      objective: 'throughput (0.0038881049999999 Gbps) < 0.0072 Gbps',
+                      priority: 'medium',
+                      reason: 'Recent execution: non_rt_ric executed successfully for throughput (0.0038881049999999 Gbps)',
+                      context: {
+                        record_id: 'coloran_0000000',
+                        run_id: 'run-6',
+                        target: 'bs2',
+                        slice_id: 'eMBB',
+                        sla_analysis: {
+                          latency: { measured: 301944038.6439503, budget: 100000000, status: 'violation' },
+                          jitter: { measured: 484278225.58818567, budget: 50000000, status: 'violation' },
+                          packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+                          throughput: { measured: 0.0038881049999999, budget: 0.0072, status: 'violation' },
+                          violations: [ 'latency', 'jitter', 'throughput' ],
+                          unavailable_metrics: []
+                        }
+                      }
+                    }
+                  }
+                },
+                governance: {
+                  approved: false,
+                  reason: '[schema] Invalid action arguments: load_balance_threshold_pct: Field required',
+                  failed_stage: 'schema',
+                  checks_passed: []
+                },
+                execution: {
+                  tool_name: 'update_traffic_steering_policy',
+                  status: 'rejected',
+                  target: 'bs2',
+                  parameters: { steering_mode: 'load_balancing', target: 'bs2' },
+                  result: {},
+                  message: '[schema] Invalid action arguments: load_balance_threshold_pct: Field required'
+                }
+              }
+            ]
+          }
+        },
+        error: null
+      },
+      coloran_0000001: {
+        record_id: 'coloran_0000001',
+        telemetry_record: {
+          use_case_type: 'MTC sensing (Poisson 30 pkt/s)',
+          packet_loss_budget: 0.01,
+          latency_budget_ns: 100000000,
+          jitter_budget_ns: 50000000,
+          data_rate_budget_gbps: 0.00003,
+          required_mobility: 'no',
+          required_connectivity: 'yes',
+          slice_available_transfer_rate_gbps: 0.000126672,
+          slice_latency_ns: 0,
+          slice_packet_loss: 0,
+          slice_jitter_ns: 0,
+          slice_type: 'MTC',
+          slice_handover: 'no',
+          cell_id: 'bs2',
+          record_id: 'coloran_0000001'
+        },
+        ground_truth: {
+          record_id: 'coloran_0000001',
+          metric_flags: {
+            latency: false,
+            jitter: false,
+            packet_loss: false,
+            throughput: false
+          },
+          sla_violations_raw: '[]',
+          sla_violations: [],
+          sla_evaluation_status: 'ok'
+        },
+        comparison: {
+          metric_matches: { latency: true, jitter: true, packet_loss: true, throughput: true },
+          sla_violations_match: true,
+          evaluation_status_match: true
+        },
+        computed_analysis: {
+          latency: { measured: 0, budget: 100000000, status: 'ok' },
+          jitter: { measured: 0, budget: 50000000, status: 'ok' },
+          packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+          throughput: { measured: 0.000126672, budget: 0.00003, status: 'ok' },
+          violations: [],
+          unavailable_metrics: []
+        },
+        monitoring_decision: {
+          situation: 'normal',
+          severity: 'none',
+          global_situation: 'warning',
+          action_required: false,
+          sla_analysis: {
+            latency: { measured: 0, budget: 100000000, status: 'ok' },
+            jitter: { measured: 0, budget: 50000000, status: 'ok' },
+            packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+            throughput: { measured: 0.000126672, budget: 0.00003, status: 'ok' },
+            violations: [],
+            unavailable_metrics: []
+          },
+          selected_agents: [],
+          reason: 'All monitored KPIs were evaluated and no SLA violations were detected.',
+          record_id: 'coloran_0000001'
+        },
+        agent_executions: {},
+        error: null
+      }
+    }
+  }
+]

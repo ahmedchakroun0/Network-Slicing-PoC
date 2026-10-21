@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+dump.rdb
+data/raw/
+data/coloran_prepared_dataset.csv
+data/coloran_prepared_dataset.summary.json
