@@ -1,0 +1,698 @@
+RAN KNOWLEDGE BASE
+Shared Knowledge for Near-RT RIC and Non-RT RIC Agents
+Version: 1.0
+Purpose: Retrieval-Augmented Generation (RAG) knowledge for an agentic O-RAN / network-slicing proof of concept.
+
+======================================================================
+1. PURPOSE, SCOPE, AND HOW AGENTS SHOULD USE THIS FILE
+======================================================================
+
+This document is a shared technical knowledge source for both the Near-Real-Time RAN Intelligent Controller (Near-RT RIC) agent and the Non-Real-Time RAN Intelligent Controller (Non-RT RIC) agent. It intentionally combines both domains in one file.
+
+The knowledge base covers:
+- O-RAN architecture and the roles of the RICs.
+- RAN slicing, service-level agreements (SLAs), telemetry, and common KPIs.
+- Near-real-time control and longer-timescale optimization.
+- Common control actions, their expected effects, risks, and validation requirements.
+- Interfaces and information flows relevant to O-RAN.
+- Trust, governance, safety, auditability, and tool-use constraints.
+- Practical guidance for reasoning over a dataset-backed network-slicing proof of concept.
+
+This file is reference knowledge, not a live network configuration, authoritative policy engine, or substitute for vendor documentation. Actual interface support, parameter names, valid ranges, timing, and control permissions depend on the deployed O-RAN release, RIC implementation, E2 service model, RAN vendor, and operator policy.
+
+Agent-use principles:
+1. Ground recommendations in the supplied telemetry and available context.
+2. Distinguish observed facts from hypotheses and proposed actions.
+3. Do not invent measurements, network topology, slice identifiers, available resources, or tool results.
+4. Treat missing or unavailable KPI values as unknown, not automatically healthy and not automatically violated.
+5. Use deterministic SLA analysis supplied by the orchestrator as the authoritative result for the current evaluation. Explain discrepancies rather than silently overriding it.
+6. Before any protected control action, request authorization through the RAN Trust & Governance layer with the exact tool name, exact arguments, target, rationale, expected impact, and relevant constraints.
+7. Knowledge retrieval and read-only explanation do not themselves change the network. Retrieval should not be blocked merely because an eventual control action may require authorization.
+8. Never claim that an action was executed unless the execution tool returned a result confirming it.
+9. Prefer the smallest reversible action that can plausibly address the verified issue.
+10. If evidence is insufficient, request additional telemetry or recommend observation rather than making an unsupported change.
+
+======================================================================
+2. RAN AND O-RAN FOUNDATIONS
+======================================================================
+
+2.1 Radio Access Network (RAN)
+
+The Radio Access Network connects user equipment (UE), such as phones or IoT devices, to the mobile network. A RAN includes radio units, distributed processing, centralized processing where deployed, transport connectivity, and control/management functions.
+
+Common logical components include:
+- O-RU (O-RAN Radio Unit): radio-frequency and lower-layer radio processing functions.
+- O-DU (O-RAN Distributed Unit): time-sensitive lower-layer processing, commonly including parts of the MAC and RLC layers and, depending on split, other functions.
+- O-CU (O-RAN Centralized Unit): higher-layer processing, commonly including RRC and PDCP, with control-plane and user-plane functions potentially separated.
+- SMO (Service Management and Orchestration): management and orchestration functions for the O-RAN domain.
+- Near-RT RIC: performs near-real-time optimization and control of RAN behavior through applications commonly called xApps.
+- Non-RT RIC: supports non-real-time optimization, policy guidance, enrichment information, and AI/ML lifecycle functions through applications commonly called rApps and related SMO capabilities.
+
+The exact deployment and split of functions varies. Do not assume every network uses every logical component in the same way.
+
+2.2 O-RAN interfaces and information flows
+
+Important interfaces include:
+- E2: connects the Near-RT RIC with E2 nodes, such as O-CU and O-DU implementations. It supports RAN information collection and control through supported E2 service models.
+- A1: supports policy guidance, enrichment information, and AI/ML-related interactions between the Non-RT RIC and Near-RT RIC, according to the supported specifications and implementation.
+- O1: supports management-plane interactions between SMO-related functions and managed O-RAN network elements.
+- O2: supports cloud infrastructure management/orchestration interactions in applicable O-RAN deployments.
+- Open Fronthaul: connects O-RU and O-DU in supported disaggregated RAN architectures.
+
+Interface availability is not equivalent to permission to execute every possible operation. An agent must not assume that a tool maps directly to a fully implemented standardized interface. The actual tool contract and deployment configuration determine what can be done.
+
+2.3 Control timescales
+
+Near-real-time control is commonly associated with approximately 10 milliseconds to 1 second. Non-real-time optimization is commonly associated with timescales greater than 1 second. These are architectural reference ranges, not guarantees that every operation or application completes within those limits.
+
+Choose a control domain based on the required response time, available evidence, control authority, and action type:
+- Fast, local, telemetry-driven RAN optimization may fit the Near-RT RIC.
+- Longer-horizon policy, trend analysis, model training, configuration planning, and cross-cell or cross-slice optimization may fit the Non-RT RIC.
+- Some tasks require coordination between both domains.
+- Safety-critical or high-impact changes may require human approval regardless of timescale.
+
+======================================================================
+3. NEAR-RT RIC DOMAIN
+======================================================================
+
+3.1 Main role
+
+The Near-RT RIC enables near-real-time monitoring and control of RAN behavior through xApps and supported E2 interactions. It can react to changing radio conditions, traffic load, mobility, resource contention, and service performance when the deployed interfaces expose the required measurements and control functions.
+
+Typical responsibilities:
+- Inspect current telemetry and determine whether a local RAN issue is supported by evidence.
+- Identify candidate near-real-time control actions.
+- Estimate the expected benefit and possible side effects of each action.
+- Request governance approval for protected actions.
+- Execute only authorized actions using the available tools.
+- Verify the outcome using subsequent telemetry or tool results.
+- Record the decision, authorization, execution result, and verification evidence.
+
+3.2 Typical Near-RT RIC use cases
+
+A. Resource and PRB allocation
+Physical Resource Blocks (PRBs) are radio resources used for uplink and downlink transmission. Allocation and scheduling behavior affects throughput, latency, fairness, and slice isolation. More resources assigned to one slice can reduce resources available to other slices. A change must consider total capacity, policy, QoS, and the impact on other tenants.
+
+B. Scheduler optimization
+Scheduling determines which users or flows are served and how available radio resources are assigned. A scheduler adjustment may improve latency or throughput for a target slice but can change fairness, utilization, or performance for other slices. The action must specify the target and intended objective and must stay within supported parameters.
+
+C. Handover optimization
+Handover transfers a UE's serving connection from one cell or radio node to another. Handover behavior can affect interruption time, mobility robustness, packet loss, and service continuity. Aggressive settings can increase unnecessary handovers or ping-pong behavior; conservative settings can increase radio-link failures or degraded service at cell edges. Handover changes require mobility evidence and must respect configured bounds.
+
+D. Power-control optimization
+Radio power-control parameters affect signal quality, interference, coverage, and uplink/downlink behavior. Increasing power is not universally beneficial: it can raise interference and reduce performance elsewhere. Actions must respect regulatory, hardware, vendor, and operator limits.
+
+E. Congestion response
+When telemetry indicates congestion, possible responses include adjusting supported resource allocations, scheduler policies, or admission-related controls. First establish whether the issue is radio capacity, transport, core-network behavior, or an artifact of the data. Do not use a RAN control to address an unrelated bottleneck.
+
+3.3 Near-RT reasoning workflow
+
+1. Read the task context from the Monitoring Agent, including target, slice, telemetry, SLA analysis, and relevant prior state.
+2. Inspect the exact KPI values and their availability.
+3. Identify the specific condition requiring attention.
+4. Use the knowledge-search capability when needed to retrieve relevant RAN concepts or action considerations.
+5. Form a bounded recommendation with explicit target, rationale, expected benefit, risks, and verification plan.
+6. Validate the proposed tool arguments against the tool schema.
+7. Invoke the RAN Trust & Governance layer before any protected control tool.
+8. If authorization is rejected, do not execute the protected action. Report the rejection and, if appropriate, propose a safer alternative.
+9. If authorization is granted, execute the exact authorized tool call without changing its arguments.
+10. Inspect the execution result. If the result is a failure, timeout, or ambiguous response, report it accurately.
+11. Verify impact where follow-up telemetry is available.
+12. Return a structured result to the Monitoring Agent, including findings, proposed or executed actions, authorization status, tool outcomes, and remaining uncertainty.
+
+3.4 Near-RT operational cautions
+
+- A tool name does not prove that a control is supported by the live RAN.
+- Do not fabricate E2 measurements, cell identifiers, UE identifiers, slice identifiers, or parameter ranges.
+- Do not assume a single KPI can diagnose a root cause.
+- Do not repeatedly apply the same action without evaluating its previous outcome.
+- Avoid oscillation: repeated aggressive changes can make performance less stable.
+- Do not change multiple unrelated controls in one step unless the action contract and governance approval explicitly cover the complete change.
+- Keep changes scoped to the smallest valid target.
+- Do not use a dataset row as proof that a corresponding real-world action has occurred.
+
+======================================================================
+4. NON-RT RIC DOMAIN
+======================================================================
+
+4.1 Main role
+
+The Non-RT RIC supports longer-horizon optimization, policy management, enrichment, and AI/ML lifecycle functions in coordination with the SMO and, where applicable, the Near-RT RIC. It can analyze trends, compare policies, develop recommendations, and provide policy guidance that the Near-RT RIC may enforce within its supported capabilities.
+
+Typical responsibilities:
+- Analyze historical telemetry and repeated SLA outcomes.
+- Identify persistent congestion, recurring violations, mobility patterns, or systematic resource imbalance.
+- Develop high-level optimization recommendations and policy proposals.
+- Support AI/ML model training, evaluation, deployment planning, and lifecycle monitoring where implemented.
+- Provide enrichment information or policy guidance through supported interfaces.
+- Coordinate longer-term improvements across cells, slices, or service objectives.
+- Record the evidence, assumptions, intended scope, risks, and evaluation criteria for recommendations.
+
+4.2 Typical Non-RT RIC use cases
+
+A. Long-term slice policy optimization
+Analyze repeated performance records to determine whether current resource policies appear insufficient or poorly balanced. A policy proposal should describe the target slice or scope, the observed pattern, the objective, expected trade-offs, and a rollback or review condition.
+
+B. Trend and root-cause analysis
+Compare latency, jitter, packet loss, throughput, handover outcomes, and other available metrics over time. Correlation alone does not prove causation. Distinguish observed trends from inferred causes and identify missing data needed for stronger conclusions.
+
+C. Policy guidance
+Develop high-level guidance that can be translated into supported Near-RT behavior. Policy guidance should be explicit, bounded, and compatible with operator objectives. It must not bypass the Near-RT RIC's authorization or local safety checks.
+
+D. AI/ML lifecycle
+Where supported, help evaluate model quality, drift, data coverage, and the operational suitability of a model. A model should not be promoted merely because it performs well on a training dataset. Consider out-of-sample performance, safety, robustness, explainability, and monitoring.
+
+E. Capacity and resource planning
+Use historical load and service requirements to recommend capacity changes, policy revisions, or further measurement. Forecasts must state their horizon and uncertainty. A dataset-only PoC cannot confirm actual radio capacity.
+
+F. Cross-slice optimization
+Evaluate competing service objectives across slices. A change that benefits one slice can harm another. Recommendations should consider total capacity, fairness, isolation, priority rules, and the operator's policy hierarchy.
+
+4.3 Non-RT reasoning workflow
+
+1. Read the Monitoring Agent's context and relevant working-memory summaries.
+2. Determine whether the task is a long-horizon policy or analytics problem.
+3. Analyze available historical or current records without treating missing values as zero.
+4. Identify repeated patterns and distinguish evidence from hypotheses.
+5. Draft a bounded policy or optimization recommendation.
+6. Include affected slices or domains, objective, evidence, expected benefits, risks, constraints, and success criteria.
+7. If the recommendation requires a protected configuration or control tool, request RAN Trust & Governance approval using the exact tool name and arguments.
+8. Do not directly execute an action that is outside the agent's tool permissions or the governance decision.
+9. If a recommendation is intended for Near-RT enforcement, describe the policy clearly and use only supported policy-transfer mechanisms.
+10. Define how the recommendation should be evaluated and when it should be reconsidered.
+11. Return a structured summary to the Monitoring Agent.
+
+4.4 Non-RT operational cautions
+
+- Historical correlation does not establish causation.
+- Do not assume a policy proposal has been installed or enforced.
+- Do not assume A1, O1, or any other interface is available unless the environment confirms it.
+- Do not overwrite local Near-RT safety checks with broad policy guidance.
+- Do not use incomplete data to make confident claims about network-wide performance.
+- Distinguish offline dataset evaluation from live network experimentation.
+
+======================================================================
+5. NETWORK SLICING AND SERVICE REQUIREMENTS
+======================================================================
+
+5.1 Network slicing concept
+
+A network slice is a logical network configuration designed to support a service or group of services with specific requirements. Slices may differ in latency, throughput, reliability, mobility, coverage, and connectivity needs. Slicing can involve RAN, transport, and core-network resources; a RAN-only action cannot guarantee end-to-end service performance.
+
+Common service categories include:
+- eMBB (enhanced Mobile Broadband): high data-rate services.
+- URLLC (Ultra-Reliable Low-Latency Communications): services with stringent latency and reliability requirements.
+- mMTC (massive Machine-Type Communications): large populations of connected devices, often with low per-device data rates.
+
+These are broad service categories. Real applications may combine requirements and do not always map neatly to one category.
+
+5.2 SLA and KPI interpretation
+
+An SLA expresses service expectations. The dataset or monitoring source may expose budgets and measured values such as:
+- Latency budget and measured slice latency.
+- Jitter budget and measured slice jitter.
+- Packet-loss budget and measured packet loss.
+- Required data rate and available transfer rate.
+- Mobility requirements and handover observations.
+- Connectivity requirements and availability observations.
+- Slice type and use-case type.
+
+The precise interpretation depends on units, semantics, and the dataset's definitions. Always verify units and whether values are per-user, per-flow, per-slice, aggregated, instantaneous, or averaged.
+
+Typical comparison logic, only when the field semantics and units match:
+- Latency violation: measured latency > latency budget.
+- Jitter violation: measured jitter > jitter budget.
+- Packet-loss violation: measured packet loss > packet-loss budget.
+- Throughput violation: available/measured transfer rate < required data-rate budget.
+
+For a budget that represents a maximum, exceeding the budget is normally unfavorable. For a minimum required throughput, falling below the requirement is normally unfavorable. Confirm that the data follows these definitions.
+
+Important: A dataset may use unusual units or contain zero budgets, placeholder values, or incomplete observations. Do not silently convert units, assume zero means a perfect target, or infer a violation from a missing value. Preserve the original column names and values unless a documented transformation is explicitly part of the pipeline.
+
+5.3 Missing and incomplete telemetry
+
+Use three-valued reasoning for each KPI:
+- VIOLATION: a valid comparison demonstrates that the SLA limit is breached.
+- SATISFIED: a valid comparison demonstrates that the SLA condition is met.
+- UNKNOWN: the required value, budget, unit, or interpretation is missing or invalid.
+
+UNKNOWN is not equivalent to SATISFIED. UNKNOWN is also not sufficient evidence of a violation. If all relevant KPI states are UNKNOWN and no other evidence indicates a problem, the agent should report insufficient evidence and normally recommend no control action, while identifying what data is needed.
+
+5.4 Severity assessment
+
+Severity should reflect the verified impact, the number and importance of affected services, persistence, and confidence in the evidence. A simple policy can distinguish:
+- INFO: no verified SLA violation; observation or explanation only.
+- LOW: limited or uncertain degradation with low immediate impact.
+- MEDIUM: one or more credible violations requiring targeted investigation or bounded mitigation.
+- HIGH: substantial or repeated violation, broad impact, or degradation of a critical service.
+- CRITICAL: severe, ongoing service failure with strong evidence and urgent impact, subject to the system's explicit escalation policy.
+
+These labels are examples, not universal O-RAN severity standards. The implementation's defined severity policy takes precedence. Do not infer CRITICAL from one missing metric alone.
+
+======================================================================
+6. COMMON KPIs AND THEIR LIMITATIONS
+======================================================================
+
+Latency
+- Meaning: time taken for a packet or transaction to travel through a defined path.
+- Why it matters: interactive applications and time-sensitive control can be sensitive to delay.
+- Caveats: one-way and round-trip latency differ; measurement points and aggregation windows matter.
+- Possible RAN-related contributors: scheduling delay, radio retransmissions, congestion, mobility events, and radio conditions.
+- Do not assume every latency problem originates in the RAN; transport and core components can contribute.
+
+Jitter
+- Meaning: variation in packet delay according to the metric's particular definition.
+- Why it matters: delay variation can affect real-time media and time-sensitive services.
+- Caveats: jitter formulas and windows vary. Confirm how the source computes it.
+- Possible responses: investigate scheduling and congestion where evidence supports a RAN cause.
+
+Packet loss
+- Meaning: fraction or percentage of packets that fail to reach the defined observation point.
+- Why it matters: loss can degrade reliability and application quality.
+- Caveats: loss can arise in radio, transport, congestion, application, or measurement processes.
+- Do not treat all packet loss as a radio-layer problem.
+
+Throughput / transfer rate
+- Meaning: delivered data volume per unit time over a defined measurement interval.
+- Why it matters: indicates whether a service's data-rate target is being met.
+- Caveats: available transfer rate, allocated capacity, and measured user throughput are not interchangeable.
+- Possible contributors to low throughput include poor radio conditions, load, scheduling, bandwidth, transport bottlenecks, and demand.
+
+Mobility and handover
+- Meaning: mobility describes movement-related requirements or conditions; handover transfers a UE's serving connection.
+- Useful indicators may include handover success/failure, interruption time, ping-pong rate, and radio-link failures when available.
+- Caveats: the dataset may include only a categorical mobility requirement or a handover label, not detailed radio measurements.
+
+Connectivity
+- Meaning: a requirement or indicator describing whether devices or services can connect as intended.
+- Caveats: connectivity may mean different things across datasets; use the dataset definition rather than assuming a standardized KPI.
+
+Resource utilization
+- Examples: PRB utilization, cell load, CPU use, transport utilization, and queue occupancy when available.
+- Caveat: high utilization is not always a failure; it becomes concerning when combined with unmet service objectives, instability, or lack of headroom.
+
+======================================================================
+7. ACTION CATALOG: PURPOSE, TRADE-OFFS, AND VERIFICATION
+======================================================================
+
+The following are conceptual action classes. They are not instructions to invoke a specific vendor command. Only tools actually exposed by the application may be used.
+
+7.1 adjust_prb_allocation
+Purpose:
+- Change a supported physical-resource allocation or quota for a specified target, such as a slice, according to the tool's exact schema.
+
+Potential benefit:
+- May improve throughput or reduce congestion for the target when radio resources are the limiting factor.
+
+Risks and trade-offs:
+- Can reduce resources available to other slices.
+- May not improve performance if the bottleneck is transport, core, coverage, or device capability.
+- May violate fairness, isolation, or operator resource policies.
+
+Before execution:
+- Verify target, current allocation if available, valid bounds, total resource constraints, and affected neighboring slices.
+- Explain the evidence linking the proposed allocation to the observed issue.
+- Obtain governance approval for the exact arguments.
+
+After execution:
+- Verify target and neighboring-slice KPIs where possible.
+- Check for regressions, resource exhaustion, and unexpected effects.
+
+7.2 optimize_scheduler
+Purpose:
+- Adjust a supported scheduling policy or parameter to pursue an explicitly stated objective.
+
+Potential benefit:
+- May improve delay, throughput, or service differentiation under the right conditions.
+
+Risks and trade-offs:
+- A latency-focused policy may reduce throughput or fairness for other traffic.
+- A throughput-focused policy may worsen tail latency or resource sharing.
+- Effects depend on implementation and radio conditions.
+
+Before execution:
+- State the optimization objective and affected scope.
+- Verify that the parameter and value are supported by the tool.
+- Do not invent parameter names, units, or allowable values.
+
+After execution:
+- Compare the relevant KPI with a pre-action baseline and consider side effects on other slices.
+
+7.3 optimize_handover
+Purpose:
+- Adjust supported handover-related behavior for a specified target or scope.
+
+Potential benefit:
+- May improve mobility robustness or reduce unnecessary handovers when the root cause is correctly identified.
+
+Risks and trade-offs:
+- Aggressive settings can cause ping-pong or unnecessary handovers.
+- Conservative settings can delay handover and increase radio-link failure risk.
+- Effects can vary by cell, UE speed, radio environment, and vendor implementation.
+
+Before execution:
+- Require mobility-related evidence and a clear target.
+- Respect configured limits and operator policy.
+- Do not infer handover problems from latency alone.
+
+After execution:
+- Review available handover success, failure, interruption, ping-pong, and service KPI evidence.
+
+7.4 adjust_power_control
+Purpose:
+- Adjust a supported power-control parameter within approved limits.
+
+Potential benefit:
+- May improve a radio link under a diagnosed coverage or interference condition.
+
+Risks and trade-offs:
+- Higher power can increase interference and degrade other users.
+- Power changes can have different effects for uplink and downlink.
+- Hardware, regulatory, and operator constraints apply.
+
+Before execution:
+- Identify the relevant direction, target, and evidence.
+- Confirm the tool's valid parameter range and units.
+- Request governance approval.
+
+After execution:
+- Inspect signal-quality and interference-related evidence if available, as well as service KPIs.
+
+7.5 Read-only knowledge search
+Purpose:
+- Retrieve relevant RAN concepts, definitions, interface context, and action considerations from the knowledge base.
+
+Risk:
+- Retrieval itself should be read-only and must not be represented as network control.
+
+Guidance:
+- Search using a concise, meaningful query.
+- Summarize only relevant material.
+- If the file does not contain the answer, state that the knowledge base is insufficient rather than fabricating details.
+- Do not require control authorization for a read-only RAG search unless the local implementation explicitly applies a separate access policy.
+
+======================================================================
+8. RAN TRUST, GOVERNANCE, AND SAFE TOOL USE
+======================================================================
+
+The RAN Trust & Governance Agent acts as a control gate for protected actions requested by Near-RT RIC or Non-RT RIC. It evaluates the proposed call; it does not itself execute the requested RAN action unless a separate, explicitly documented architecture assigns it that responsibility.
+
+8.1 Authorization request contents
+
+For every protected action, provide:
+- Requesting agent.
+- Exact tool name.
+- Exact argument object that will be passed to the tool.
+- Target slice, cell, UE, domain, or resource, where applicable.
+- Reason for the action and evidence supporting it.
+- Relevant SLA findings and known uncertainty.
+- Expected benefit and possible negative effects.
+- Resource constraints and policy constraints.
+- Reversibility and rollback approach, where available.
+- Proposed verification criteria.
+
+The exact authorized arguments must match the arguments executed. If the agent changes the target or any material argument after authorization, it must request authorization again.
+
+8.2 Governance checks
+
+The governance layer may evaluate:
+- Tool allowlist and agent permissions.
+- Argument schema and target validity.
+- Scope and resource bounds.
+- Trust level and action risk.
+- SLA relevance and evidence quality.
+- Cross-slice impact and resource conflicts.
+- Operator policies and forbidden operations.
+- Whether human approval is required.
+- Audit requirements and rollback feasibility.
+
+8.3 Decision handling
+
+APPROVED:
+- Execute only the exact authorized call, subject to the implementation's authorization contract.
+
+REJECTED:
+- Do not execute the protected tool.
+- Report the reason without trying a different protected tool to bypass the rejection.
+- Offer a lower-risk alternative, additional observation, or human escalation when appropriate.
+
+NEEDS_REVIEW / INDETERMINATE:
+- Do not treat this as approval.
+- Gather the missing evidence or request human review.
+
+8.4 Safety invariants
+
+- No protected control action before authorization.
+- No argument mutation after authorization.
+- No execution claim without a tool result.
+- No hidden retry through another tool after rejection.
+- No invented success metrics.
+- No action solely because an LLM suggested it.
+- No policy recommendation may bypass local safety constraints.
+- No write operation should be disguised as read-only retrieval.
+- No unbounded loops of repeated optimization.
+- Record all relevant decisions and outcomes for traceability.
+
+======================================================================
+9. WORKING MEMORY, AUDIT, AND TRACEABILITY
+======================================================================
+
+Working memory should store useful agent state and decision history, not raw copies of every input record by default.
+
+Useful memory entries may include:
+- Current task or invocation identifier.
+- Target and slice context needed for continuity.
+- Monitoring Agent's summarized situation and deterministic SLA result.
+- Which agent was invoked and why.
+- Relevant prior decisions.
+- Authorization request and governance outcome.
+- Tool name and arguments or a safe, appropriately redacted representation.
+- Execution status and tool result summary.
+- Follow-up verification and observed outcome.
+- Outstanding uncertainty, rejected actions, and recommended next step.
+
+Audit events should make it possible to reconstruct:
+1. What condition was observed.
+2. Which evidence was used.
+3. Why the agent selected a recommendation.
+4. Which exact tool call was proposed.
+5. Whether governance approved or rejected it.
+6. Whether execution occurred and what the tool returned.
+7. Whether the action improved, worsened, or left the situation unresolved.
+
+Security and privacy:
+- Avoid storing secrets, credentials, access tokens, or unnecessary personal data.
+- Apply retention and access-control rules appropriate to the deployment.
+- Distinguish a model-generated explanation from a deterministic tool result.
+- Use stable event IDs and timestamps where the implementation supports them.
+- A successful Redis write proves that data was stored in Redis, not necessarily that it will survive every restart. Persistence depends on Redis configuration, such as RDB snapshots, AOF, volume storage, and deployment settings.
+- Working memory, durable audit storage, and application logs serve different purposes. If durable audit is required, define retention, backup, access control, and recovery separately.
+
+======================================================================
+10. DATASET-BACKED NETWORK-SLICING PROOF OF CONCEPT
+======================================================================
+
+10.1 Operating assumptions
+
+In a dataset-backed PoC, the system processes telemetry records from a CSV or prepared dataset. Unless connected to an actual RAN, it does not observe live radio conditions and cannot directly change a real network. Tool calls may be simulated or represented by controlled test functions.
+
+The Monitoring Agent is the orchestrator and the only agent that directly receives incoming telemetry records. It determines whether further analysis or action is needed and selects the Near-RT RIC agent, Non-RT RIC agent, or both according to the task and architecture.
+
+The Near-RT RIC and Non-RT RIC agents are invoked by the Monitoring Agent. When either agent proposes a protected action, it must call the RAN Trust & Governance layer before execution. The Monitoring Agent should not bypass this authorization path.
+
+10.2 Example dataset fields
+
+A network-slicing dataset may include fields such as:
+- record_id
+- Use Case Type
+- Packet Loss Budget
+- Latency Budget (ns)
+- Jitter Budget (ns)
+- Data Rate Budget (Gbps)
+- Required Mobility
+- Required Connectivity
+- Slice Available Transfer Rate (Gbps)
+- Slice Latency (ns)
+- Slice Packet Loss
+- Slice Jitter (ns)
+- Slice Type
+- Slice Handover
+
+These are examples of field names. The actual input schema and exact source headers take precedence. Preserve source names when the pipeline requires them. Confirm the meaning and unit of every field before comparisons or transformations.
+
+10.3 Example interpretation patterns
+
+Pattern A: Latency breach
+Evidence: a valid measured latency is greater than its valid latency budget.
+Possible response: Monitoring Agent marks a verified latency issue and selects the relevant agent or agents. Near-RT may investigate supported local scheduling or resource options if the evidence supports a RAN cause. Non-RT may investigate recurring patterns or policy adequacy if historical context exists.
+Caution: do not automatically change the scheduler based on latency alone.
+
+Pattern B: Throughput shortfall
+Evidence: valid available/measured transfer rate is below a valid required data-rate budget.
+Possible response: inspect slice allocation, load, radio conditions, and other available bottleneck evidence. A Near-RT resource action may be considered if supported. A Non-RT policy review may be appropriate for persistent or cross-slice issues.
+Caution: a low transfer rate does not prove that PRB allocation is the cause.
+
+Pattern C: Multiple KPI violations
+Evidence: multiple valid KPI comparisons indicate violations.
+Possible response: prioritize by severity, service importance, persistence, and evidence confidence. Coordinate the two RIC domains if both immediate mitigation and long-term policy analysis are useful.
+Caution: avoid applying several independent controls simultaneously without evaluating interactions.
+
+Pattern D: Missing or incomplete KPI data
+Evidence: one or more required values are unavailable or invalid.
+Possible response: report UNKNOWN for those KPI states, continue only with comparisons that are valid, and recommend collecting the missing telemetry if it is needed.
+Caution: missing values must not be silently treated as zero, healthy, or violated.
+
+Pattern E: No verified violation
+Evidence: all evaluated KPIs are valid and satisfied, or no evidence indicates an issue under the defined policy.
+Possible response: report no event / network appears safe with respect to the evaluated KPIs, and do not execute a control action unnecessarily.
+Caution: this is not a guarantee that the entire live network is safe; the conclusion is limited to the available record and evaluation rules.
+
+10.4 Evaluation and reporting
+
+For each processed record, a traceable evaluation may capture:
+- Input record identifier.
+- KPI values used and their availability.
+- Deterministic SLA analysis.
+- Monitoring decision and selected agent(s).
+- Agent findings and proposed actions.
+- Governance outcomes.
+- Tool execution outcomes.
+- Follow-up verification, if available.
+- Final status and unresolved uncertainties.
+
+Evaluation should distinguish:
+- Correct identification of SLA violations.
+- Appropriate decision to act or not act.
+- Correct agent selection.
+- Governance compliance.
+- Correct handling of tool failures and rejected actions.
+- Quality and relevance of recommendations.
+- Verified effect, where the PoC has a valid way to measure it.
+
+A model-generated recommendation is not proof of successful remediation. If the dataset does not include post-action observations, report action plausibility or simulated outcome rather than claiming measured improvement.
+
+======================================================================
+11. AGENT COORDINATION AND RESPONSIBILITY BOUNDARIES
+======================================================================
+
+Monitoring Agent — orchestrator
+- Receives the incoming telemetry record.
+- Uses the authoritative SLA analysis.
+- Produces a validated global situation summary, action-needed decision, severity, and selected agents.
+- Invokes Near-RT RIC, Non-RT RIC, or both.
+- Aggregates results and updates working memory.
+- Does not directly bypass the trust/governance layer for protected RIC actions.
+
+Near-RT RIC Agent
+- Focuses on evidence-based near-real-time analysis and bounded local optimization.
+- Uses read-only knowledge search as needed.
+- Requests governance approval for protected actions.
+- Executes only approved tool calls and reports actual tool outcomes.
+- Provides verification results and remaining uncertainty.
+
+Non-RT RIC Agent
+- Focuses on trends, long-horizon optimization, policy recommendations, enrichment, and AI/ML lifecycle tasks.
+- Uses historical or summarized evidence where available.
+- Requests governance approval for protected actions that it is authorized to propose.
+- Does not claim a policy is deployed unless deployment is confirmed.
+- Returns evidence, assumptions, expected effects, and evaluation criteria.
+
+RAN Trust & Governance Agent
+- Intercepts proposed protected tool calls from the Near-RT RIC and Non-RT RIC agents.
+- Evaluates exact tool names and arguments against authorization policy and contextual constraints.
+- Returns an explicit approval, rejection, or review-needed result.
+- Does not execute the protected action merely by approving it, unless the implementation explicitly defines a separate execution responsibility.
+- Supports auditability and safe operation.
+
+======================================================================
+12. RECOMMENDATION TEMPLATE
+======================================================================
+
+When producing a RAN recommendation, use this structure when appropriate:
+
+Observation:
+- State the measured facts and which values are missing.
+
+SLA assessment:
+- List verified violations, satisfied conditions, and unknown conditions.
+- Refer to the authoritative SLA analysis when available.
+
+Interpretation:
+- Explain the likely issue and distinguish evidence from hypotheses.
+
+Responsible domain:
+- Near-RT RIC, Non-RT RIC, or both, with a short reason.
+
+Proposed action:
+- State the exact action and target, or state that no control action is justified.
+- Include exact arguments only when they are grounded in the available tool schema and context.
+
+Expected benefit:
+- Describe the KPI or operational outcome the action is intended to improve.
+
+Risks and trade-offs:
+- Explain possible impact on other slices, fairness, mobility, stability, or resource availability.
+
+Governance:
+- State whether authorization is required and report the actual decision if it has been obtained.
+
+Execution status:
+- Distinguish NOT REQUESTED, PENDING AUTHORIZATION, REJECTED, APPROVED BUT NOT EXECUTED, EXECUTED, FAILED, and UNKNOWN where these states are supported.
+
+Verification:
+- State which measurements should be checked and what would count as success.
+
+Uncertainty:
+- Identify missing telemetry, unsupported assumptions, or limits of the dataset.
+
+======================================================================
+13. GLOSSARY
+======================================================================
+
+A1: O-RAN interface associated with interactions between Non-RT RIC and Near-RT RIC, including supported policy and enrichment functions.
+AI/ML: Artificial Intelligence / Machine Learning.
+CU: Centralized Unit.
+DU: Distributed Unit.
+E2: O-RAN interface between Near-RT RIC and supported RAN nodes for information and control.
+eMBB: enhanced Mobile Broadband.
+E2 node: RAN node exposing supported E2 services to the Near-RT RIC.
+KPI: Key Performance Indicator.
+Latency: delay measured across a defined path and interval.
+mMTC: massive Machine-Type Communications.
+Near-RT RIC: Near-Real-Time RAN Intelligent Controller.
+Non-RT RIC: Non-Real-Time RAN Intelligent Controller.
+O-CU: O-RAN Centralized Unit.
+O-DU: O-RAN Distributed Unit.
+O-RU: O-RAN Radio Unit.
+O1: management interface in the O-RAN architecture.
+O2: interface for cloud infrastructure management/orchestration in applicable deployments.
+O-RAN: Open Radio Access Network architecture and ecosystem.
+PRB: Physical Resource Block, a radio resource unit used in LTE/NR scheduling.
+QoS: Quality of Service.
+RAG: Retrieval-Augmented Generation.
+RAN: Radio Access Network.
+RIC: RAN Intelligent Controller.
+rApp: application associated with Non-RT RIC / SMO functions.
+SLA: Service-Level Agreement.
+SMO: Service Management and Orchestration.
+Throughput: successfully delivered data per unit time under a defined measurement method.
+UE: User Equipment, such as a mobile device.
+URLLC: Ultra-Reliable Low-Latency Communications.
+xApp: application associated with Near-RT RIC functions.
+
+======================================================================
+14. FINAL OPERATING RULES
+======================================================================
+
+- Use the real tool schemas; never invent arguments.
+- Preserve the exact authorization-to-execution argument match.
+- Treat missing data as unknown.
+- Keep dataset conclusions separate from live-network claims.
+- Do not equate recommendation, authorization, execution, and verified success.
+- Consider cross-slice effects before resource changes.
+- Prefer bounded, reversible actions and explicit verification.
+- Use read-only knowledge retrieval to improve reasoning, not as a substitute for evidence.
+- Report uncertainty honestly.
+- When no verified violation or actionable evidence exists, do not manufacture an incident or execute an unnecessary control action.
+
+END OF RAN KNOWLEDGE BASE

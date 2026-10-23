@@ -1,0 +1,31 @@
+{
+  "records": 26562,
+  "cell_runs": 21,
+  "window_s": 1.0,
+  "violation_rate_by_slice": {
+    "MTC": 0.0271,
+    "URLLC": 0.2603,
+    "eMBB": 1.0
+  },
+  "budgets": {
+    "eMBB": {
+      "thr_mbps": 7.2,
+      "lat_ms": 100.0,
+      "jit_ms": 50.0,
+      "loss": 0.01
+    },
+    "MTC": {
+      "thr_mbps": 0.03,
+      "lat_ms": 100.0,
+      "jit_ms": 50.0,
+      "loss": 0.01
+    },
+    "URLLC": {
+      "thr_mbps": 0.01,
+      "lat_ms": 10.0,
+      "jit_ms": 5.0,
+      "loss": 0.001
+    }
+  },
+  "source": "ColO-RAN (Polese et al., IEEE TMC 2023), GPL-3.0"
+}
