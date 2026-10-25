@@ -1,0 +1,578 @@
+[
+  {
+    _id: 'run-42',
+    run_id: 'run-42',
+    summary: {
+      rows_selected: 2,
+      rows_processed: 2,
+      rows_failed: 0,
+      monitoring_action_required: 2,
+      agent_invocations: { near_rt_ric: 2, non_rt_ric: 0 }
+    },
+    records: {
+      coloran_0000011: {
+        record_id: 'coloran_0000011',
+        telemetry_record: {
+          use_case_type: 'URLLC control (Poisson 10 pkt/s)',
+          packet_loss_budget: 0.001,
+          latency_budget_ns: 10000000,
+          jitter_budget_ns: 5000000,
+          data_rate_budget_gbps: 0.00001,
+          required_mobility: 'no',
+          required_connectivity: 'yes',
+          slice_available_transfer_rate_gbps: 0.00028984,
+          slice_latency_ns: 9326682.268106217,
+          slice_packet_loss: 0,
+          slice_jitter_ns: 15227732.54465578,
+          slice_type: 'URLLC',
+          slice_handover: 'no',
+          cell_id: 'bs2',
+          record_id: 'coloran_0000011'
+        },
+        ground_truth: {
+          record_id: 'coloran_0000011',
+          metric_flags: { latency: false, jitter: true, packet_loss: false, throughput: false },
+          sla_violations_raw: "['jitter']",
+          sla_violations: [ 'jitter' ],
+          sla_evaluation_status: 'violation'
+        },
+        comparison: {
+          metric_matches: { latency: true, jitter: true, packet_loss: true, throughput: true },
+          sla_violations_match: true,
+          evaluation_status_match: true
+        },
+        computed_analysis: {
+          latency: { measured: 9326682.268106217, budget: 10000000, status: 'ok' },
+          jitter: { measured: 15227732.54465578, budget: 5000000, status: 'violation' },
+          packet_loss: { measured: 0, budget: 0.001, status: 'ok' },
+          throughput: { measured: 0.00028984, budget: 0.00001, status: 'ok' },
+          violations: [ 'jitter' ],
+          unavailable_metrics: []
+        },
+        monitoring_decision: {
+          situation: 'warning',
+          severity: 'high',
+          global_situation: 'jitter violation on URLLC slice; latency, packet loss, and throughput are within budget per authoritative SLA analysis.',
+          action_required: true,
+          sla_analysis: {
+            latency: { measured: 9326682.268106217, budget: 10000000, status: 'ok' },
+            jitter: { measured: 15227732.54465578, budget: 5000000, status: 'violation' },
+            packet_loss: { measured: 0, budget: 0.001, status: 'ok' },
+            throughput: { measured: 0.00028984, budget: 0.00001, status: 'ok' },
+            violations: [ 'jitter' ],
+            unavailable_metrics: []
+          },
+          selected_agents: [
+            {
+              agent: 'near_rt_ric',
+              responsibility: 'Apply fast local scheduler and power control to reduce jitter for the URLLC slice on cell bs2.',
+              objective: 'Reduce jitter to within 5000000 ns budget for slice coloran_0000011 on cell bs2.',
+              priority: 'high',
+              reason: 'Jitter measured at 15227732.54 ns exceeds budget of 5000000 ns (~3.05x over). This is the 1st consecutive violation for this cell/slice; non_rt_ric requires ≥3 consecutive violations per governance rules.',
+              context: {}
+            }
+          ],
+          reason: 'Jitter violation detected and is the only violated KPI. Persistence for jitter in this cell/slice is 1 record (threshold for non_rt_ric is 3), so near_rt_ric is selected alone with high priority per URLLC jitter rule. No prior agent actions in recent executions to reference.',
+          record_id: 'coloran_0000011'
+        },
+        agent_executions: {
+          near_rt_ric: {
+            agent: 'near_rt_ric',
+            invocation: {
+              agent: 'near_rt_ric',
+              responsibility: 'Apply fast local scheduler and power control to reduce jitter for the URLLC slice on cell bs2.',
+              objective: 'Reduce jitter to within 5000000 ns budget for slice coloran_0000011 on cell bs2.',
+              priority: 'high',
+              reason: 'Jitter measured at 15227732.54 ns exceeds budget of 5000000 ns (~3.05x over). This is the 1st consecutive violation for this cell/slice; non_rt_ric requires ≥3 consecutive violations per governance rules.',
+              context: {
+                record_id: 'coloran_0000011',
+                run_id: 'run-42',
+                target: 'bs2',
+                slice_id: 'URLLC',
+                sla_analysis: {
+                  latency: { measured: 9326682.268106217, budget: 10000000, status: 'ok' },
+                  jitter: { measured: 15227732.54465578, budget: 5000000, status: 'violation' },
+                  packet_loss: { measured: 0, budget: 0.001, status: 'ok' },
+                  throughput: { measured: 0.00028984, budget: 0.00001, status: 'ok' },
+                  violations: [ 'jitter' ],
+                  unavailable_metrics: []
+                },
+                persistence: { latency: 0, jitter: 1, packet_loss: 0, throughput: 0 }
+              }
+            },
+            result: {
+              status: 'completed',
+              proposal: {
+                tool_name: 'optimize_scheduler',
+                parameters: { slice_id: 'URLLC', scheduler: 'priority_based' },
+                target: 'bs2',
+                rationale: 'Jitter measured at 15227732.54465578 ns exceeds the URLLC budget of 5000000 ns by approximately 3.05x, marking it as the only violated KPI. URLLC (Ultra-Reliable Low-Latency Communications) is inherently delay-sensitive, and jitter directly undermines reliability. The `priority_based` scheduler explicitly favors delay-sensitive traffic, ensuring URLLC packets are served ahead of best-effort or throughput-optimized traffic, which reduces queueing delay and jitter.',
+                expected_effect: 'The jitter KPI for slice URLLC on cell bs2 should decrease toward the 5000000 ns budget. Priority-based scheduling reduces variable waiting times for URLLC packets, directly addressing the measured over-budget jitter. Throughput (measured 0.00028984, budget 1e-05, ok) and packet loss (measured 0.0, budget 0.001, ok) are already within budget and are not expected to degrade.',
+                evidence_sources: [
+                  'Invocation context: jitter measured=15227732.54465578 ns, budget=5000000 ns, status=violation for slice URLLC on bs2; all other KPIs (latency, packet_loss, throughput) are ok.',
+                  'Scheduler type knowledge: `priority_based` scheduler is defined to favor delay-sensitive traffic, making it the appropriate Near-RT RIC action for URLLC jitter mitigation.',
+                  'O-RAN URLLC design guidance: priority-based scheduling is a standard radio resource control mechanism to meet strict latency/jitter requirements for URLLC services.'
+                ],
+                confidence: 0.86,
+                invocation_context: {
+                  invocation: {
+                    agent: 'near_rt_ric',
+                    responsibility: 'Apply fast local scheduler and power control to reduce jitter for the URLLC slice on cell bs2.',
+                    objective: 'Reduce jitter to within 5000000 ns budget for slice coloran_0000011 on cell bs2.',
+                    priority: 'high',
+                    reason: 'Jitter measured at 15227732.54 ns exceeds budget of 5000000 ns (~3.05x over). This is the 1st consecutive violation for this cell/slice; non_rt_ric requires ≥3 consecutive violations per governance rules.',
+                    context: {
+                      record_id: 'coloran_0000011',
+                      run_id: 'run-42',
+                      target: 'bs2',
+                      slice_id: 'URLLC',
+                      sla_analysis: {
+                        latency: { measured: 9326682.268106217, budget: 10000000, status: 'ok' },
+                        jitter: { measured: 15227732.54465578, budget: 5000000, status: 'violation' },
+                        packet_loss: { measured: 0, budget: 0.001, status: 'ok' },
+                        throughput: { measured: 0.00028984, budget: 0.00001, status: 'ok' },
+                        violations: [ 'jitter' ],
+                        unavailable_metrics: []
+                      },
+                      persistence: { latency: 0, jitter: 1, packet_loss: 0, throughput: 0 }
+                    }
+                  }
+                }
+              },
+              governance: {
+                approved: true,
+                reason: "Action passed all governance checks. LLM review: The RIC agent's rationale correctly identifies the jitter violation (15.2 ms vs 5 ms budget, ~3× over) and explains how a priority‑based scheduler reduces queueing delay for delay‑sensitive URLLC traffic. The chosen tool `optimize_scheduler` with parameters target=bs2, slice_id=URLLC, scheduler=priority_based directly matches the agent's stated intent and the invocation objective of bringing jitter within the 5 ms budget. The action is confined to the specified cell/slice, is proportionate (a scheduler re‑weight rather than an extreme power or resource change), and does not contradict any provided KPI values. Therefore the reasoning is sound, the goal is aligned, and the behavior is acceptable for the near‑rt RIC role.",
+                failed_stage: null,
+                checks_passed: [ 'schema', 'policy_trust', 'sla', 'resource_safety', 'llm_review' ]
+              },
+              execution: {
+                tool_name: 'optimize_scheduler',
+                status: 'executed',
+                target: 'bs2',
+                parameters: { slice_id: 'URLLC', scheduler: 'priority_based', target: 'bs2' },
+                result: {
+                  status: 'success',
+                  tool: 'optimize_scheduler',
+                  target: 'bs2',
+                  slice_id: 'URLLC',
+                  scheduler: 'priority_based',
+                  message: "Scheduler 'priority_based' configured for URLLC on bs2."
+                },
+                message: null
+              },
+              retrieved_knowledge: []
+            },
+            middleware_audit: [
+              {
+                tool_call_id: 'call_1cd0978d6668',
+                proposal: {
+                  tool_name: 'optimize_scheduler',
+                  parameters: { slice_id: 'URLLC', scheduler: 'priority_based' },
+                  target: 'bs2',
+                  rationale: 'Jitter measured at 15227732.54465578 ns exceeds the URLLC budget of 5000000 ns by approximately 3.05x, marking it as the only violated KPI. URLLC (Ultra-Reliable Low-Latency Communications) is inherently delay-sensitive, and jitter directly undermines reliability. The `priority_based` scheduler explicitly favors delay-sensitive traffic, ensuring URLLC packets are served ahead of best-effort or throughput-optimized traffic, which reduces queueing delay and jitter.',
+                  expected_effect: 'The jitter KPI for slice URLLC on cell bs2 should decrease toward the 5000000 ns budget. Priority-based scheduling reduces variable waiting times for URLLC packets, directly addressing the measured over-budget jitter. Throughput (measured 0.00028984, budget 1e-05, ok) and packet loss (measured 0.0, budget 0.001, ok) are already within budget and are not expected to degrade.',
+                  evidence_sources: [
+                    'Invocation context: jitter measured=15227732.54465578 ns, budget=5000000 ns, status=violation for slice URLLC on bs2; all other KPIs (latency, packet_loss, throughput) are ok.',
+                    'Scheduler type knowledge: `priority_based` scheduler is defined to favor delay-sensitive traffic, making it the appropriate Near-RT RIC action for URLLC jitter mitigation.',
+                    'O-RAN URLLC design guidance: priority-based scheduling is a standard radio resource control mechanism to meet strict latency/jitter requirements for URLLC services.'
+                  ],
+                  confidence: 0.86,
+                  invocation_context: {
+                    invocation: {
+                      agent: 'near_rt_ric',
+                      responsibility: 'Apply fast local scheduler and power control to reduce jitter for the URLLC slice on cell bs2.',
+                      objective: 'Reduce jitter to within 5000000 ns budget for slice coloran_0000011 on cell bs2.',
+                      priority: 'high',
+                      reason: 'Jitter measured at 15227732.54 ns exceeds budget of 5000000 ns (~3.05x over). This is the 1st consecutive violation for this cell/slice; non_rt_ric requires ≥3 consecutive violations per governance rules.',
+                      context: {
+                        record_id: 'coloran_0000011',
+                        run_id: 'run-42',
+                        target: 'bs2',
+                        slice_id: 'URLLC',
+                        sla_analysis: {
+                          latency: { measured: 9326682.268106217, budget: 10000000, status: 'ok' },
+                          jitter: { measured: 15227732.54465578, budget: 5000000, status: 'violation' },
+                          packet_loss: { measured: 0, budget: 0.001, status: 'ok' },
+                          throughput: { measured: 0.00028984, budget: 0.00001, status: 'ok' },
+                          violations: [ 'jitter' ],
+                          unavailable_metrics: []
+                        },
+                        persistence: { latency: 0, jitter: 1, packet_loss: 0, throughput: 0 }
+                      }
+                    }
+                  }
+                },
+                governance: {
+                  approved: true,
+                  reason: "Action passed all governance checks. LLM review: The RIC agent's rationale correctly identifies the jitter violation (15.2 ms vs 5 ms budget, ~3× over) and explains how a priority‑based scheduler reduces queueing delay for delay‑sensitive URLLC traffic. The chosen tool `optimize_scheduler` with parameters target=bs2, slice_id=URLLC, scheduler=priority_based directly matches the agent's stated intent and the invocation objective of bringing jitter within the 5 ms budget. The action is confined to the specified cell/slice, is proportionate (a scheduler re‑weight rather than an extreme power or resource change), and does not contradict any provided KPI values. Therefore the reasoning is sound, the goal is aligned, and the behavior is acceptable for the near‑rt RIC role.",
+                  failed_stage: null,
+                  checks_passed: [ 'schema', 'policy_trust', 'sla', 'resource_safety', 'llm_review' ]
+                },
+                execution: {
+                  tool_name: 'optimize_scheduler',
+                  status: 'executed',
+                  target: 'bs2',
+                  parameters: { slice_id: 'URLLC', scheduler: 'priority_based', target: 'bs2' },
+                  result: {
+                    status: 'success',
+                    tool: 'optimize_scheduler',
+                    target: 'bs2',
+                    slice_id: 'URLLC',
+                    scheduler: 'priority_based',
+                    message: "Scheduler 'priority_based' configured for URLLC on bs2."
+                  },
+                  message: null
+                }
+              },
+              {
+                tool_call_id: 'call-7b2b5b5f-82ca-4e8f-9d36-9370418bc643',
+                proposal: {
+                  tool_name: 'adjust_prb_allocation',
+                  parameters: { slice_id: 'URLLC', prb_percentage: 60 },
+                  target: 'bs2',
+                  rationale: 'Jitter measured at 15227732.54465578 ns exceeds the URLLC budget of 5000000 ns by approximately 3.05x, making it the only violated KPI. All other KPIs (latency, packet_loss, throughput) are already within budget. Increasing the PRB allocation for the URLLC slice provides more radio capacity, which reduces queueing delay and its variability—a primary contributor to jitter in URLLC transmissions. The priority_based scheduler (just configured) will prioritize these URLLC packets within the increased PRB pool. A PRB share of 60% (within the 5-90 range) is a substantial but not maximal increase, appropriate for a first-time violation where the system needs immediate capacity boost without completely rebalancing the cell.',
+                  expected_effect: 'The jitter KPI for slice URLLC on cell bs2 should decrease toward the 5000000 ns budget. Additional PRBs reduce queuing delay and its statistical variation, directly targeting the measured over-budget jitter. Throughput (already ok) may see slight improvement, but the primary effect is jitter reduction. Packet loss (already ok) should remain stable.',
+                  evidence_sources: [
+                    'Invocation context: jitter measured=15227732.54465578 ns, budget=5000000 ns, status=violation for slice URLLC on bs2; all other KPIs ok.',
+                    'Scheduler optimization already executed: priority_based scheduler configured for URLLC on bs2, which favors delay-sensitive traffic within the PRB pool.',
+                    'RAN knowledge: PRB allocation directly impacts queueing delay variability; increasing PRB share for a slice is a standard Near-RT RIC action when queueing delay contributes to KPI violations.',
+                    'O-RAN congestion response guidance: when telemetry indicates congestion/jitter, adjusting supported resource allocations (PRB allocation) is a valid Near-RT RAN control action if the issue is radio capacity.'
+                  ],
+                  confidence: 0.78,
+                  invocation_context: {
+                    invocation: {
+                      agent: 'near_rt_ric',
+                      responsibility: 'Apply fast local scheduler and power control to reduce jitter for the URLLC slice on cell bs2.',
+                      objective: 'Reduce jitter to within 5000000 ns budget for slice coloran_0000011 on cell bs2.',
+                      priority: 'high',
+                      reason: 'Jitter measured at 15227732.54 ns exceeds budget of 5000000 ns (~3.05x over). This is the 1st consecutive violation for this cell/slice; non_rt_ric requires ≥3 consecutive violations per governance rules.',
+                      context: {
+                        record_id: 'coloran_0000011',
+                        run_id: 'run-42',
+                        target: 'bs2',
+                        slice_id: 'URLLC',
+                        sla_analysis: {
+                          latency: { measured: 9326682.268106217, budget: 10000000, status: 'ok' },
+                          jitter: { measured: 15227732.54465578, budget: 5000000, status: 'violation' },
+                          packet_loss: { measured: 0, budget: 0.001, status: 'ok' },
+                          throughput: { measured: 0.00028984, budget: 0.00001, status: 'ok' },
+                          violations: [ 'jitter' ],
+                          unavailable_metrics: []
+                        },
+                        persistence: { latency: 0, jitter: 1, packet_loss: 0, throughput: 0 }
+                      }
+                    }
+                  }
+                },
+                governance: {
+                  approved: true,
+                  reason: 'Action passed all governance checks. LLM review: The RIC agent correctly notes that jitter (15.2 ms) far exceeds the 5 ms budget and is the only violated KPI. Increasing the PRB allocation to 60 % for the URLLC slice on bs2 is a targeted resource boost that reduces queueing delay variability – the primary jitter contributor for URLLC. The action directly addresses the objective of bringing jitter back within budget, is proportionate (60 % is a substantial but not maximal increase for a first‑time high‑priority violation), and stays confined to the specified cell/slice. No contradictory facts appear in the provided context, and the rationale is specific and grounded in the SLA analysis.',
+                  failed_stage: null,
+                  checks_passed: [ 'schema', 'policy_trust', 'sla', 'resource_safety', 'llm_review' ]
+                },
+                execution: {
+                  tool_name: 'adjust_prb_allocation',
+                  status: 'executed',
+                  target: 'bs2',
+                  parameters: { slice_id: 'URLLC', prb_percentage: 60, target: 'bs2' },
+                  result: {
+                    status: 'success',
+                    tool: 'adjust_prb_allocation',
+                    target: 'bs2',
+                    slice_id: 'URLLC',
+                    prb_percentage: 60,
+                    message: 'PRB allocation changed to 60% for URLLC on bs2.'
+                  },
+                  message: null
+                }
+              }
+            ]
+          }
+        },
+        error: null
+      },
+      coloran_0000012: {
+        record_id: 'coloran_0000012',
+        telemetry_record: {
+          use_case_type: 'eMBB video (CBR 4 Mbps/UE)',
+          packet_loss_budget: 0.01,
+          latency_budget_ns: 100000000,
+          jitter_budget_ns: 50000000,
+          data_rate_budget_gbps: 0.0072,
+          required_mobility: 'no',
+          required_connectivity: 'yes',
+          slice_available_transfer_rate_gbps: 0.0051945175,
+          slice_latency_ns: 721529163.3214581,
+          slice_packet_loss: 0,
+          slice_jitter_ns: 639060639.9825884,
+          slice_type: 'eMBB',
+          slice_handover: 'no',
+          cell_id: 'bs2',
+          record_id: 'coloran_0000012'
+        },
+        ground_truth: {
+          record_id: 'coloran_0000012',
+          metric_flags: { latency: true, jitter: true, packet_loss: false, throughput: true },
+          sla_violations_raw: "['latency', 'jitter', 'throughput']",
+          sla_violations: [ 'latency', 'jitter', 'throughput' ],
+          sla_evaluation_status: 'violation'
+        },
+        comparison: {
+          metric_matches: { latency: true, jitter: true, packet_loss: true, throughput: true },
+          sla_violations_match: true,
+          evaluation_status_match: true
+        },
+        computed_analysis: {
+          latency: { measured: 721529163.3214581, budget: 100000000, status: 'violation' },
+          jitter: { measured: 639060639.9825884, budget: 50000000, status: 'violation' },
+          packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+          throughput: { measured: 0.0051945175, budget: 0.0072, status: 'violation' },
+          violations: [ 'latency', 'jitter', 'throughput' ],
+          unavailable_metrics: []
+        },
+        monitoring_decision: {
+          situation: 'warning',
+          severity: 'high',
+          global_situation: 'violation',
+          action_required: true,
+          sla_analysis: {
+            latency: { measured: 721529163.3214581, budget: 100000000, status: 'violation' },
+            jitter: { measured: 639060639.9825884, budget: 50000000, status: 'violation' },
+            packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+            throughput: { measured: 0.0051945175, budget: 0.0072, status: 'violation' },
+            violations: [ 'latency', 'jitter', 'throughput' ],
+            unavailable_metrics: []
+          },
+          selected_agents: [
+            {
+              agent: 'near_rt_ric',
+              responsibility: 'Apply fast local scheduler and power control to reduce latency, jitter, and throughput violations for cell bs2',
+              objective: 'Reduce latency, jitter, and throughput to within budget for cell bs2 slice',
+              priority: 'high',
+              reason: 'Latency measured 721529163.32 ns exceeds budget 100000000 ns (~7.2x over); jitter measured 639060639.98 ns exceeds budget 50000000 ns (~12.8x over); throughput measured 0.0051945175 Gbps violates budget 0.0072 Gbps. Packet loss measured 0.0 is within budget and excluded from action. Persistence for violated KPIs is 1 consecutive record each (<3 governance threshold for non_rt_ric), so near_rt_ric selected alone. Prior execution on coloran_0000011 completed optimize_scheduler with priority_based scheduler for URLLC jitter; this decision applies near_rt_ric to new record coloran_0000012 with analogous fast-local actions.',
+              context: {}
+            }
+          ],
+          reason: 'Three KPIs (latency, jitter, throughput) violated per authoritative SLA analysis. Jitter and latency are severely over budget (~12.8x and ~7.2x respectively). Persistence for each violated KPI is 1 record, below the 3-record threshold that would permit non_rt_ric governance, so near_rt_ric is selected alone with high priority. Throughput and packet loss budgets referenced but only violated KPIs addressed. Recent tool execution on coloran_0000011 used optimize_scheduler priority_based; this is a new record requiring an independent near_rt_ric decision.',
+          record_id: 'coloran_0000012'
+        },
+        agent_executions: {
+          near_rt_ric: {
+            agent: 'near_rt_ric',
+            invocation: {
+              agent: 'near_rt_ric',
+              responsibility: 'Apply fast local scheduler and power control to reduce latency, jitter, and throughput violations for cell bs2',
+              objective: 'Reduce latency, jitter, and throughput to within budget for cell bs2 slice',
+              priority: 'high',
+              reason: 'Latency measured 721529163.32 ns exceeds budget 100000000 ns (~7.2x over); jitter measured 639060639.98 ns exceeds budget 50000000 ns (~12.8x over); throughput measured 0.0051945175 Gbps violates budget 0.0072 Gbps. Packet loss measured 0.0 is within budget and excluded from action. Persistence for violated KPIs is 1 consecutive record each (<3 governance threshold for non_rt_ric), so near_rt_ric selected alone. Prior execution on coloran_0000011 completed optimize_scheduler with priority_based scheduler for URLLC jitter; this decision applies near_rt_ric to new record coloran_0000012 with analogous fast-local actions.',
+              context: {
+                record_id: 'coloran_0000012',
+                run_id: 'run-42',
+                target: 'bs2',
+                slice_id: 'eMBB',
+                sla_analysis: {
+                  latency: { measured: 721529163.3214581, budget: 100000000, status: 'violation' },
+                  jitter: { measured: 639060639.9825884, budget: 50000000, status: 'violation' },
+                  packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+                  throughput: { measured: 0.0051945175, budget: 0.0072, status: 'violation' },
+                  violations: [ 'latency', 'jitter', 'throughput' ],
+                  unavailable_metrics: []
+                },
+                persistence: { latency: 1, jitter: 1, packet_loss: 0, throughput: 1 }
+              }
+            },
+            result: {
+              status: 'completed',
+              proposal: {
+                tool_name: 'optimize_scheduler',
+                parameters: { slice_id: 'eMBB', scheduler: 'priority_based' },
+                target: 'bs2',
+                rationale: 'Latency measured 721529163.32 ns exceeds budget 100000000 ns (~7.2x over); jitter measured 639060639.98 ns exceeds budget 50000000 ns (~12.8x over); throughput measured 0.0051945175 Gbps violates budget 0.0072 Gbps. Queueing delay is a dominant contributor to both latency and jitter. The priority_based scheduler explicitly favors delay-sensitive traffic, ensuring that eMBB packets are served ahead of best-effort traffic, which directly reduces variable waiting times and queueing delay. This action is analogous to the prior optimize_scheduler execution on coloran_0000011, which used priority_based for URLLC jitter mitigation, and applies the same fast-local scheduling reconfiguration to the current eMBB slice on bs2.',
+                expected_effect: 'The priority-based scheduling should reduce latency and jitter for the eMBB slice on bs2 toward their respective budgets (100 ms and 50 ms) by minimizing queueing delay. Throughput may also improve modestly as packets experience less queuing overhead and can be transmitted sooner, moving closer to the 0.0072 Gbps budget.',
+                evidence_sources: [
+                  'Invocation context: latency=721529163.32 ns vs budget=100000000 ns, jitter=639060639.98 ns vs budget=50000000 ns, throughput=0.0051945175 Gbps vs budget=0.0072 Gbps, all status=violation for slice eMBB on bs2',
+                  'Scheduler type knowledge: priority_based scheduler favors delay-sensitive traffic, reducing queueing delay and jitter, per O-RAN scheduler definitions',
+                  'Prior execution: coloran_0000011 completed optimize_scheduler with priority_based scheduler for URLLC jitter mitigation; analogous action applied here for eMBB latency/jitter',
+                  'O-RAN RAN knowledge: priority-based scheduling is a standard radio resource control mechanism to meet strict latency/jitter requirements'
+                ],
+                confidence: 0.8,
+                invocation_context: {
+                  invocation: {
+                    agent: 'near_rt_ric',
+                    responsibility: 'Apply fast local scheduler and power control to reduce latency, jitter, and throughput violations for cell bs2',
+                    objective: 'Reduce latency, jitter, and throughput to within budget for cell bs2 slice',
+                    priority: 'high',
+                    reason: 'Latency measured 721529163.32 ns exceeds budget 100000000 ns (~7.2x over); jitter measured 639060639.98 ns exceeds budget 50000000 ns (~12.8x over); throughput measured 0.0051945175 Gbps violates budget 0.0072 Gbps. Packet loss measured 0.0 is within budget and excluded from action. Persistence for violated KPIs is 1 consecutive record each (<3 governance threshold for non_rt_ric), so near_rt_ric selected alone. Prior execution on coloran_0000011 completed optimize_scheduler with priority_based scheduler for URLLC jitter; this decision applies near_rt_ric to new record coloran_0000012 with analogous fast-local actions.',
+                    context: {
+                      record_id: 'coloran_0000012',
+                      run_id: 'run-42',
+                      target: 'bs2',
+                      slice_id: 'eMBB',
+                      sla_analysis: {
+                        latency: { measured: 721529163.3214581, budget: 100000000, status: 'violation' },
+                        jitter: { measured: 639060639.9825884, budget: 50000000, status: 'violation' },
+                        packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+                        throughput: { measured: 0.0051945175, budget: 0.0072, status: 'violation' },
+                        violations: [ 'latency', 'jitter', 'throughput' ],
+                        unavailable_metrics: []
+                      },
+                      persistence: { latency: 1, jitter: 1, packet_loss: 0, throughput: 1 }
+                    }
+                  }
+                }
+              },
+              governance: {
+                approved: true,
+                reason: 'Action passed all governance checks. LLM review: The RIC agent’s rationale explicitly references the measured latency (721 µs vs 100 µs budget), jitter (639 µs vs 50 µs) and throughput (0.0052 Gbps vs 0.0072 Gbps) violations and explains that a priority‑based scheduler reduces queueing delay for delay‑sensitive eMBB traffic – a coherent, evidence‑based justification. The proposed optimize_scheduler on target bs2 with slice eMBB and scheduler priority_based directly addresses the three violated KPIs and aligns with the invocation’s objective of bringing them within budget. The action is a standard fast‑local scheduler reconfiguration, proportionate to the high‑priority violation, confined to the specified cell and slice, and carries no hidden side effects. Therefore the reasoning is sound, the action is goal‑aligned, and the behavior is acceptable.',
+                failed_stage: null,
+                checks_passed: [ 'schema', 'policy_trust', 'sla', 'resource_safety', 'llm_review' ]
+              },
+              execution: {
+                tool_name: 'optimize_scheduler',
+                status: 'executed',
+                target: 'bs2',
+                parameters: { slice_id: 'eMBB', scheduler: 'priority_based', target: 'bs2' },
+                result: {
+                  status: 'success',
+                  tool: 'optimize_scheduler',
+                  target: 'bs2',
+                  slice_id: 'eMBB',
+                  scheduler: 'priority_based',
+                  message: "Scheduler 'priority_based' configured for eMBB on bs2."
+                },
+                message: null
+              },
+              retrieved_knowledge: []
+            },
+            middleware_audit: [
+              {
+                tool_call_id: 'call_282b5f8081f7',
+                proposal: {
+                  tool_name: 'optimize_scheduler',
+                  parameters: { slice_id: 'eMBB', scheduler: 'priority_based' },
+                  target: 'bs2',
+                  rationale: 'Latency measured 721529163.32 ns exceeds budget 100000000 ns (~7.2x over); jitter measured 639060639.98 ns exceeds budget 50000000 ns (~12.8x over); throughput measured 0.0051945175 Gbps violates budget 0.0072 Gbps. Queueing delay is a dominant contributor to both latency and jitter. The priority_based scheduler explicitly favors delay-sensitive traffic, ensuring that eMBB packets are served ahead of best-effort traffic, which directly reduces variable waiting times and queueing delay. This action is analogous to the prior optimize_scheduler execution on coloran_0000011, which used priority_based for URLLC jitter mitigation, and applies the same fast-local scheduling reconfiguration to the current eMBB slice on bs2.',
+                  expected_effect: 'The priority-based scheduling should reduce latency and jitter for the eMBB slice on bs2 toward their respective budgets (100 ms and 50 ms) by minimizing queueing delay. Throughput may also improve modestly as packets experience less queuing overhead and can be transmitted sooner, moving closer to the 0.0072 Gbps budget.',
+                  evidence_sources: [
+                    'Invocation context: latency=721529163.32 ns vs budget=100000000 ns, jitter=639060639.98 ns vs budget=50000000 ns, throughput=0.0051945175 Gbps vs budget=0.0072 Gbps, all status=violation for slice eMBB on bs2',
+                    'Scheduler type knowledge: priority_based scheduler favors delay-sensitive traffic, reducing queueing delay and jitter, per O-RAN scheduler definitions',
+                    'Prior execution: coloran_0000011 completed optimize_scheduler with priority_based scheduler for URLLC jitter mitigation; analogous action applied here for eMBB latency/jitter',
+                    'O-RAN RAN knowledge: priority-based scheduling is a standard radio resource control mechanism to meet strict latency/jitter requirements'
+                  ],
+                  confidence: 0.8,
+                  invocation_context: {
+                    invocation: {
+                      agent: 'near_rt_ric',
+                      responsibility: 'Apply fast local scheduler and power control to reduce latency, jitter, and throughput violations for cell bs2',
+                      objective: 'Reduce latency, jitter, and throughput to within budget for cell bs2 slice',
+                      priority: 'high',
+                      reason: 'Latency measured 721529163.32 ns exceeds budget 100000000 ns (~7.2x over); jitter measured 639060639.98 ns exceeds budget 50000000 ns (~12.8x over); throughput measured 0.0051945175 Gbps violates budget 0.0072 Gbps. Packet loss measured 0.0 is within budget and excluded from action. Persistence for violated KPIs is 1 consecutive record each (<3 governance threshold for non_rt_ric), so near_rt_ric selected alone. Prior execution on coloran_0000011 completed optimize_scheduler with priority_based scheduler for URLLC jitter; this decision applies near_rt_ric to new record coloran_0000012 with analogous fast-local actions.',
+                      context: {
+                        record_id: 'coloran_0000012',
+                        run_id: 'run-42',
+                        target: 'bs2',
+                        slice_id: 'eMBB',
+                        sla_analysis: {
+                          latency: { measured: 721529163.3214581, budget: 100000000, status: 'violation' },
+                          jitter: { measured: 639060639.9825884, budget: 50000000, status: 'violation' },
+                          packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+                          throughput: { measured: 0.0051945175, budget: 0.0072, status: 'violation' },
+                          violations: [ 'latency', 'jitter', 'throughput' ],
+                          unavailable_metrics: []
+                        },
+                        persistence: { latency: 1, jitter: 1, packet_loss: 0, throughput: 1 }
+                      }
+                    }
+                  }
+                },
+                governance: {
+                  approved: true,
+                  reason: 'Action passed all governance checks. LLM review: The RIC agent’s rationale explicitly references the measured latency (721 µs vs 100 µs budget), jitter (639 µs vs 50 µs) and throughput (0.0052 Gbps vs 0.0072 Gbps) violations and explains that a priority‑based scheduler reduces queueing delay for delay‑sensitive eMBB traffic – a coherent, evidence‑based justification. The proposed optimize_scheduler on target bs2 with slice eMBB and scheduler priority_based directly addresses the three violated KPIs and aligns with the invocation’s objective of bringing them within budget. The action is a standard fast‑local scheduler reconfiguration, proportionate to the high‑priority violation, confined to the specified cell and slice, and carries no hidden side effects. Therefore the reasoning is sound, the action is goal‑aligned, and the behavior is acceptable.',
+                  failed_stage: null,
+                  checks_passed: [ 'schema', 'policy_trust', 'sla', 'resource_safety', 'llm_review' ]
+                },
+                execution: {
+                  tool_name: 'optimize_scheduler',
+                  status: 'executed',
+                  target: 'bs2',
+                  parameters: { slice_id: 'eMBB', scheduler: 'priority_based', target: 'bs2' },
+                  result: {
+                    status: 'success',
+                    tool: 'optimize_scheduler',
+                    target: 'bs2',
+                    slice_id: 'eMBB',
+                    scheduler: 'priority_based',
+                    message: "Scheduler 'priority_based' configured for eMBB on bs2."
+                  },
+                  message: null
+                }
+              },
+              {
+                tool_call_id: 'call-422281e8-f7d5-4226-a84b-fe4197fd0b4c',
+                proposal: {
+                  tool_name: 'adjust_prb_allocation',
+                  parameters: { slice_id: 'eMBB', prb_percentage: 65 },
+                  target: 'bs2',
+                  rationale: "Throughput measured 0.0051945175 Gbps violates budget 0.0072 Gbps for eMBB slice on bs2. Increasing PRB allocation directly provides more radio resources for data transmission, which should raise the slice's throughput toward the budget. A prb_percentage of 65 is chosen as a moderate increase within the 5-90 range, sufficient to address the violation without excessively starving other slices. This is a fast-local RAN control action appropriate for near-real-time response.",
+                  expected_effect: 'The PRB allocation increase should raise throughput for the eMBB slice on bs2 toward the 0.0072 Gbps budget by providing more physical resource blocks for data transmission. Additionally, with more resources available, queueing delay may reduce, providing secondary improvement to latency and jitter.',
+                  evidence_sources: [
+                    'Invocation context: throughput=0.0051945175 Gbps vs budget=0.0072 Gbps, status=violation for slice eMBB on bs2',
+                    'RAN knowledge: PRB allocation directly affects throughput; more PRBs assigned to a slice generally raise its throughput',
+                    'O-RAN resource allocation principle: PRB share must be balanced across slices; 65% is a moderate increase within valid 5-90 range'
+                  ],
+                  confidence: 0.75,
+                  invocation_context: {
+                    invocation: {
+                      agent: 'near_rt_ric',
+                      responsibility: 'Apply fast local scheduler and power control to reduce latency, jitter, and throughput violations for cell bs2',
+                      objective: 'Reduce latency, jitter, and throughput to within budget for cell bs2 slice',
+                      priority: 'high',
+                      reason: 'Latency measured 721529163.32 ns exceeds budget 100000000 ns (~7.2x over); jitter measured 639060639.98 ns exceeds budget 50000000 ns (~12.8x over); throughput measured 0.0051945175 Gbps violates budget 0.0072 Gbps. Packet loss measured 0.0 is within budget and excluded from action. Persistence for violated KPIs is 1 consecutive record each (<3 governance threshold for non_rt_ric), so near_rt_ric selected alone. Prior execution on coloran_0000011 completed optimize_scheduler with priority_based scheduler for URLLC jitter; this decision applies near_rt_ric to new record coloran_0000012 with analogous fast-local actions.',
+                      context: {
+                        record_id: 'coloran_0000012',
+                        run_id: 'run-42',
+                        target: 'bs2',
+                        slice_id: 'eMBB',
+                        sla_analysis: {
+                          latency: { measured: 721529163.3214581, budget: 100000000, status: 'violation' },
+                          jitter: { measured: 639060639.9825884, budget: 50000000, status: 'violation' },
+                          packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+                          throughput: { measured: 0.0051945175, budget: 0.0072, status: 'violation' },
+                          violations: [ 'latency', 'jitter', 'throughput' ],
+                          unavailable_metrics: []
+                        },
+                        persistence: { latency: 1, jitter: 1, packet_loss: 0, throughput: 1 }
+                      }
+                    }
+                  }
+                },
+                governance: {
+                  approved: true,
+                  reason: 'Action passed all governance checks. LLM review: The RIC agent’s rationale correctly links the throughput violation (0.00519 Gbps vs. 0.0072 Gbps) to an increase in PRB allocation, a well‑known RAN principle. The chosen 65 % PRB percentage is within the valid 5‑90 range and is described as a moderate increase, so there is no contradiction between the rationale and the parameters. The expected effect—raising throughput and potentially reducing queueing delay to help latency and jitter—is consistent with the overall objective of bringing the eMBB slice on bs2 back within budget. The action is proportionate, targets only the specified cell and slice, and fits the near‑rt_ric role of fast local resource control. Therefore the review finds no clear problems and approves the action.',
+                  failed_stage: null,
+                  checks_passed: [ 'schema', 'policy_trust', 'sla', 'resource_safety', 'llm_review' ]
+                },
+                execution: {
+                  tool_name: 'adjust_prb_allocation',
+                  status: 'executed',
+                  target: 'bs2',
+                  parameters: { slice_id: 'eMBB', prb_percentage: 65, target: 'bs2' },
+                  result: {
+                    status: 'success',
+                    tool: 'adjust_prb_allocation',
+                    target: 'bs2',
+                    slice_id: 'eMBB',
+                    prb_percentage: 65,
+                    message: 'PRB allocation changed to 65% for eMBB on bs2.'
+                  },
+                  message: null
+                }
+              }
+            ]
+          }
+        },
+        error: null
+      }
+    }
+  }
+]

@@ -1,0 +1,709 @@
+[
+  {
+    "_id": "run-45",
+    "run_id": "run-45",
+    "summary": {
+      "rows_selected": 10,
+      "rows_processed": 3,
+      "rows_failed": 7,
+      "monitoring_action_required": 1,
+      "agent_invocations": {
+        "near_rt_ric": 1,
+        "non_rt_ric": 0
+      }
+    },
+    "records": {
+      "coloran_0000019": {
+        "record_id": "coloran_0000019",
+        "telemetry_record": {
+          "use_case_type": "MTC sensing (Poisson 30 pkt/s)",
+          "packet_loss_budget": 0.01,
+          "latency_budget_ns": 1E+8,
+          "jitter_budget_ns": 5E+7,
+          "data_rate_budget_gbps": 0.00003,
+          "required_mobility": "no",
+          "required_connectivity": "yes",
+          "slice_available_transfer_rate_gbps": 0.0001294239999999,
+          "slice_latency_ns": 0.0,
+          "slice_packet_loss": 0.0,
+          "slice_jitter_ns": 0.0,
+          "slice_type": "MTC",
+          "slice_handover": "no",
+          "cell_id": "bs2",
+          "record_id": "coloran_0000019"
+        },
+        "ground_truth": {
+          "record_id": "coloran_0000019",
+          "metric_flags": {
+            "latency": false,
+            "jitter": false,
+            "packet_loss": false,
+            "throughput": false
+          },
+          "sla_violations_raw": "[]",
+          "sla_violations": [],
+          "sla_evaluation_status": "ok"
+        },
+        "comparison": {
+          "metric_matches": {
+            "latency": true,
+            "jitter": true,
+            "packet_loss": true,
+            "throughput": true
+          },
+          "sla_violations_match": true,
+          "evaluation_status_match": true
+        },
+        "computed_analysis": {
+          "latency": {
+            "measured": 0.0,
+            "budget": 1E+8,
+            "status": "ok"
+          },
+          "jitter": {
+            "measured": 0.0,
+            "budget": 5E+7,
+            "status": "ok"
+          },
+          "packet_loss": {
+            "measured": 0.0,
+            "budget": 0.01,
+            "status": "ok"
+          },
+          "throughput": {
+            "measured": 0.0001294239999999,
+            "budget": 0.00003,
+            "status": "ok"
+          },
+          "violations": [],
+          "unavailable_metrics": []
+        },
+        "monitoring_decision": {
+          "situation": "normal",
+          "severity": "none",
+          "global_situation": "All KPIs compliant; no violations detected.",
+          "action_required": false,
+          "sla_analysis": {
+            "latency": {
+              "measured": 0.0,
+              "budget": 1E+8,
+              "status": "ok"
+            },
+            "jitter": {
+              "measured": 0.0,
+              "budget": 5E+7,
+              "status": "ok"
+            },
+            "packet_loss": {
+              "measured": 0.0,
+              "budget": 0.01,
+              "status": "ok"
+            },
+            "throughput": {
+              "measured": 0.0001294239999999,
+              "budget": 0.00003,
+              "status": "ok"
+            },
+            "violations": [],
+            "unavailable_metrics": []
+          },
+          "selected_agents": [],
+          "reason": "All monitored KPIs were evaluated and no SLA violations were detected.",
+          "record_id": "coloran_0000019"
+        },
+        "agent_executions": {},
+        "error": null
+      },
+      "coloran_0000020": {
+        "record_id": "coloran_0000020",
+        "telemetry_record": {
+          "use_case_type": "URLLC control (Poisson 10 pkt/s)",
+          "packet_loss_budget": 0.001,
+          "latency_budget_ns": 1E+7,
+          "jitter_budget_ns": 5E+6,
+          "data_rate_budget_gbps": 0.00001,
+          "required_mobility": "no",
+          "required_connectivity": "yes",
+          "slice_available_transfer_rate_gbps": 0.000275632,
+          "slice_latency_ns": 484866.6958041958,
+          "slice_packet_loss": 0.0,
+          "slice_jitter_ns": 1282836.6961155073,
+          "slice_type": "URLLC",
+          "slice_handover": "no",
+          "cell_id": "bs2",
+          "record_id": "coloran_0000020"
+        },
+        "ground_truth": {
+          "record_id": "coloran_0000020",
+          "metric_flags": {
+            "latency": false,
+            "jitter": false,
+            "packet_loss": false,
+            "throughput": false
+          },
+          "sla_violations_raw": "[]",
+          "sla_violations": [],
+          "sla_evaluation_status": "ok"
+        },
+        "comparison": {
+          "metric_matches": {
+            "latency": true,
+            "jitter": true,
+            "packet_loss": true,
+            "throughput": true
+          },
+          "sla_violations_match": true,
+          "evaluation_status_match": true
+        },
+        "computed_analysis": {
+          "latency": {
+            "measured": 484866.6958041958,
+            "budget": 1E+7,
+            "status": "ok"
+          },
+          "jitter": {
+            "measured": 1282836.6961155073,
+            "budget": 5E+6,
+            "status": "ok"
+          },
+          "packet_loss": {
+            "measured": 0.0,
+            "budget": 0.001,
+            "status": "ok"
+          },
+          "throughput": {
+            "measured": 0.000275632,
+            "budget": 0.00001,
+            "status": "ok"
+          },
+          "violations": [],
+          "unavailable_metrics": []
+        },
+        "monitoring_decision": {
+          "situation": "normal",
+          "severity": "none",
+          "global_situation": "All KPIs compliant; no violations detected across the network.",
+          "action_required": false,
+          "sla_analysis": {
+            "latency": {
+              "measured": 484866.6958041958,
+              "budget": 1E+7,
+              "status": "ok"
+            },
+            "jitter": {
+              "measured": 1282836.6961155073,
+              "budget": 5E+6,
+              "status": "ok"
+            },
+            "packet_loss": {
+              "measured": 0.0,
+              "budget": 0.001,
+              "status": "ok"
+            },
+            "throughput": {
+              "measured": 0.000275632,
+              "budget": 0.00001,
+              "status": "ok"
+            },
+            "violations": [],
+            "unavailable_metrics": []
+          },
+          "selected_agents": [],
+          "reason": "All monitored KPIs were evaluated and no SLA violations were detected.",
+          "record_id": "coloran_0000020"
+        },
+        "agent_executions": {},
+        "error": null
+      },
+      "coloran_0000021": {
+        "record_id": "coloran_0000021",
+        "telemetry_record": {
+          "use_case_type": "eMBB video (CBR 4 Mbps/UE)",
+          "packet_loss_budget": 0.01,
+          "latency_budget_ns": 1E+8,
+          "jitter_budget_ns": 5E+7,
+          "data_rate_budget_gbps": 0.0072,
+          "required_mobility": "no",
+          "required_connectivity": "yes",
+          "slice_available_transfer_rate_gbps": 0.0054564249999999,
+          "slice_latency_ns": 610613353.6810123,
+          "slice_packet_loss": 0.0,
+          "slice_jitter_ns": 420413607.0856379,
+          "slice_type": "eMBB",
+          "slice_handover": "no",
+          "cell_id": "bs2",
+          "record_id": "coloran_0000021"
+        },
+        "ground_truth": {
+          "record_id": "coloran_0000021",
+          "metric_flags": {
+            "latency": true,
+            "jitter": true,
+            "packet_loss": false,
+            "throughput": true
+          },
+          "sla_violations_raw": "['latency', 'jitter', 'throughput']",
+          "sla_violations": [
+            "latency",
+            "jitter",
+            "throughput"
+          ],
+          "sla_evaluation_status": "violation"
+        },
+        "comparison": {
+          "metric_matches": {
+            "latency": true,
+            "jitter": true,
+            "packet_loss": true,
+            "throughput": true
+          },
+          "sla_violations_match": true,
+          "evaluation_status_match": true
+        },
+        "computed_analysis": {
+          "latency": {
+            "measured": 610613353.6810123,
+            "budget": 1E+8,
+            "status": "violation"
+          },
+          "jitter": {
+            "measured": 420413607.0856379,
+            "budget": 5E+7,
+            "status": "violation"
+          },
+          "packet_loss": {
+            "measured": 0.0,
+            "budget": 0.01,
+            "status": "ok"
+          },
+          "throughput": {
+            "measured": 0.0054564249999999,
+            "budget": 0.0072,
+            "status": "violation"
+          },
+          "violations": [
+            "latency",
+            "jitter",
+            "throughput"
+          ],
+          "unavailable_metrics": []
+        },
+        "monitoring_decision": {
+          "situation": "warning",
+          "severity": "high",
+          "global_situation": "network-wide all KPIs compliant, but cell bs2 eMBB slice has SLA violations",
+          "action_required": true,
+          "sla_analysis": {
+            "latency": {
+              "measured": 610613353.6810123,
+              "budget": 1E+8,
+              "status": "violation"
+            },
+            "jitter": {
+              "measured": 420413607.0856379,
+              "budget": 5E+7,
+              "status": "violation"
+            },
+            "packet_loss": {
+              "measured": 0.0,
+              "budget": 0.01,
+              "status": "ok"
+            },
+            "throughput": {
+              "measured": 0.0054564249999999,
+              "budget": 0.0072,
+              "status": "violation"
+            },
+            "violations": [
+              "latency",
+              "jitter",
+              "throughput"
+            ],
+            "unavailable_metrics": []
+          },
+          "selected_agents": [
+            {
+              "agent": "near_rt_ric",
+              "responsibility": "Fast local actions on cell bs2 eMBB slice: PRB allocation, scheduler adjustment, power control to address KPI violations.",
+              "objective": "Reduce latency to <= 100000000 ns and jitter to <= 50000000 ns, and increase throughput to >= 0.0072 Gbps for the eMBB slice on cell bs2.",
+              "priority": "high",
+              "reason": "Latency measured ~6.1x and jitter ~8.4x over budget; throughput ~24% under budget. All violated KPIs are addressable via near-RT RIC local actions.",
+              "context": {}
+            }
+          ],
+          "reason": "SLA violations detected for latency, jitter, and throughput on cell bs2 eMBB slice (record_id: coloran_0000021). Persistence per KPI is 1 for latency, jitter and throughput, well below the 3-consecutive-record threshold for non-RT RIC governance; near_rt_ric alone is selected. Packet loss is compliant. Recent prior records (coloran_0000019, coloran_0000020) showed no violations and required no action.",
+          "record_id": "coloran_0000021"
+        },
+        "agent_executions": {
+          "near_rt_ric": {
+            "agent": "near_rt_ric",
+            "invocation": {
+              "agent": "near_rt_ric",
+              "responsibility": "Fast local actions on cell bs2 eMBB slice: PRB allocation, scheduler adjustment, power control to address KPI violations.",
+              "objective": "Reduce latency to <= 100000000 ns and jitter to <= 50000000 ns, and increase throughput to >= 0.0072 Gbps for the eMBB slice on cell bs2.",
+              "priority": "high",
+              "reason": "Latency measured ~6.1x and jitter ~8.4x over budget; throughput ~24% under budget. All violated KPIs are addressable via near-RT RIC local actions.",
+              "context": {
+                "record_id": "coloran_0000021",
+                "run_id": "run-45",
+                "target": "bs2",
+                "slice_id": "eMBB",
+                "sla_analysis": {
+                  "latency": {
+                    "measured": 610613353.6810123,
+                    "budget": 1E+8,
+                    "status": "violation"
+                  },
+                  "jitter": {
+                    "measured": 420413607.0856379,
+                    "budget": 5E+7,
+                    "status": "violation"
+                  },
+                  "packet_loss": {
+                    "measured": 0.0,
+                    "budget": 0.01,
+                    "status": "ok"
+                  },
+                  "throughput": {
+                    "measured": 0.0054564249999999,
+                    "budget": 0.0072,
+                    "status": "violation"
+                  },
+                  "violations": [
+                    "latency",
+                    "jitter",
+                    "throughput"
+                  ],
+                  "unavailable_metrics": []
+                },
+                "persistence": {
+                  "latency": 1,
+                  "jitter": 1,
+                  "packet_loss": 0,
+                  "throughput": 1
+                }
+              }
+            },
+            "result": {
+              "status": "error"
+            },
+            "middleware_audit": []
+          }
+        },
+        "error": null
+      },
+      "coloran_0000022": {
+        "record_id": "coloran_0000022",
+        "telemetry_record": {
+          "use_case_type": "MTC sensing (Poisson 30 pkt/s)",
+          "packet_loss_budget": 0.01,
+          "latency_budget_ns": 1E+8,
+          "jitter_budget_ns": 5E+7,
+          "data_rate_budget_gbps": 0.00003,
+          "required_mobility": "no",
+          "required_connectivity": "yes",
+          "slice_available_transfer_rate_gbps": 0.000111504,
+          "slice_latency_ns": 0.0,
+          "slice_packet_loss": 0.0,
+          "slice_jitter_ns": 0.0,
+          "slice_type": "MTC",
+          "slice_handover": "no",
+          "cell_id": "bs2",
+          "record_id": "coloran_0000022"
+        },
+        "ground_truth": {
+          "record_id": "coloran_0000022",
+          "metric_flags": {
+            "latency": false,
+            "jitter": false,
+            "packet_loss": false,
+            "throughput": false
+          },
+          "sla_violations_raw": "[]",
+          "sla_violations": [],
+          "sla_evaluation_status": "ok"
+        },
+        "comparison": {
+          "metric_matches": {
+            "latency": true,
+            "jitter": true,
+            "packet_loss": true,
+            "throughput": true
+          },
+          "sla_violations_match": true,
+          "evaluation_status_match": true
+        },
+        "computed_analysis": {
+          "latency": {
+            "measured": 0.0,
+            "budget": 1E+8,
+            "status": "ok"
+          },
+          "jitter": {
+            "measured": 0.0,
+            "budget": 5E+7,
+            "status": "ok"
+          },
+          "packet_loss": {
+            "measured": 0.0,
+            "budget": 0.01,
+            "status": "ok"
+          },
+          "throughput": {
+            "measured": 0.000111504,
+            "budget": 0.00003,
+            "status": "ok"
+          },
+          "violations": [],
+          "unavailable_metrics": []
+        },
+        "monitoring_decision": null,
+        "agent_executions": {},
+        "error": {
+          "type": "RateLimitError",
+          "message": "litellm.RateLimitError: Error code: 429 - {'error': {'message': 'litellm.RateLimitError: RateLimitError: OpenrouterException - {\"error\":{\"message\":\"Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day\",\"code\":429,\"metadata\":{\"headers\":{\"X-RateLimit-Limit\":\"50\",\"X-RateLimit-Remaining\":\"0\",\"X-RateLimit-Reset\":\"1792972800000\"},\"limit_source\":\"openrouter_free_tier_daily\",\"remedy_hint\":\"Wait for the daily reset (see X-RateLimit-Reset), or purchase credits to raise your free-model daily limit.\",\"provider_name\":null}},\"user_id\":\"user_3L3hRAHV1hVVw9O8nvreyCjlA7Q\"}\\n\\nLiteLLM: model group \\'nvidia-network-slicing-model\\' failed with the error above. No fallback was attempted.', 'type': 'throttling_error', 'param': None, 'code': '429'}}"
+        }
+      },
+      "coloran_0000023": {
+        "record_id": "coloran_0000023",
+        "telemetry_record": {
+          "use_case_type": "URLLC control (Poisson 10 pkt/s)",
+          "packet_loss_budget": 0.001,
+          "latency_budget_ns": 1E+7,
+          "jitter_budget_ns": 5E+6,
+          "data_rate_budget_gbps": 0.00001,
+          "required_mobility": "no",
+          "required_connectivity": "yes",
+          "slice_available_transfer_rate_gbps": 0.00025308,
+          "slice_latency_ns": 0.0,
+          "slice_packet_loss": 0.0,
+          "slice_jitter_ns": 0.0,
+          "slice_type": "URLLC",
+          "slice_handover": "no",
+          "cell_id": "bs2",
+          "record_id": "coloran_0000023"
+        },
+        "ground_truth": {
+          "record_id": "coloran_0000023",
+          "metric_flags": {
+            "latency": false,
+            "jitter": false,
+            "packet_loss": false,
+            "throughput": false
+          },
+          "sla_violations_raw": "[]",
+          "sla_violations": [],
+          "sla_evaluation_status": "ok"
+        },
+        "comparison": {
+          "metric_matches": {
+            "latency": true,
+            "jitter": true,
+            "packet_loss": true,
+            "throughput": true
+          },
+          "sla_violations_match": true,
+          "evaluation_status_match": true
+        },
+        "computed_analysis": {
+          "latency": {
+            "measured": 0.0,
+            "budget": 1E+7,
+            "status": "ok"
+          },
+          "jitter": {
+            "measured": 0.0,
+            "budget": 5E+6,
+            "status": "ok"
+          },
+          "packet_loss": {
+            "measured": 0.0,
+            "budget": 0.001,
+            "status": "ok"
+          },
+          "throughput": {
+            "measured": 0.00025308,
+            "budget": 0.00001,
+            "status": "ok"
+          },
+          "violations": [],
+          "unavailable_metrics": []
+        },
+        "monitoring_decision": null,
+        "agent_executions": {},
+        "error": {
+          "type": "RateLimitError",
+          "message": "litellm.RateLimitError: Error code: 429 - {'error': {'message': 'litellm.RateLimitError: RateLimitError: OpenrouterException - {\"error\":{\"message\":\"Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day\",\"code\":429,\"metadata\":{\"headers\":{\"X-RateLimit-Limit\":\"50\",\"X-RateLimit-Remaining\":\"0\",\"X-RateLimit-Reset\":\"1792972800000\"},\"limit_source\":\"openrouter_free_tier_daily\",\"remedy_hint\":\"Wait for the daily reset (see X-RateLimit-Reset), or purchase credits to raise your free-model daily limit.\",\"provider_name\":null}},\"user_id\":\"user_3L3hRAHV1hVVw9O8nvreyCjlA7Q\"}\\n\\nLiteLLM: model group \\'nvidia-network-slicing-model\\' failed with the error above. No fallback was attempted.', 'type': 'throttling_error', 'param': None, 'code': '429'}}"
+        }
+      },
+      "coloran_0000024": {
+        "record_id": "coloran_0000024",
+        "telemetry_record": {
+          "use_case_type": "eMBB video (CBR 4 Mbps/UE)",
+          "packet_loss_budget": 0.01,
+          "latency_budget_ns": 1E+8,
+          "jitter_budget_ns": 5E+7,
+          "data_rate_budget_gbps": 0.0072,
+          "required_mobility": "no",
+          "required_connectivity": "yes",
+          "slice_available_transfer_rate_gbps": 0.0049569927499999,
+          "slice_latency_ns": 800373890.0539687,
+          "slice_packet_loss": 0.0,
+          "slice_jitter_ns": 552537210.9251738,
+          "slice_type": "eMBB",
+          "slice_handover": "no",
+          "cell_id": "bs2",
+          "record_id": "coloran_0000024"
+        },
+        "ground_truth": {
+          "record_id": "coloran_0000024",
+          "metric_flags": {
+            "latency": true,
+            "jitter": true,
+            "packet_loss": false,
+            "throughput": true
+          },
+          "sla_violations_raw": "['latency', 'jitter', 'throughput']",
+          "sla_violations": [
+            "latency",
+            "jitter",
+            "throughput"
+          ],
+          "sla_evaluation_status": "violation"
+        },
+        "comparison": {
+          "metric_matches": {
+            "latency": true,
+            "jitter": true,
+            "packet_loss": true,
+            "throughput": true
+          },
+          "sla_violations_match": true,
+          "evaluation_status_match": true
+        },
+        "computed_analysis": {
+          "latency": {
+            "measured": 800373890.0539687,
+            "budget": 1E+8,
+            "status": "violation"
+          },
+          "jitter": {
+            "measured": 552537210.9251738,
+            "budget": 5E+7,
+            "status": "violation"
+          },
+          "packet_loss": {
+            "measured": 0.0,
+            "budget": 0.01,
+            "status": "ok"
+          },
+          "throughput": {
+            "measured": 0.0049569927499999,
+            "budget": 0.0072,
+            "status": "violation"
+          },
+          "violations": [
+            "latency",
+            "jitter",
+            "throughput"
+          ],
+          "unavailable_metrics": []
+        },
+        "monitoring_decision": null,
+        "agent_executions": {},
+        "error": {
+          "type": "RateLimitError",
+          "message": "litellm.RateLimitError: Error code: 429 - {'error': {'message': 'litellm.RateLimitError: RateLimitError: OpenrouterException - {\"error\":{\"message\":\"Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day\",\"code\":429,\"metadata\":{\"headers\":{\"X-RateLimit-Limit\":\"50\",\"X-RateLimit-Remaining\":\"0\",\"X-RateLimit-Reset\":\"1792972800000\"},\"limit_source\":\"openrouter_free_tier_daily\",\"remedy_hint\":\"Wait for the daily reset (see X-RateLimit-Reset), or purchase credits to raise your free-model daily limit.\",\"provider_name\":null}},\"user_id\":\"user_3L3hRAHV1hVVw9O8nvreyCjlA7Q\"}\\n\\nLiteLLM: model group \\'nvidia-network-slicing-model\\' failed with the error above. No fallback was attempted.', 'type': 'throttling_error', 'param': None, 'code': '429'}}"
+        }
+      },
+      "coloran_0000025": {
+        "record_id": "coloran_0000025",
+        "telemetry_record": {
+          "use_case_type": "MTC sensing (Poisson 30 pkt/s)",
+          "packet_loss_budget": 0.01,
+          "latency_budget_ns": 1E+8,
+          "jitter_budget_ns": 5E+7,
+          "data_rate_budget_gbps": 0.00003,
+          "required_mobility": "no",
+          "required_connectivity": "yes",
+          "slice_available_transfer_rate_gbps": 0.0001025058,
+          "slice_latency_ns": 0.0,
+          "slice_packet_loss": 0.0,
+          "slice_jitter_ns": 0.0,
+          "slice_type": "MTC",
+          "slice_handover": "no",
+          "cell_id": "bs2",
+          "record_id": "coloran_0000025"
+        },
+        "ground_truth": {
+          "record_id": "coloran_0000025",
+          "metric_flags": {
+            "latency": false,
+            "jitter": false,
+            "packet_loss": false,
+            "throughput": false
+          },
+          "sla_violations_raw": "[]",
+          "sla_violations": [],
+          "sla_evaluation_status": "ok"
+        },
+        "comparison": {
+          "metric_matches": {
+            "latency": true,
+            "jitter": true,
+            "packet_loss": true,
+            "throughput": true
+          },
+          "sla_violations_match": true,
+          "evaluation_status_match": true
+        },
+        "computed_analysis": {
+          "latency": {
+            "measured": 0.0,
+            "budget": 1E+8,
+            "status": "ok"
+          },
+          "jitter": {
+            "measured": 0.0,
+            "budget": 5E+7,
+            "status": "ok"
+          },
+          "packet_loss": {
+            "measured": 0.0,
+            "budget": 0.01,
+            "status": "ok"
+          },
+          "throughput": {
+            "measured": 0.0001025058,
+            "budget": 0.00003,
+            "status": "ok"
+          },
+          "violations": [],
+          "unavailable_metrics": []
+        },
+        "monitoring_decision": null,
+        "agent_executions": {},
+        "error": {
+          "type": "RateLimitError",
+          "message": "litellm.RateLimitError: Error code: 429 - {'error': {'message': 'litellm.RateLimitError: RateLimitError: OpenrouterException - {\"error\":{\"message\":\"Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day\",\"code\":429,\"metadata\":{\"headers\":{\"X-RateLimit-Limit\":\"50\",\"X-RateLimit-Remaining\":\"0\",\"X-RateLimit-Reset\":\"1792972800000\"},\"limit_source\":\"openrouter_free_tier_daily\",\"remedy_hint\":\"Wait for the daily reset (see X-RateLimit-Reset), or purchase credits to raise your free-model daily limit.\",\"provider_name\":null}},\"user_id\":\"user_3L3hRAHV1hVVw9O8nvreyCjlA7Q\"}\\n\\nLiteLLM: model group \\'nvidia-network-slicing-model\\' failed with the error above. No fallback was attempted.', 'type': 'throttling_error', 'param': None, 'code': '429'}}"
+        }
+      },
+      "coloran_0000026": {
+        "record_id": "coloran_0000026",
+        "telemetry_record": {
+          "use_case_type": "URLLC control (Poisson 10 pkt/s)",
+          "packet_loss_budget": 0.001,
+          "latency_budget_ns": 1E+7,
+          "jitter_budget_ns": 5E+6,
+          "data_rate_budget_gbps": 0.00001,
+          "required_mobility": "no",
+          "required_connectivity": "yes",
+          "slice_available_transfer_rate_gbps": 0.000245665,
+          "slice_latency_ns": 0.0,
+          "slice_packet_loss": 0.0,
+          "slice_jitter_ns": 0.0,
+          "slice_type": "URLLC",
+          "slice_handover": "no",
+          "cell_id": "bs2",
+          "record_id": "coloran_0000026"
+        },

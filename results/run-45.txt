@@ -1,0 +1,356 @@
+[
+  {
+    _id: 'run-45',
+    run_id: 'run-45',
+    summary: {
+      rows_selected: 2,
+      rows_processed: 2,
+      rows_failed: 0,
+      monitoring_action_required: 1,
+      agent_invocations: { near_rt_ric: 1, non_rt_ric: 0 }
+    },
+    records: {
+      coloran_0000017: {
+        record_id: 'coloran_0000017',
+        telemetry_record: {
+          use_case_type: 'URLLC control (Poisson 10 pkt/s)',
+          packet_loss_budget: 0.001,
+          latency_budget_ns: 10000000,
+          jitter_budget_ns: 5000000,
+          data_rate_budget_gbps: 0.00001,
+          required_mobility: 'no',
+          required_connectivity: 'yes',
+          slice_available_transfer_rate_gbps: 0.000205248,
+          slice_latency_ns: 3471710.696116986,
+          slice_packet_loss: 0,
+          slice_jitter_ns: 4879423.14902705,
+          slice_type: 'URLLC',
+          slice_handover: 'no',
+          cell_id: 'bs2',
+          record_id: 'coloran_0000017'
+        },
+        ground_truth: {
+          record_id: 'coloran_0000017',
+          metric_flags: {
+            latency: false,
+            jitter: false,
+            packet_loss: false,
+            throughput: false
+          },
+          sla_violations_raw: '[]',
+          sla_violations: [],
+          sla_evaluation_status: 'ok'
+        },
+        comparison: {
+          metric_matches: { latency: true, jitter: true, packet_loss: true, throughput: true },
+          sla_violations_match: true,
+          evaluation_status_match: true
+        },
+        computed_analysis: {
+          latency: { measured: 3471710.696116986, budget: 10000000, status: 'ok' },
+          jitter: { measured: 4879423.14902705, budget: 5000000, status: 'ok' },
+          packet_loss: { measured: 0, budget: 0.001, status: 'ok' },
+          throughput: { measured: 0.000205248, budget: 0.00001, status: 'ok' },
+          violations: [],
+          unavailable_metrics: []
+        },
+        monitoring_decision: {
+          situation: 'normal',
+          severity: 'none',
+          global_situation: 'All KPIs are within budget; no violations detected.',
+          action_required: false,
+          sla_analysis: {
+            latency: { measured: 3471710.696116986, budget: 10000000, status: 'ok' },
+            jitter: { measured: 4879423.14902705, budget: 5000000, status: 'ok' },
+            packet_loss: { measured: 0, budget: 0.001, status: 'ok' },
+            throughput: { measured: 0.000205248, budget: 0.00001, status: 'ok' },
+            violations: [],
+            unavailable_metrics: []
+          },
+          selected_agents: [],
+          reason: 'All monitored KPIs were evaluated and no SLA violations were detected.',
+          record_id: 'coloran_0000017'
+        },
+        agent_executions: {},
+        error: null
+      },
+      coloran_0000018: {
+        record_id: 'coloran_0000018',
+        telemetry_record: {
+          use_case_type: 'eMBB video (CBR 4 Mbps/UE)',
+          packet_loss_budget: 0.01,
+          latency_budget_ns: 100000000,
+          jitter_budget_ns: 50000000,
+          data_rate_budget_gbps: 0.0072,
+          required_mobility: 'no',
+          required_connectivity: 'yes',
+          slice_available_transfer_rate_gbps: 0.0051739525,
+          slice_latency_ns: 752767860.9862043,
+          slice_packet_loss: 0,
+          slice_jitter_ns: 585945447.5534655,
+          slice_type: 'eMBB',
+          slice_handover: 'no',
+          cell_id: 'bs2',
+          record_id: 'coloran_0000018'
+        },
+        ground_truth: {
+          record_id: 'coloran_0000018',
+          metric_flags: { latency: true, jitter: true, packet_loss: false, throughput: true },
+          sla_violations_raw: "['latency', 'jitter', 'throughput']",
+          sla_violations: [ 'latency', 'jitter', 'throughput' ],
+          sla_evaluation_status: 'violation'
+        },
+        comparison: {
+          metric_matches: { latency: true, jitter: true, packet_loss: true, throughput: true },
+          sla_violations_match: true,
+          evaluation_status_match: true
+        },
+        computed_analysis: {
+          latency: { measured: 752767860.9862043, budget: 100000000, status: 'violation' },
+          jitter: { measured: 585945447.5534655, budget: 50000000, status: 'violation' },
+          packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+          throughput: { measured: 0.0051739525, budget: 0.0072, status: 'violation' },
+          violations: [ 'latency', 'jitter', 'throughput' ],
+          unavailable_metrics: []
+        },
+        monitoring_decision: {
+          situation: 'warning',
+          severity: 'high',
+          global_situation: 'violation',
+          action_required: true,
+          sla_analysis: {
+            latency: { measured: 752767860.9862043, budget: 100000000, status: 'violation' },
+            jitter: { measured: 585945447.5534655, budget: 50000000, status: 'violation' },
+            packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+            throughput: { measured: 0.0051739525, budget: 0.0072, status: 'violation' },
+            violations: [ 'latency', 'jitter', 'throughput' ],
+            unavailable_metrics: []
+          },
+          selected_agents: [
+            {
+              agent: 'near_rt_ric',
+              responsibility: 'Near real-time fast-path adjustments for cell bs2 eMBB slice: scheduler PRB allocation, power control, and handover margin tuning.',
+              objective: 'Mitigate latency, jitter, and throughput violations to bring measured KPIs within SLA budgets for cell bs2 eMBB slice.',
+              priority: 'high',
+              reason: 'Latency (7.5x over budget) and jitter (11.7x over budget) are severely exceeded; throughput also violates budget. These KPIs fall within near_rt_ric scope (latency, jitter, packet loss, throughput).',
+              context: {}
+            }
+          ],
+          reason: 'SLA analysis confirms violations for latency (measured 752.77Mns vs budget 100Mns), jitter (measured 585.95Mns vs budget 50Mns), and throughput (measured 0.00517Gbps vs budget 0.0072Gbps). Packet loss is OK. Persistence for all violated KPIs is 1 consecutive record each (latency:1, jitter:1, throughput:1), which is below the 3-record threshold required for non_rt_ric governance; therefore near_rt_ric is selected alone. Recent monitoring tool execution on record coloran_0000017 produced a normal situation with no action taken; no parameter repetition conflict exists for this new record. Agent context is left empty; target, slice, and full SLA analysis are injected by trusted system code.',
+          record_id: 'coloran_0000018'
+        },
+        agent_executions: {
+          near_rt_ric: {
+            agent: 'near_rt_ric',
+            invocation: {
+              agent: 'near_rt_ric',
+              responsibility: 'Near real-time fast-path adjustments for cell bs2 eMBB slice: scheduler PRB allocation, power control, and handover margin tuning.',
+              objective: 'Mitigate latency, jitter, and throughput violations to bring measured KPIs within SLA budgets for cell bs2 eMBB slice.',
+              priority: 'high',
+              reason: 'Latency (7.5x over budget) and jitter (11.7x over budget) are severely exceeded; throughput also violates budget. These KPIs fall within near_rt_ric scope (latency, jitter, packet loss, throughput).',
+              context: {
+                record_id: 'coloran_0000018',
+                run_id: 'run-45',
+                target: 'bs2',
+                slice_id: 'eMBB',
+                sla_analysis: {
+                  latency: { measured: 752767860.9862043, budget: 100000000, status: 'violation' },
+                  jitter: { measured: 585945447.5534655, budget: 50000000, status: 'violation' },
+                  packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+                  throughput: { measured: 0.0051739525, budget: 0.0072, status: 'violation' },
+                  violations: [ 'latency', 'jitter', 'throughput' ],
+                  unavailable_metrics: []
+                },
+                persistence: { latency: 1, jitter: 1, packet_loss: 0, throughput: 1 }
+              }
+            },
+            result: {
+              status: 'completed',
+              proposal: {
+                tool_name: 'optimize_scheduler',
+                parameters: { slice_id: 'eMBB', scheduler: 'priority_based' },
+                target: 'bs2',
+                rationale: 'Violated KPIs for cell bs2 eMBB slice: latency measured 752767860.9862043 ns vs budget 100000000.0 ns (7.5x over budget, status violation), jitter measured 585945447.5534655 ns vs budget 50000000.0 ns (11.7x over budget, status violation), throughput measured 0.0051739525 Gbps vs budget 0.0072 Gbps (status violation). The priority_based scheduler explicitly favors delay-sensitive traffic, which directly addresses the severe latency and jitter violations by reordering transmissions to prioritize packets experiencing high delay and variability. This mode is well-suited for eMBB slices where reducing tail latency and jitter is critical, while still serving all users and preserving throughput performance.',
+                expected_effect: 'Latency will be reduced as delay-sensitive flows are given scheduling priority, lowering average and tail transmission delay. Jitter will decrease due to more consistent service ordering for delay-sensitive traffic. Throughput may see minor stabilization or adjustment as the scheduler balances priority-based ordering with overall cell throughput, but the primary KPI improvements target latency and jitter moving toward or within SLA budgets.',
+                evidence_sources: [
+                  'B. Scheduler optimization knowledge section (priority_based favors delay-sensitive traffic)',
+                  'sla_analysis from invocation context (record_id: coloran_0000018): latency measured 752767860.9862043 vs budget 100000000.0; jitter measured 585945447.5534655 vs budget 50000000.0; throughput measured 0.0051739525 vs budget 0.0072'
+                ],
+                confidence: 0.75,
+                invocation_context: {
+                  invocation: {
+                    agent: 'near_rt_ric',
+                    responsibility: 'Near real-time fast-path adjustments for cell bs2 eMBB slice: scheduler PRB allocation, power control, and handover margin tuning.',
+                    objective: 'Mitigate latency, jitter, and throughput violations to bring measured KPIs within SLA budgets for cell bs2 eMBB slice.',
+                    priority: 'high',
+                    reason: 'Latency (7.5x over budget) and jitter (11.7x over budget) are severely exceeded; throughput also violates budget. These KPIs fall within near_rt_ric scope (latency, jitter, packet loss, throughput).',
+                    context: {
+                      record_id: 'coloran_0000018',
+                      run_id: 'run-45',
+                      target: 'bs2',
+                      slice_id: 'eMBB',
+                      sla_analysis: {
+                        latency: { measured: 752767860.9862043, budget: 100000000, status: 'violation' },
+                        jitter: { measured: 585945447.5534655, budget: 50000000, status: 'violation' },
+                        packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+                        throughput: { measured: 0.0051739525, budget: 0.0072, status: 'violation' },
+                        violations: [ 'latency', 'jitter', 'throughput' ],
+                        unavailable_metrics: []
+                      },
+                      persistence: { latency: 1, jitter: 1, packet_loss: 0, throughput: 1 }
+                    }
+                  }
+                }
+              },
+              governance: {
+                approved: true,
+                reason: 'Action passed all governance checks. LLM review: The RIC agent’s rationale explicitly connects the severe latency (7.5× over budget) and jitter (11.7× over budget) violations to the chosen optimize_scheduler action with scheduler: priority_based on target bs2 eMBB.  It explains that this scheduler favours delay‑sensitive traffic, which directly addresses the latency and jitter KPIs by re‑ordering transmissions.  The expected effect—reduced delay and more consistent service ordering—plausibly follows from the scheduler change, and the action is proportionate to the high‑priority, high‑severity KPI degradation.  The agent stays within the near‑rt‑ric scope (scheduler adjustment on the specified cell/slice) and does not introduce unrelated or counter‑productive changes.  Hence the reasoning is sound, the action is goal‑aligned, and the behavior is acceptable.',
+                failed_stage: null,
+                checks_passed: [ 'schema', 'policy_trust', 'sla', 'resource_safety', 'llm_review' ]
+              },
+              execution: {
+                tool_name: 'optimize_scheduler',
+                status: 'executed',
+                target: 'bs2',
+                parameters: { slice_id: 'eMBB', scheduler: 'priority_based', target: 'bs2' },
+                result: {
+                  status: 'success',
+                  tool: 'optimize_scheduler',
+                  target: 'bs2',
+                  slice_id: 'eMBB',
+                  scheduler: 'priority_based',
+                  message: "Scheduler 'priority_based' configured for eMBB on bs2."
+                },
+                message: null
+              },
+              retrieved_knowledge: []
+            },
+            middleware_audit: [
+              {
+                tool_call_id: 'call_20947bf112ff',
+                proposal: {
+                  tool_name: 'optimize_scheduler',
+                  parameters: { slice_id: 'eMBB', scheduler: 'priority_based' },
+                  target: 'bs2',
+                  rationale: 'Violated KPIs for cell bs2 eMBB slice: latency measured 752767860.9862043 ns vs budget 100000000.0 ns (7.5x over budget, status violation), jitter measured 585945447.5534655 ns vs budget 50000000.0 ns (11.7x over budget, status violation), throughput measured 0.0051739525 Gbps vs budget 0.0072 Gbps (status violation). The priority_based scheduler explicitly favors delay-sensitive traffic, which directly addresses the severe latency and jitter violations by reordering transmissions to prioritize packets experiencing high delay and variability. This mode is well-suited for eMBB slices where reducing tail latency and jitter is critical, while still serving all users and preserving throughput performance.',
+                  expected_effect: 'Latency will be reduced as delay-sensitive flows are given scheduling priority, lowering average and tail transmission delay. Jitter will decrease due to more consistent service ordering for delay-sensitive traffic. Throughput may see minor stabilization or adjustment as the scheduler balances priority-based ordering with overall cell throughput, but the primary KPI improvements target latency and jitter moving toward or within SLA budgets.',
+                  evidence_sources: [
+                    'B. Scheduler optimization knowledge section (priority_based favors delay-sensitive traffic)',
+                    'sla_analysis from invocation context (record_id: coloran_0000018): latency measured 752767860.9862043 vs budget 100000000.0; jitter measured 585945447.5534655 vs budget 50000000.0; throughput measured 0.0051739525 vs budget 0.0072'
+                  ],
+                  confidence: 0.75,
+                  invocation_context: {
+                    invocation: {
+                      agent: 'near_rt_ric',
+                      responsibility: 'Near real-time fast-path adjustments for cell bs2 eMBB slice: scheduler PRB allocation, power control, and handover margin tuning.',
+                      objective: 'Mitigate latency, jitter, and throughput violations to bring measured KPIs within SLA budgets for cell bs2 eMBB slice.',
+                      priority: 'high',
+                      reason: 'Latency (7.5x over budget) and jitter (11.7x over budget) are severely exceeded; throughput also violates budget. These KPIs fall within near_rt_ric scope (latency, jitter, packet loss, throughput).',
+                      context: {
+                        record_id: 'coloran_0000018',
+                        run_id: 'run-45',
+                        target: 'bs2',
+                        slice_id: 'eMBB',
+                        sla_analysis: {
+                          latency: { measured: 752767860.9862043, budget: 100000000, status: 'violation' },
+                          jitter: { measured: 585945447.5534655, budget: 50000000, status: 'violation' },
+                          packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+                          throughput: { measured: 0.0051739525, budget: 0.0072, status: 'violation' },
+                          violations: [ 'latency', 'jitter', 'throughput' ],
+                          unavailable_metrics: []
+                        },
+                        persistence: { latency: 1, jitter: 1, packet_loss: 0, throughput: 1 }
+                      }
+                    }
+                  }
+                },
+                governance: {
+                  approved: true,
+                  reason: 'Action passed all governance checks. LLM review: The RIC agent’s rationale explicitly connects the severe latency (7.5× over budget) and jitter (11.7× over budget) violations to the chosen optimize_scheduler action with scheduler: priority_based on target bs2 eMBB.  It explains that this scheduler favours delay‑sensitive traffic, which directly addresses the latency and jitter KPIs by re‑ordering transmissions.  The expected effect—reduced delay and more consistent service ordering—plausibly follows from the scheduler change, and the action is proportionate to the high‑priority, high‑severity KPI degradation.  The agent stays within the near‑rt‑ric scope (scheduler adjustment on the specified cell/slice) and does not introduce unrelated or counter‑productive changes.  Hence the reasoning is sound, the action is goal‑aligned, and the behavior is acceptable.',
+                  failed_stage: null,
+                  checks_passed: [ 'schema', 'policy_trust', 'sla', 'resource_safety', 'llm_review' ]
+                },
+                execution: {
+                  tool_name: 'optimize_scheduler',
+                  status: 'executed',
+                  target: 'bs2',
+                  parameters: { slice_id: 'eMBB', scheduler: 'priority_based', target: 'bs2' },
+                  result: {
+                    status: 'success',
+                    tool: 'optimize_scheduler',
+                    target: 'bs2',
+                    slice_id: 'eMBB',
+                    scheduler: 'priority_based',
+                    message: "Scheduler 'priority_based' configured for eMBB on bs2."
+                  },
+                  message: null
+                }
+              },
+              {
+                tool_call_id: 'call-d142846e-2329-4a38-9b76-9fe1f0fbe2f3',
+                proposal: {
+                  tool_name: 'adjust_prb_allocation',
+                  parameters: { slice_id: 'eMBB', prb_percentage: 65 },
+                  target: 'bs2',
+                  rationale: 'Violated KPIs for cell bs2 eMBB slice: latency measured 752767860.9862043 ns vs budget 100000000.0 ns (7.5x over budget, status violation), jitter measured 585945447.5534655 ns vs budget 50000000.0 ns (11.7x over budget, status violation), throughput measured 0.0051739525 Gbps vs budget 0.0072 Gbps (status violation, ~72% of budget). Increasing PRB allocation from the current unknown share to 65% provides more radio resources to the eMBB slice, which directly addresses the throughput shortfall and reduces queueing delay at the scheduler. More PRBs per transmission opportunity decrease packet waiting time, thereby reducing both average latency and jitter (variation in delay). The value 65 is chosen as a substantial but not maximal increase: large enough to produce measurable improvement given the severity of the violations (7-12x over budget), but leaving headroom for other slices and avoiding excessive resource starvation.',
+                  expected_effect: 'Throughput will increase as the eMBB slice receives a larger share of Physical Resource Blocks, bringing the measured rate closer to or above the budget of 0.0072 Gbps. Latency will decrease due to reduced queueing delay with more resources available per transmission interval. Jitter will improve as more consistent resource allocation reduces variation in per-packet delay. The primary direction of improvement is toward bringing all three violated KPIs within SLA budgets.',
+                  evidence_sources: [
+                    'sla_analysis from invocation context (record_id: coloran_0000018): latency measured 752767860.9862043 vs budget 100000000.0; jitter measured 585945447.5534655 vs budget 50000000.0; throughput measured 0.0051739525 vs budget 0.0072',
+                    'PRB allocation tool documentation: prb_percentage range 5-90, more PRBs generally raise throughput and cut queueing delay'
+                  ],
+                  confidence: 0.7,
+                  invocation_context: {
+                    invocation: {
+                      agent: 'near_rt_ric',
+                      responsibility: 'Near real-time fast-path adjustments for cell bs2 eMBB slice: scheduler PRB allocation, power control, and handover margin tuning.',
+                      objective: 'Mitigate latency, jitter, and throughput violations to bring measured KPIs within SLA budgets for cell bs2 eMBB slice.',
+                      priority: 'high',
+                      reason: 'Latency (7.5x over budget) and jitter (11.7x over budget) are severely exceeded; throughput also violates budget. These KPIs fall within near_rt_ric scope (latency, jitter, packet loss, throughput).',
+                      context: {
+                        record_id: 'coloran_0000018',
+                        run_id: 'run-45',
+                        target: 'bs2',
+                        slice_id: 'eMBB',
+                        sla_analysis: {
+                          latency: { measured: 752767860.9862043, budget: 100000000, status: 'violation' },
+                          jitter: { measured: 585945447.5534655, budget: 50000000, status: 'violation' },
+                          packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+                          throughput: { measured: 0.0051739525, budget: 0.0072, status: 'violation' },
+                          violations: [ 'latency', 'jitter', 'throughput' ],
+                          unavailable_metrics: []
+                        },
+                        persistence: { latency: 1, jitter: 1, packet_loss: 0, throughput: 1 }
+                      }
+                    }
+                  }
+                },
+                governance: {
+                  approved: true,
+                  reason: "Action passed all governance checks. LLM review: The RIC agent's rationale is specific and grounded: it cites the exact measured KPI violations from the SLA analysis (latency 7.5×, jitter 11.7×, throughput ~72 % of budget) and explains that raising the PRB allocation to 65 % will give the eMBB slice more radio resources, directly improving throughput and reducing queueing delay, which in turn lowers latency and jitter. The chosen 65 % value is consistent with the tool's documented range (5‑90) and is deliberately large enough to address the severe violations while leaving headroom for other slices, making the action proportionate and confined to the target cell/slice. The expected effect—throughput increase and latency/jitter reduction—plausibly follows from the adjustment, and the reasoning does not contradict the parameters or cite facts outside the provided context. Therefore the reasoning is sound, the action aligns with the high‑priority objective, and the behavior is acceptable for the near‑rt RIC role.",
+                  failed_stage: null,
+                  checks_passed: [ 'schema', 'policy_trust', 'sla', 'resource_safety', 'llm_review' ]
+                },
+                execution: {
+                  tool_name: 'adjust_prb_allocation',
+                  status: 'executed',
+                  target: 'bs2',
+                  parameters: { slice_id: 'eMBB', prb_percentage: 65, target: 'bs2' },
+                  result: {
+                    status: 'success',
+                    tool: 'adjust_prb_allocation',
+                    target: 'bs2',
+                    slice_id: 'eMBB',
+                    prb_percentage: 65,
+                    message: 'PRB allocation changed to 65% for eMBB on bs2.'
+                  },
+                  message: null
+                }
+              }
+            ]
+          }
+        },
+        error: null
+      }
+    }
+  }
+]
