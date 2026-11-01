@@ -20,9 +20,6 @@ class RANActionProposal(BaseModel):
         "adjust_qos_parameters",
         "adjust_link_adaptation",
         "update_slice_resource_policy",
-        "update_traffic_steering_policy",
-        "update_admission_control_policy",
-        "optimize_slice_capacity_policy",
         
     ]
 
@@ -40,11 +37,22 @@ class RANActionProposal(BaseModel):
     invocation_context: SkipJsonSchema[dict[str, Any]] = Field(default_factory=dict)
 
 
+class LLMReview(BaseModel):
+    """The governance LLM's judgement of one action, kept for evaluation."""
+
+    goal_aligned: bool
+    reasoning_sound: bool
+    behavior_acceptable: bool
+    reason: str
+
+
 class GovernanceResult(BaseModel):
     approved: bool
     reason: str
     failed_stage: str | None = None
     checks_passed: list[str] = Field(default_factory=list)
+    # Present when the LLM review stage ran (stages 1-4 passed).
+    llm_review: LLMReview | None = None
 
 
 class RANToolResult(BaseModel):

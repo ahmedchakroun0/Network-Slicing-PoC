@@ -1,249 +1,165 @@
-from __future__ import annotations
+"""MongoDB results store: what happened to every telemetry record of a run.
 
-"""Mongo repository scaffold for persisted agent-execution runs.
+Collections (shapes in src/schema/mongo_run_document.py):
+  runs     {_id: run_id, created_at, finished_at, status, config, summary}
+  records  {_id: "<run_id>:<record_id>", run_id, seq, status, telemetry, sla,
+            persistence, monitoring, agents: {<agent>: {status, ..., actions: [...]}}, error}
 
-This repository only models the persisted experiment content.
-It does not store Redis runtime state, dataset paths, or other transient
-execution metadata.
+Every agent step is one small targeted update of one record document
+($setOnInsert / $set / $push); documents are never re-written whole, and
+nothing is cached in memory, so the cost of a write does not grow with the run.
 
-Document shape
---------------
-{
-  "_id": "<run_id>",
-  "run_id": "<run_id>",
-  "summary": {...},
-  "records": {
-    "<record_id>": {
-      "telemetry_record": {...},
-      "ground_truth": {...},
-      "comparison": {...},
-      "computed_analysis": {...},
-      "monitoring_decision": {...},
-      "agent_executions": {
-        "near_rt_ric": {
-          "invocation": {...},
-          "result": {...},
-          "middleware_audit": [...]
-                },
-                "non_rt_ric": {
-                    "invocation": {...},
-                    "result": {...},
-                    "middleware_audit": [...]
-        }
-      },
-      "error": {...}
-    }
-  }
-}
+  record received   insert_record   $setOnInsert telemetry, sla, persistence
+  decision          set_decision    $set monitoring, status="decided"
+  agent starts      start_agent     $set agents.<agent>
+  each tool call    push_action     $push agents.<agent>.actions (with the governance review)
+  knowledge lookup  push_knowledge  $push agents.<agent>.knowledge
+  agent ends        finish_agent    $set agents.<agent>.status / finished_at / selected_action
+  record ends       finish_record   $set status="done"; runs: $inc summary counters
 """
 
-from dataclasses import dataclass, field
+from __future__ import annotations
+
+import os
+from datetime import datetime, timezone
 from typing import Any
 
-from src.schema.monitoring import AgentInvocation
+from pymongo import ASCENDING, MongoClient
+
 from src.schema.mongo_run_document import (
-    MongoAgentExecutionDocument,
-    MongoDatasetRecordDocument,
-    MongoMiddlewareAuditDocument,
-    MongoRunDocument,
+    ActionEntry,
+    AgentMessage,
+    AgentRun,
+    KnowledgeEntry,
+    RecordDocument,
+    RunDocument,
 )
-from pymongo import MongoClient
+
+DEFAULT_MONGO_URI = "mongodb://localhost:27017"
+DEFAULT_MONGO_DB = "network_slicing_poc"
 
 
-@dataclass(slots=True)
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def record_key(run_id: str, record_id: str) -> str:
+    return f"{run_id}:{record_id}"
+
+
 class MongoRepository:
-    database_name: str = "network_slicing_poc"
-    collection_name: str = "dataset_runs"
-    mongo_uri: str = "mongodb://localhost:27017"
-    _runs: dict[str, MongoRunDocument] = field(default_factory=dict, init=False, repr=False)
-    _collection: Any = field(default=None, init=False, repr=False)
+    def __init__(self, mongo_uri: str | None = None, database_name: str | None = None) -> None:
+        client = MongoClient(mongo_uri or os.environ.get("MONGO_URI", DEFAULT_MONGO_URI))
+        db = client[database_name or os.environ.get("MONGO_DB", DEFAULT_MONGO_DB)]
+        self.runs = db["runs"]
+        self.records = db["records"]
+        self.ensure_indexes()
 
-    def __post_init__(self) -> None:
-        client = MongoClient(self.mongo_uri)
-        self._collection = client[self.database_name][self.collection_name]
-    def ensure_run(
-        self,
-        *,
-        run_id: str,
-        summary: dict[str, Any] | None = None,
-    ) -> MongoRunDocument:
-        run_document = self._runs.get(run_id)
-        if run_document is None:
-            run_document = self.new_run_document(run_id=run_id, summary=summary)
-            self._runs[run_id] = run_document
-        elif summary:
-            run_document.summary.update(summary)
-        self.save_run(run_document)
-        return run_document
+    def ensure_indexes(self) -> None:
+        self.records.create_index([("run_id", ASCENDING), ("seq", ASCENDING)])
+        self.records.create_index([("run_id", ASCENDING), ("telemetry.cell_id", ASCENDING),
+                                   ("telemetry.slice_id", ASCENDING)])
+        self.records.create_index([("run_id", ASCENDING), ("sla.violations", ASCENDING)])
 
-    @staticmethod
-    def new_run_document(
-        *,
-        run_id: str,
-        summary: dict[str, Any] | None = None,
-    ) -> MongoRunDocument:
-        return MongoRunDocument(
-            _id=run_id,
-            run_id=run_id,
-            summary=summary or {},
-        )
+    def _update_record(self, run_id: str, record_id: str, update: dict[str, Any]) -> None:
+        self.records.update_one({"_id": record_key(run_id, record_id)}, update)
 
-    @staticmethod
-    def new_record_document(
-        *,
-        record_id: str,
-        telemetry_record: dict[str, Any],
-        ground_truth: dict[str, Any] | None = None,
-        comparison: dict[str, Any] | None = None,
-        computed_analysis: dict[str, Any] | None = None,
-        monitoring_decision: dict[str, Any] | None = None,
-        error: dict[str, Any] | None = None,
-    ) -> MongoDatasetRecordDocument:
-        return MongoDatasetRecordDocument(
-            record_id=record_id,
-            telemetry_record=telemetry_record,
-            ground_truth=ground_truth or {},
-            comparison=comparison or {},
-            computed_analysis=computed_analysis or {},
-            monitoring_decision=monitoring_decision,
-            error=error,
-        )
+    # ------------------------------------------------------------------
+    # Run
+    # ------------------------------------------------------------------
 
-    @staticmethod
-    def new_agent_execution_document(
-        *,
-        agent: str,
-        invocation: AgentInvocation,
-        result: dict[str, Any] | None = None,
-        middleware_audit: list[dict[str, Any]] | None = None,
-    ) -> MongoAgentExecutionDocument:
-        audit_documents: list[MongoMiddlewareAuditDocument] = []
-        for entry in middleware_audit or []:
-            audit_documents.append(
-                MongoMiddlewareAuditDocument(
-                    tool_call_id=str(entry.get("tool_call_id") or ""),
-                    proposal=entry.get("proposal"),
-                    governance=entry["governance"],
-                    execution=entry["execution"],
-                )
-            )
+    def start_run(self, *, run_id: str, config: dict[str, Any], summary: dict[str, Any]) -> None:
+        doc = RunDocument(_id=run_id, created_at=_now(), config=config, summary=summary)
+        fields = doc.model_dump(by_alias=True, exclude={"id"})
+        self.runs.update_one({"_id": run_id}, {"$setOnInsert": fields}, upsert=True)
 
-        return MongoAgentExecutionDocument(
-            agent=agent,  # type: ignore[arg-type]
-            invocation=invocation,
-            result=result,
-            middleware_audit=audit_documents,
-        )
+    def count(self, *, run_id: str, counters: dict[str, int]) -> None:
+        """Increment run summary counters, e.g. {"rows_processed": 1}."""
+        if counters:
+            self.runs.update_one({"_id": run_id},
+                                 {"$inc": {f"summary.{k}": v for k, v in counters.items()}})
 
-    @staticmethod
-    def attach_record(
-        run_document: MongoRunDocument,
-        record_document: MongoDatasetRecordDocument,
-    ) -> MongoRunDocument:
-        run_document.upsert_record(record_document)
-        return run_document
+    def finish_run(self, *, run_id: str) -> None:
+        self.runs.update_one({"_id": run_id},
+                             {"$set": {"status": "finished", "finished_at": _now()}})
 
-    def start_record(
-        self,
-        *,
-        run_id: str,
-        record_document: MongoDatasetRecordDocument,
-        summary: dict[str, Any] | None = None,
-    ) -> MongoDatasetRecordDocument:
-        self.ensure_run(run_id=run_id, summary=summary)
-        run_document = self._runs[run_id]
-        existing = run_document.get_record(record_document.record_id)
-        if existing is None:
-            run_document.upsert_record(record_document)
-            self.save_run(run_document)
-            return record_document
+    # ------------------------------------------------------------------
+    # Record
+    # ------------------------------------------------------------------
 
-        existing.telemetry_record = (
-            record_document.telemetry_record or existing.telemetry_record
-        )
-        if record_document.ground_truth:
-            existing.ground_truth = record_document.ground_truth
-        if record_document.comparison:
-            existing.comparison = record_document.comparison
-        if record_document.computed_analysis:
-            existing.computed_analysis = record_document.computed_analysis
-        if record_document.monitoring_decision is not None:
-            existing.monitoring_decision = record_document.monitoring_decision
-        if record_document.error is not None:
-            existing.error = record_document.error
-        self.save_run(run_document)
-        return existing
-
-    @staticmethod
-    def attach_agent_execution(
-        record_document: MongoDatasetRecordDocument,
-        execution_document: MongoAgentExecutionDocument,
-    ) -> MongoDatasetRecordDocument:
-        record_document.agent_executions[execution_document.agent] = execution_document
-        return record_document
-
-    def set_monitoring_decision(
+    def insert_record(
         self,
         *,
         run_id: str,
         record_id: str,
-        monitoring_decision: dict[str, Any],
-    ) -> MongoDatasetRecordDocument:
-        run_document = self.ensure_run(run_id=run_id)
-        record_document = run_document.records[record_id]
-        record_document.monitoring_decision = monitoring_decision
-        self.save_run(run_document)
-        return record_document
+        seq: int,
+        telemetry: dict[str, Any],
+        sla: dict[str, Any],
+        persistence: dict[str, int],
+    ) -> None:
+        doc = RecordDocument(_id=record_key(run_id, record_id), run_id=run_id, seq=seq,
+                             status="received", telemetry=telemetry, sla=sla,
+                             persistence=persistence)
+        fields = doc.model_dump(by_alias=True, exclude={"id", "monitoring", "agents", "error"})
+        self.records.update_one({"_id": doc.id}, {"$setOnInsert": fields}, upsert=True)
 
-    def start_agent_execution(
-        self,
-        *,
-        run_id: str,
-        record_id: str,
-        agent: str,
-        invocation: AgentInvocation,
-    ) -> MongoAgentExecutionDocument:
-        run_document = self.ensure_run(run_id=run_id)
-        record_document = run_document.records[record_id]
-        execution_document = self.new_agent_execution_document(
-            agent=agent,
-            invocation=invocation,
-            result=None,
-            middleware_audit=[],
-        )
-        record_document.agent_executions[agent] = execution_document
-        self.save_run(run_document)
-        return execution_document
+    def set_decision(self, *, run_id: str, record_id: str, decision: dict[str, Any]) -> None:
+        self._update_record(run_id, record_id, {"$set": {
+            "monitoring": {**decision, "decided_at": _now()}, "status": "decided"}})
 
-    def finish_agent_execution(
-        self,
-        *,
-        run_id: str,
-        record_id: str,
-        agent: str,
-        invocation: AgentInvocation,
-        result: dict[str, Any] | None = None,
-        middleware_audit: list[dict[str, Any]] | None = None,
-    ) -> MongoAgentExecutionDocument:
-        run_document = self.ensure_run(run_id=run_id)
-        record_document = run_document.records[record_id]
-        execution_document = self.new_agent_execution_document(
-            agent=agent,
-            invocation=invocation,
-            result=result,
-            middleware_audit=middleware_audit,
-        )
-        record_document.agent_executions[agent] = execution_document
-        self.save_run(run_document)
-        return execution_document
+    def finish_record(self, *, run_id: str, record_id: str) -> None:
+        self._update_record(run_id, record_id, {"$set": {"status": "done"}})
 
-    def save_run(self, run_document: MongoRunDocument) -> None:
-        self._runs[run_document.run_id] = run_document
-        self._collection.replace_one(
-            {"_id": run_document.run_id},
-            run_document.model_dump(mode="json", by_alias=True),
+    def fail_record(
+        self, *, run_id: str, record_id: str, seq: int, error: dict[str, Any],
+        telemetry: dict[str, Any] | None = None,
+    ) -> None:
+        """Mark a record failed; creates it when it failed before insert_record."""
+        self.records.update_one(
+            {"_id": record_key(run_id, record_id)},
+            {"$set": {"status": "failed", "error": error},
+             "$setOnInsert": {"run_id": run_id, "seq": seq, "telemetry": telemetry or {},
+                              "sla": {}, "persistence": {}}},
             upsert=True,
         )
 
+    # ------------------------------------------------------------------
+    # RIC agents
+    # ------------------------------------------------------------------
 
-__all__ = ["MongoRepository"]
+    def start_agent(self, *, run_id: str, record_id: str, agent: str) -> None:
+        run = AgentRun(status="running", started_at=_now())
+        self._update_record(run_id, record_id, {"$set": {f"agents.{agent}": run.model_dump()}})
+
+    def push_action(self, *, run_id: str, record_id: str, agent: str, entry: ActionEntry) -> None:
+        self._update_record(run_id, record_id,
+                            {"$push": {f"agents.{agent}.actions": entry.model_dump()}})
+
+    def push_knowledge(
+        self, *, run_id: str, record_id: str, agent: str, entry: KnowledgeEntry
+    ) -> None:
+        self._update_record(run_id, record_id,
+                            {"$push": {f"agents.{agent}.knowledge": entry.model_dump()}})
+
+    def finish_agent(
+        self,
+        *,
+        run_id: str,
+        record_id: str,
+        agent: str,
+        status: str,
+        selected_action: int | None = None,
+        final_message: AgentMessage | None = None,
+        error: dict[str, Any] | None = None,
+    ) -> None:
+        prefix = f"agents.{agent}"
+        fields: dict[str, Any] = {f"{prefix}.status": status, f"{prefix}.finished_at": _now(),
+                                  f"{prefix}.selected_action": selected_action}
+        if final_message is not None:
+            fields[f"{prefix}.final_message"] = final_message.model_dump()
+        if error is not None:
+            fields[f"{prefix}.error"] = error
+        self._update_record(run_id, record_id, {"$set": fields})
+
+
+__all__ = ["MongoRepository", "record_key"]

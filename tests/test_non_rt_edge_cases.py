@@ -1,32 +1,20 @@
 import pytest
-from redis.asyncio import Redis
 
 from agents.non_rt_ric_agent import NonRTRICAgent
-from src.memory.working_memory import RedisWorkingMemory
 from src.schema.monitoring import AgentInvocation
 
 
-@pytest.fixture
-async def redis_memory():
-    redis = Redis.from_url("redis://localhost:6379/0", decode_responses=True)
-    await redis.flushdb()
-    memory = RedisWorkingMemory(redis)
-    yield memory
-    await redis.flushdb()
-    await redis.aclose()
-
-
 @pytest.mark.asyncio
-async def test_non_rt_initialize_requires_governance_agent(redis_memory):
-    agent = NonRTRICAgent(memory=redis_memory)
+async def test_non_rt_initialize_requires_governance_agent(memory):
+    agent = NonRTRICAgent(memory=memory)
 
     with pytest.raises(RuntimeError, match="requires a RAN Trust & Governance Agent"):
         await agent.initialize()
 
 
 @pytest.mark.asyncio
-async def test_non_rt_invoke_rejects_wrong_agent_name(redis_memory):
-    agent = NonRTRICAgent(memory=redis_memory)
+async def test_non_rt_invoke_rejects_wrong_agent_name(memory):
+    agent = NonRTRICAgent(memory=memory)
     invocation = AgentInvocation(
         agent="near_rt_ric",
         responsibility="Wrong target agent for this test",

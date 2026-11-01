@@ -7,7 +7,8 @@ from src.schema.near_rt_ric import (
     RANToolResult,
 )
 from tools.near_rt_ric_tools import adjust_prb_allocation, search_ran_knowledge
-from tools.non_rt_ric_tools import update_traffic_steering_policy
+from tools.near_rt_ric_tools import optimize_scheduler
+from tools.non_rt_ric_tools import update_slice_resource_policy
 
 
 def test_base_ric_build_typed_result_maps_completed_status():
@@ -93,20 +94,24 @@ async def test_near_rt_prb_tool_returns_success_payload():
 
 @pytest.mark.asyncio
 async def test_non_rt_policy_tool_returns_simulated_policy_result():
-    result = await update_traffic_steering_policy.ainvoke(
+    result = await update_slice_resource_policy.ainvoke(
         {
             "target": "cell-1",
-            "steering_mode": "latency_aware",
-            "load_balance_threshold_pct": 70,
-            "rationale": "Latency is persistently high, so traffic steering should favor low-latency paths.",
-            "expected_effect": "Lower latency and improve fairness.",
+            "slice_id": "eMBB",
+            "min_prb_ratio_pct": 40,
+            "max_prb_ratio_pct": 80,
+            "rationale": "Throughput is persistently below budget; guarantee 40 % of the PRBs.",
+            "expected_effect": "Higher throughput per UE.",
             "confidence": 0.85,
-            "evidence_sources": ["latency", "throughput"],
         }
     )
 
     assert result["status"] == "success"
-    assert result["tool"] == "update_traffic_steering_policy"
+    assert result["tool"] == "update_slice_resource_policy"
     assert result["channel"] == "A1"
-    assert result["target"] == "cell-1"
-    assert result["steering_mode"] == "latency_aware"
+    assert result["min_prb_ratio_pct"] == 40
+
+
+def test_scheduler_tool_offers_the_testbed_schedulers():
+    assert optimize_scheduler.args["scheduler"]["enum"] == [
+        "round_robin", "waterfilling", "proportional_fair"]

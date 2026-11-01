@@ -11,7 +11,7 @@ evaluated here, only that the data flows through every component.
 import asyncio, sys, json
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]; sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / "tests"))
-import os; os.chdir(ROOT)
+import os; os.chdir(ROOT); os.environ["LANGSMITH_TRACING"] = "false"  # scripted data: no traces
 import fakeredis.aioredis, mongomock
 import agents.base_ric as base_ric, scripts.run_dataset as rd, src.core.llm as core_llm
 import src.repositories.mongo_repository as mrepo
@@ -23,19 +23,19 @@ mrepo.MongoClient = mongomock.MongoClient
 redis = fakeredis.aioredis.FakeRedis(decode_responses=True)
 RedisWorkingMemory.from_url = classmethod(lambda cls, *a, **k: cls(redis))
 store = {}
-orig = mrepo.MongoRepository.__post_init__
-def cap(self): orig(self); store["c"] = self._collection
-mrepo.MongoRepository.__post_init__ = cap
+orig = mrepo.MongoRepository.__init__
+def cap(self, *a, **k): orig(self, *a, **k); store["repo"] = self
+mrepo.MongoRepository.__init__ = cap
 cfg = rd.RunConfig(dataset_path=Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT / "data/coloran_prepared_dataset.csv", run_id="coloran-demo",
                    start_row=1, max_rows=int(sys.argv[1]), knowledge_file=rd.DEFAULT_KNOWLEDGE_FILE)
 asyncio.run(rd.run_dataset(cfg))
-doc = store["c"].find_one({"_id": "coloran-demo"})
-print("SUMMARY", json.dumps(doc["summary"]))
-for rid, r in list(doc["records"].items()):
-    t = r["telemetry_record"]; d = r["monitoring_decision"] or {}
-    ex = r.get("agent_executions") or {}
-    out = {a: ((e.get("middleware_audit") or [{}])[0].get("governance") or {}).get("failed_stage") or "approved"
-           for a, e in ex.items()}
-    print(rid, t["cell_id"], t["slice_type"], r["computed_analysis"]["violations"],
+repo = store["repo"]
+print("RUN", json.dumps(repo.runs.find_one({"_id": "coloran-demo"})["summary"]))
+for r in repo.records.find({"run_id": "coloran-demo"}).sort("seq", 1):
+    t, d = r["telemetry"], r.get("monitoring") or {}
+    out = {a: [x["governance"].get("failed_stage") or "approved" for x in e.get("actions", [])]
+           for a, e in (r.get("agents") or {}).items()}
+    print(r["seq"], t["cell_id"], t["slice_id"], r["sla"].get("violations"), "persist=", r["persistence"],
           "agents=", [i["agent"] for i in d.get("selected_agents", [])], out,
-          "persist=", (ex.get("non_rt_ric", {}).get("invocation", {}).get("context", {}).get("persistence")))
+          "bytes=", len(json.dumps(r, default=str)))
+print("REDIS KEYS", sorted(asyncio.run(redis.keys("wm:*"))))

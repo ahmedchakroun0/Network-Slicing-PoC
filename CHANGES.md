@@ -81,3 +81,67 @@ Fix added after auditing runs 23-24:
 Security: the received archive contained `.env` with live API keys (HF, xAI, Gemini,
 OpenRouter, LiteLLM) and `.env.example` repeated the LiteLLM keys and the database
 password. Both were removed / replaced by placeholders here; the keys should be rotated.
+
+# v3.3 — native ColO-RAN telemetry, SLA profiles, efficient memory and results store
+
+Telemetry and SLA:
+- `TelemetryRecord` is ColO-RAN native: one record per base station, slice and 1 s window, in native units. The CSV columns are its fields (no aliases or unit conversion in the runner). `scripts/prepare_coloran.py` was rewritten; it trims the start-up and tail of each run with a sustained-traffic rule. The synthetic dataset format is no longer supported.
+- SLA budgets moved out of the data into per-slice profiles (`src/schema/sla.py`: throughput per UE, queueing delay). `SLAAnalysis` is a dict of KPI -> status, and the LLM no longer generates `sla_analysis`.
+- The RIC agents get a trusted `slice_state` (PRB share, utilisation, spare PRBs in the cell, scheduler).
+- `scripts/explore_coloran.py` profiles every raw column (report in `data/exploration/`).
+
+Working memory (Redis):
+- The single JSON blob that was rewritten on every append is replaced by keys per base station and slice: HASH meta and persistence, LISTs capped with LTRIM for records and tool calls, and pipelined reads and writes.
+- Agents see only their cell and slice. Facts only: no LLM text is fed back into prompts.
+- The persistence counters moved from the runner into Redis. A new configuration of a base station clears its memory.
+
+Results store (MongoDB):
+- The one-document-per-run design, replaced 5 times per record, is gone. There is now `runs` (one small document, `$inc` counters) and `records` (one document per record, updated with `$set` / `$push` at each agent step), plus indexes and no in-process cache.
+- Each fact is stored once: no invocation context, no `proposal.invocation_context`, no duplicated typed result (`selected_action` points to the action). A record with two agents drops from ~18 KB to a few KB.
+- The middleware's `AuditSink` writes each tool call when it happens.
+
+Agent reasoning in the results store (for expert evaluation):
+- Every action stores the RIC agent's stated `reasoning` (rationale: why this tool and these values; expected_effect, evidence_sources, confidence) and its `agent_message`: the visible text of the model turn that emitted the call, and `forced` when the middleware produced the call because the model did not.
+- `governance.llm_review` keeps the review's three verdicts (goal_aligned, reasoning_sound, behavior_acceptable) and its `reason` (why it accepts or rejects, citing the claim, parameters and KPI values), for approved and rejected actions. Deterministic stages keep their exact reason in `governance.reason`.
+- `agents.<agent>.knowledge` keeps each knowledge lookup and what it returned; `agents.<agent>.final_message` keeps the agent's closing turn.
+- `monitoring` keeps the decision's `reason`; when the deterministic override changed the decision, `overridden: true` and `llm_output` hold what the model decided.
+- Only output tokens are stored (the reasons the agents state), never hidden thinking tokens.
+- Redis action events get the review verdicts as booleans only (`review`); no LLM text goes into working memory.
+
+Tools and governance gate:
+- Removed `update_traffic_steering_policy` and `update_admission_control_policy` (nothing in ColO-RAN reflects them), and `optimize_slice_capacity_policy` (a duplicate of `update_slice_resource_policy`). The Non-RT RIC keeps `update_slice_resource_policy`.
+- `optimize_scheduler` accepts the testbed's schedulers only (round_robin, waterfilling, proportional_fair). They are defined once (`src.schema.monitoring.Scheduler`) for the telemetry, the tool and governance.
+- `adjust_qos_parameters` (priority_level 1-10, packet_delay_budget_ms 5-300, guaranteed_bitrate_mbps 0-10) and `adjust_link_adaptation` (mcs_offset -5..5, target_bler 0.001-0.2) now take typed parameters with safety envelopes instead of free-form dictionaries, which governance always rejected.
+- The gate no longer drops arguments a tool does not declare: they reach governance and are rejected at the schema stage with the argument's name.
+- The one-execution-per-invocation rule applies per controlled resource (`RESOURCE_OF`), not per tool name.
+- Forced tool calls are unchanged.
+
+Records without an SLA violation:
+- The runner skips them before the Monitoring Agent (no LLM call): Redis still gets the cell configuration, the reset persistence counters and a healthy entry in the slice history (not in the cell history); MongoDB counts them in `summary.rows_without_violation` and stores no record document.
+
+Tests (68 pass, no external service needed):
+- `conftest`: `memory` is the real `RedisWorkingMemory` on fakeredis and `mongo` the real `MongoRepository` on mongomock (the hand-written fake memory is gone); the LLM is still faked. No test touches a local Redis any more (the old ones ran `flushdb()` on it).
+- New: `test_working_memory.py` (keys, reconfiguration, persistence, view, caps, TTL, reset) and `test_mongo_repository.py` (targeted updates, no overwrite, failures, indexes).
+- Updated: Monitoring (decision and `llm_output` stored, agent errors in MongoDB), RIC agent (actions, selected action, review verdicts in Redis), typed QoS / link-adaptation / scheduler envelopes, undeclared-argument rejection, per-resource limit, end-to-end (healthy records skipped, Redis persistence gate).
+- `scripts/demo_run_scripted.py 12 data/coloran_prepared_sample.csv`: a record with two agents is ~4 KB (was ~18 KB).
+
+Routing rules and model-call robustness:
+- The Non-RT RIC is invoked only when a violated KPI has persisted for `NON_RT_MIN_PERSISTENCE` (3) consecutive records of the cell and slice. Below that, the Monitoring Agent drops it from the LLM's selection and notes why in `monitoring.orchestration_notes`; `llm_output` keeps the LLM's own choice for evaluation. Governance still checks persistence (defence in depth).
+- A record with violations is never left without an agent: when the LLM selects none (or only a Non-RT that is dropped), the Near-RT RIC is invoked with an objective built from the violated KPIs, and the fallback is noted. `action_required` always follows the selected agents.
+- Model calls retry transient errors (rate limit, timeout, connection, API) with exponential backoff (`LLM_MAX_RETRIES`, default 6). One request budget is shared by every agent (`LLM_REQUESTS_PER_MINUTE`, 0 = unlimited). The governance review timeout includes retries and waits (`GOVERNANCE_LLM_TIMEOUT_S`, default 180 s), so a rate limit does not turn into a spurious rejection.
+- 75 tests pass.
+
+Record workflow as a LangGraph graph:
+- `agents/record_workflow.py`: one `StateGraph` run per telemetry record, `ingest -> (skip_healthy | monitoring -> near_rt_ric? -> non_rt_ric? -> finalize)`. Its typed `RecordState` (record, SLA analysis, persistence, slice state, decision, agent results) is shared by the nodes of that record only; memory across records stays in Redis and results in MongoDB.
+- The trusted context of the RIC agents is built from the state (`trusted_context(state)`) instead of a mutable dict shared by every call in `run_dataset.py`.
+- The selected RIC agents run in a fixed order, Near-RT first, whatever order the LLM listed them in: the Non-RT RIC sees this record's Near-RT calls in its working memory.
+- `MonitoringAgent.run` is split into `decide` (LLM + deterministic override + stores) and `invoke_agent` (one RIC call; a missing agent or a failure is recorded and returns None). `run()` still chains them for direct use.
+- Each graph run is named `record <record_id>` with tags (cell, slice) and metadata (run_id, record_id, seq, cell_id, slice_id): one LangSmith trace per record when `LANGSMITH_TRACING=true`.
+- `RecordWorkflow.draw_mermaid()` generates the workflow diagram from the graph.
+- New `tests/test_record_workflow.py`; 80 tests pass.
+
+LangSmith tracing:
+- Every protected tool call is one `governance <tool>` span (tag `governance`) around the whole gate, whatever its outcome: a rejected tool never runs, so it would otherwise leave no span. The LLM review and the executed tool are nested inside it.
+- `langsmith>=0.14.9` and `langchain-core>=1.6.11`: with `LANGSMITH_AGENT_ID` set, older versions send both the agent address and the default project, and the server rejects every trace with a 400.
+- Tests and `scripts/demo_run_scripted.py` force `LANGSMITH_TRACING=false`: scripted data is never sent, whatever `.env` says.
+- 81 tests pass.

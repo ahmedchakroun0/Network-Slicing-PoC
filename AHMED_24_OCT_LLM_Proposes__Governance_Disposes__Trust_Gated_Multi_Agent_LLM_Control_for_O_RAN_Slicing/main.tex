@@ -1,0 +1,262 @@
+% =====================================================================
+%  IEEE WCNC -- 6-page technical paper (IEEEtran, conference mode)
+%  Compiles on Overleaf (pdfLaTeX) or locally:  latexmk -pdf main.tex
+% =====================================================================
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+\usepackage{cite}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit,backgrounds,calc}
+\usepackage[hidelinks]{hyperref}
+
+% ---- palette shared by the TikZ diagrams (validated CVD-safe hues) ----
+\definecolor{ink}{HTML}{2B2B2B}      \definecolor{inkmuted}{HTML}{6B6A66}
+\definecolor{llmfill}{HTML}{E3EEFB}  \definecolor{detfill}{HTML}{FDEBDF}
+\definecolor{storefill}{HTML}{F1F0EC}\definecolor{detline}{HTML}{C4501F}
+\definecolor{rejline}{HTML}{B3261E}  \definecolor{okline}{HTML}{1B7F4C}
+\definecolor{bandA}{HTML}{FAFAF8}    \definecolor{bandB}{HTML}{F4F7FB}
+\newcommand{\stg}[1]{\tikz[baseline=-0.6ex]\node[draw=detline,fill=white,circle,inner sep=0.8pt,minimum size=4mm,font=\scriptsize\bfseries]{#1};$\!\to$}
+\newcommand{\stgl}[1]{\tikz[baseline=-0.6ex]\node[draw=detline,fill=llmfill,circle,inner sep=0.8pt,minimum size=4mm,font=\scriptsize\bfseries]{#1};}
+% numbered workflow step marker, same look as in Fig. 2
+\newcommand{\sn}[1]{\tikz[baseline=-0.6ex]\node[circle,fill=detline,text=white,inner sep=0.5pt,minimum size=3.2mm,font=\tiny\bfseries]{#1};}
+
+% ---- name of the proposed framework (change it here only) ----
+\newcommand{\fw}{\textsc{TrustRIC}}
+% ---- code repository (paste the real URL here, one place only) ----
+\newcommand{\repo}{\url{https://github.com/ahmedchakroun0/Network-Slicing-PoC}}
+
+
+\newtheorem{proposition}{Proposition}
+\newcommand{\G}{\mathcal{G}}
+\algrenewcommand\algorithmicindent{0.9em}
+\renewcommand{\IEEEbibitemsep}{0pt plus 0.5pt}
+
+\begin{document}
+
+\title{LLM Proposes, Governance Disposes: Trust-Gated\\ Multi-Agent LLM Control for O-RAN Slicing}
+
+\author{
+  \IEEEauthorblockN{Ahmed Chakroun $^{1,3}$, Rihab Boussada$^{2,3}$, Le\"\i la Nasraoui$^{1,3}$, Carla Fabiana Chiasserini$^{4}$\\}
+  \IEEEauthorblockA{
+  $ ^{1}$COSIM Research Lab, Higher School of Communications (SUP'COM), University of Carthage, Tunisia\\
+   $ ^{2}$CRISTAL Laboratory, 
+$ ^{3}$ National School of Computer Sciences (ENSI) University of Manouba, Tunisia\\
+Politecnico di Torino, Turin, Piedmont, Italy\\
+emails :
+\{ahmedbenmondher.chakroun,rihab.boussada\}@ensi-uma.tn, leila.nasraoui@supcom.tn, carla.chiasserini@polito.it}
+
+}
+
+\maketitle
+
+\begin{abstract}
+Large language model (LLM) agents are emerging as controllers for Open RAN (O-RAN), but their tool calls may contain hallucinated identifiers, out-of-range parameters, or unjustified actions, and one such call can degrade a slice. This paper presents \fw{}, a novel architectural framework for trustworthy multi-agent LLM control of RAN slice assurance, and a thorough study of it on real-stack traces. \fw{} separates deterministic KPI grounding, LLM orchestration, action proposal by Near-RT and Non-RT RIC agents, and deterministic authorization: every network-modifying tool call is checked by a five-stage, fail-closed Trust \& Governance pipeline against a trusted context built by code, with an LLM-based review as its last stage. We evaluate the unmodified code on ColO-RAN traces from a real srsRAN stack (730,053 slice windows, 7 base stations). On real LLM runs against violating ColO-RAN records (cell bs2, eMBB slice with latency/jitter/throughput violations), all proposed tool calls passed the full five-stage gate (schema, policy/trust, SLA, resource safety, LLM review) with no rejections; governance approved resource adjustments (e.g., \texttt{adjust\_prb\_allocation} to 70\% PRB) and scheduler changes within enforced bounds, and approved actions were executed as recorded. The extracted KPIs from these runs are summarized separately. The study also exposes design gaps, which we fix.
+\end{abstract}
+
+\begin{IEEEkeywords}
+O-RAN, RAN slicing, agentic AI, large language models, RIC, trustworthy network automation, 6G.
+\end{IEEEkeywords}
+
+\section{Introduction}
+\noindent Sixth-generation (6G) radio access networks must keep slices within their service-level agreements (SLAs) as radio conditions and load vary, faster than operators can react. O-RAN enables this by exposing RAN control to third-party applications via the Near-RT RIC, , which handles near-real-time decisions (10\,ms--1\,s loops) and the Non-RT RIC, and the Non-RT RIC, which manages longer-term optimization ($>$1\,s) \cite{polese2023oran,bonati2021intelligence,foukas2017slicing}. LLM \emph{agents} that call control tools are now proposed for this role \cite{maatouk2025llm,zhou2024llmtelecom,mekrache2024intent,elkael2025agentran,navidan2026multiscale,li2026llmoran}; they turn operator objectives into actions without task-specific training \cite{yao2023react}, but bring failure modes that xApps lack: hallucinated arguments and identifiers \cite{ji2023hallucination}, injected instructions \cite{greshake2023injection} and run-to-run variability. One misparameterized call, such as a PRB policy with minimum above maximum, can degrade a slice (Fig.~\ref{fig:scenario}).
+
+\begin{figure}[!t]
+\centering
+\resizebox{0.85\columnwidth}{!}{\input{figures/scenario.tex}}
+\caption{\fw{} governance workflow for LLM-driven RAN control, enforcing code-based validation and authorization of every control call.}
+\label{fig:scenario}
+\end{figure}
+
+\begin{figure*}[!t]
+\centering
+\resizebox{0.85\textwidth}{!}{\input{figures/arch.tex}}
+\caption{The \fw{} TRUSTRIC architecture. Deterministic components produce trusted context, while LLM agents orchestrate and propose actions. Protected tool calls are authorized before execution.}
+\label{fig:arch}
+\end{figure*}
+
+\noindent This paper explores how multi-agent LLM control of the RAN can remain subject to explicit trust, policy, SLA and safety constraints without sacrificing its benefit. Guardrail toolkits \cite{rebedea2023nemo} constrain dialogue, and agentic RAN frameworks \cite{elkael2025agentran,navidan2026multiscale,singh2025assurance} focus on capability or add verifier agents; to our knowledge, none binds action authorization to facts that the LLM itself cannot write. We answer with \fw{}, a novel architectural framework for trustworthy multi-agent LLM control of RAN slice assurance, and a thorough study of it on real-stack wireless traces, demonstrating that context-bound, fail-closed governance removes structural faults at negligible cost, whereas an LLM review alone cannot guarantee grounding. Our contributions are thus as follows:
+\begin{itemize}
+\item \textbf{\fw{} architecture} (Fig.~\ref{fig:arch}, Sec.~\ref{sec:arch}). Code computes SLA facts and a \emph{trusted context} merged over anything the LLM wrote; a Monitoring agent routes incidents to Near-RT and Non-RT RIC agents, which only \emph{propose}; a governance gate \emph{authorizes}.
+\item \textbf{Trust-gated tool calls with a guarantee.} Each protected call becomes a typed proposal checked by a five-stage, fail-closed pipeline whose last stage, an LLM review, provably cannot approve a call that the deterministic stages reject (Proposition~\ref{prop:mono}).
+\item \textbf{Thorough evaluation on real-stack traces} (Sec.~\ref{sec:eval}). A trace-driven closed loop on ColO-RAN \cite{polese2023coloran}, a 6{,}000-call fault-injection benchmark, tests of the LLM review, an audit of live LLM runs and a scalability study, all on the unmodified implementation, with code and scripts released at \repo.
+\end{itemize}
+Three take-aways follow: context-bound gating blocks every injected structural fault with no false rejection, no SLA cost and below 0.1\,ms per call; an LLM reviewer is a useful extra check, not a grounding check; and real traces and live LLMs expose design gaps that synthetic data had hidden.
+
+% =====================================================================
+\section{Related Work}
+ \noindent Prior work describes the RIC hierarchy \cite{polese2023oran,bonati2021intelligence}, and ColO-RAN trains DRL xApps for slicing and scheduling on Colosseum \cite{polese2023coloran}. Dai \emph{et al.}~\cite{dai2025oranslicing} address SLA-driven slicing in O-RAN, and \cite{adamczyk2023conflict,benzaid2020zsm} study xApp conflicts and zero-touch management.
+ 
+ \noindent Surveys \cite{maatouk2025llm,zhou2024llmtelecom} map LLM use cases in telecom, \cite{mekrache2024intent} translates operator intents into configurations, and Li \emph{et al.}~\cite{li2026llmoran} study LLMs in O-RAN. AgentRAN \cite{elkael2025agentran} organizes LLM agents hierarchically over live 5G cells, \cite{navidan2026multiscale} places LLM, small-model and foundation-model agents at the Non-RT RIC, Near-RT RIC and DU, and \cite{singh2025assurance} adds verifier and simulator agents, so verification is itself an agent in the loop. Guardrails against prompt injection \cite{greshake2023injection} and hallucination \cite{ji2023hallucination} are programmable rails \cite{rebedea2023nemo}, which constrain conversations, not the arguments of RAN control actions.
+ 
+\noindent \fw{} differs from these in four respects: (i) authorization is bound to a trusted context that code builds and the LLM cannot write; (ii) the gate is a non-bypassable interception point on every tool call, not an agent; (iii) it is fail-closed, and its LLM review cannot override a deterministic rejection (Proposition~\ref{prop:mono}); (iv) it is evaluated end to end on real-stack traces with fault injection and live-LLM audits, which exposed design gaps that we fix and quantify.
+
+% =====================================================================
+\section{System Model and Problem Statement}\label{sec:model}
+\noindent This section defines the SLA model, violation detection, and problem formulation for trustworthy RAN control.
+\textbf{SLA facts.} At step $t$, a record $\mathbf{x}_t$ describes one slice of one cell: measured KPIs $m_t^q$ and budgets $b_t^q$ for $q\!\in\!\mathcal{Q}\!=\!\{\text{lat},\text{jit},\text{loss},\text{thr}\}$. The SLA analyzer computes
+\begin{equation}
+v_t^q=\begin{cases}\mathbb{1}[m_t^q>b_t^q] & q\in\{\text{lat},\text{jit},\text{loss}\}\\ \mathbb{1}[m_t^q<b_t^q] & q=\text{thr}\\ \bot & m_t^q\text{ or }b_t^q\text{ missing,}\end{cases}
+\end{equation}
+the violation set $V_t=\{q: v_t^q=1\}$, and the persistence $\rho_t^q=(\rho_{t-1}^q+1)\,v_t^q$. Unavailable KPIs ($\bot$) are treated as neither healthy nor violated.
+
+\noindent \textbf{RIC control.} A RIC agent $a$ owns tools $\mathcal{T}_a$. Near-RT tools set a slice's PRB share, the scheduler, the handover margin and the power offset; Non-RT tools set slice-resource, traffic-steering and admission policies. A tool call is $u=(\tau,\theta,r)$, with tool $\tau$, parameters $\theta$ and reasoning $r$ (rationale, expected effect, confidence, evidence).
+
+\noindent \textbf{Problem.} The calls $u$ are produced by an LLM and may be (i) structurally invalid (hallucinated identifier, extra or missing argument), (ii) out of range or inverted, (iii) unjustified (no violation, wrong slice or wrong role), or (iv) well-formed but semantically wrong. We seek a decision $\G\in\{0,1\}$ on each call, taken before execution, that blocks (i)--(iii) without rejecting valid calls, cannot be widened by the LLM, and costs far less than the Near-RT budget. Class (iv) is beyond deterministic checks and is what the LLM review targets.
+
+% =====================================================================
+\section{The \fw{} Framework}\label{sec:arch}
+
+\noindent \fw{} (\emph{Trust-gated RIC agents}) rests on three principles. \textbf{P1, facts come from code:} SLA verdicts, persistence and the scope of each action are computed deterministically, and the LLM reads them but never writes them. \textbf{P2, LLMs propose, never execute:} agents only emit typed proposals, there is no Monitoring$\to$Governance path, and RIC agents never access telemetry records directly. \textbf{P3, authorization is fail-closed and monotone:} the gate accepts or rejects each call, a call executes only if the deterministic stages and the final LLM review all accept it, and the review can never override a deterministic rejection.
+
+\subsection{Architecture and workflow}
+
+\noindent Fig.~\ref{fig:arch} shows the four layers (observation, reasoning, governance, execution) and Fig.~\ref{fig:wf} the message sequence of one tool call. Agents exchange Pydantic-validated objects, not free text. One pass through the loop, numbered as in Fig.~\ref{fig:arch}, is:
+\begin{itemize}
+\item[\sn{1}] \textbf{Ground.} Code turns the telemetry record into SLA facts $(v_t^q,V_t,\rho_t^q)$ and builds the trusted context $c_t$. No LLM is involved.
+\item[\sn{2}] \textbf{Route.} The \textbf{Monitoring agent}, an LLM policy $\pi_M(\mathbf{x}_t,V_t,\mathcal{M}_t)\mapsto\mathcal{D}_t=(s_t,\sigma_t,\mathcal{A}_t,\{o_a\})$, reads the record, the SLA analysis, the last ten executions and the working memory $\mathcal{M}_t$, and returns a situation, a severity, the selected agents $\mathcal{A}_t\subseteq\{\textsc{near},\textsc{non}\}$ and an objective for each. If $V_t=\emptyset$, code overrides it with $\mathcal{A}_t=\emptyset$.
+\item[\sn{3}] \textbf{Propose.} Each selected \textbf{RIC agent} may consult a RAN knowledge base and emits tool calls $u$. Unprotected tools, such as retrieval, pass through; every action tool is intercepted by the gate.
+\item[\sn{4}] \textbf{Authorize.} The middleware builds a typed proposal $p$, attaches $c_t$ from the system and rejects malformed ones. The gate evaluates $g_S,g_P,g_L,g_R,g_V$ in order and returns $\G\in\{0,1\}$, seeing only $p$ and the invocation context (no agent state, messages or telemetry).
+\item[\sn{5}] \textbf{Execute or reject.} If $\G{=}1$, the tool runs and its result returns to the agent. If $\G{=}0$, the rejecting stage and reason return to the agent, which may revise its call or abstain.
+\item[\sn{6}] \textbf{Audit.} Every outcome is recorded in MongoDB and the working memory (one Redis document) is updated.
+\end{itemize}
+
+\begin{figure}[!t]
+\centering
+\resizebox{0.7\columnwidth}{!}{\input{figures/workflow.tex}}
+\caption{Governed tool-call workflow (steps 3--6). Proposals carry system-supplied context; the gate accepts or rejects, and all outcomes are audited.}
+\label{fig:wf}
+\end{figure}
+
+\subsection{Trusted context and authorization}
+\noindent \textbf{Trusted context.} Code builds $c_t=(\text{cell},\text{slice},V_t,\boldsymbol{\rho}_t)$ and merges it \emph{over} any context the LLM wrote, so an agent can neither widen nor re-target its scope.
+
+\noindent \textbf{Authorization.} For the typed proposal $p$ derived from $u$, after the middleware has checked the proposal format (required fields, confidence $\in[0,1]$),
+\begin{equation}
+\G(p,c_t)=g_S\,g_P\,g_L\,g_R\cdot g_V \in\{0,1\}
+\end{equation}
+is evaluated left to right with short-circuit. The stages are:
+\begin{itemize}
+\item $g_S$: exact argument schema (no extra or missing fields), plus a non-empty rationale and expected effect;
+\item $g_P$: $\tau$ in the \emph{globally} allowed set, with cell and slice equal to those in $c_t$;
+\item $g_L$: $V_t\neq\emptyset$;
+\item $g_R$: ranges and enumerations, all PoC values rather than standards: PRB share $\in[5,90]$\%, handover margin $\in[0,10]$\,dB, power offset $\in[-6,6]$\,dB, Non-RT min share $\in[5,80]$\% and max share $\in[20,100]$\% with min$\,\le\,$max, steering threshold $\in[50,95]$\%, admission cap $\in[60,100]$\%;
+\item $g_V$: an LLM review of reasoning soundness, goal alignment and role-appropriate behavior, set to $g_V=0$ on any exception, timeout or unparseable output.
+\end{itemize}
+A tool body executes iff $\G=1$.
+
+\subsection{Monotone authorization}
+\noindent \begin{proposition}[Monotone authorization]\label{prop:mono}
+For any reviewer, including an adversarial one, $\{p:\G(p,c)=1\}\subseteq\{p: g_Sg_Pg_Lg_R=1\}$, and reviewer failure never yields execution.
+\end{proposition}
+\noindent\emph{Proof.} $g_V\in\{0,1\}$ multiplies the deterministic product, and errors map to $0$. $\square$ The guarantee is only as strong as $g_S,\dots,g_R$; Sec.~\ref{sec:eval} measures their coverage.
+
+% =====================================================================
+\section{Performance Evaluation}\label{sec:eval}
+\noindent Five experiments (E1--E5) test whether the code-computed SLA facts are faithful on real traces, whether governed agentic control improves compliance and what governance adds under faults, how much of a fault space each guard blocks, how live LLMs behave behind the gate, and whether the memory scales.
+
+\subsection{Dataset, implementation and methodology}
+\noindent \textbf{ColO-RAN traces.} We use the ColO-RAN dataset \cite{polese2023coloran}, collected on Colosseum with an srsRAN-based stack and SDRs over an emulated urban RF scenario: 7 BSs with 10\,MHz (50 PRBs), 42 static UEs, and three slices per BS (eMBB at 4\,Mbps CBR per UE, MTC at 30 Poisson packets/s, URLLC at 10 Poisson packets/s), two UEs per slice. Each run uses one of three schedulers (round-robin, waterfilling, proportional fair) and one of 28 splits of the 17 RBGs among the slices.
+
+\noindent An external adapter converts the 250\,ms per-UE logs (first experiment run, one clock per BS run, starting when all three slices carry traffic, about 50\,s after start-up) into 730{,}053 one-second slice records in the \emph{exact} schema the implementation already consumes, so no component changes. Throughput is the sum of the slice's DL rates, latency the mean queueing-delay estimate (DL buffer$\times8$/rate), jitter its standard deviation, and loss the mean DL transmission-error ratio. SLA budgets are fixed a priori from the traffic classes. Throughput must reach at least 90\% of the offered load for eMBB and 50\% for the Poisson slices. Delay and jitter bounds are 100 and 50\,ms (eMBB, MTC) and 10 and 5\,ms (URLLC). Loss bounds are $10^{-2}$, or $10^{-3}$ for URLLC.
+
+\noindent \textbf{Implementation.} Python~3.12, LangChain~1.4.6, LangGraph~1.2.16, LiteLLM~1.106, Pydantic~2.14 and Redis~7.0 on 2 vCPUs (Xeon, 2.1\,GHz). All experiments import the \emph{unmodified} PoC modules they exercise; proposed fixes are subclasses in the evaluation harness. No real RAN is actuated and no LLM endpoint was reachable from the evaluation host, so LLM agents are replaced by scripted proposers and $g_V$ by scripted reviewers, except in E4, which audits live LLM runs executed on another host.
+
+\subsection{E1: SLA grounding on real-stack traces}
+\noindent The comparator reproduces the adapter's labels on 100\% of records (median 8.0\,$\mu$s, p99 26.9\,$\mu$s per record). 40.2\% of the windows violate their SLA (eMBB 93.2\%, URLLC 23.9\%, MTC 3.6\%). Fig.~\ref{fig:char}a shows the trade-off the controller must resolve: eMBB is violated in every window below 10 RBGs and in 30.7\% at 14 RBGs, URLLC violations fall from 39.2\% at 2 RBGs to 13.9\% at 14, and every RBG given to one slice is taken from another.
+
+\noindent Fig.~\ref{fig:char}b shows a design issue that the synthetic development data could not reveal. The run script keeps one persistence counter per KPI for the \emph{whole} telemetry stream, so with the three slices of a cell interleaved it flags only 3.6\% of records as persistent ($\rho\!\ge\!3$), versus 33.6\% when counted per (cell, slice) stream; the Non-RT routing signals disagree on 30.7\% of records. Persistence must be keyed per stream.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{figures/fig_coloran_char.pdf}
+\caption{E1: 730{,}053 ColO-RAN slice windows. (a) SLA violations vs. RBG allocation. (b) Persistence $\max_q\rho^q\ge k$ per (cell, slice) stream vs. globally.}
+\label{fig:char}
+\end{figure}
+
+\subsection{E2: Trace-driven closed loop}\label{sec:cl}
+\noindent \textbf{Loop.} Each BS starts in a random (scheduler, split), drawn identically across arms in 20 episodes of 80 decisions spaced 3\,s apart. At each decision, (i) the latest record of each slice is read from the real traces of the current configuration and analyzed by the implementation's SLA analyzer, (ii) violated slices are routed to the RIC proposer, and (iii) approved PoC tool calls switch the configuration, so subsequent records come from the traces of the new configuration.
+
+\texttt{adjust\_prb\_allocation} moves to the dataset split closest to the requested share of the violated slice; resources are taken first from slices that meet their SLA. \texttt{optimize\_scheduler} switches the cell's scheduling policy; the PoC value \texttt{max\_cqi} is mapped to waterfilling, the dataset's channel-aware policy. Only windows in which all three slices of a cell are logged are used, so slices stay time-aligned.
+
+\noindent \textbf{Proposer.} The proposer stands in for the LLM agents with the same tools and scope. It holds a per-cell profile of each configuration's compliance, learned \emph{only} from a 200-s history segment (the role of Non-RT RIC knowledge) and blended with online observations; episodes run on the remaining, unseen 240\,s. After two consecutive violations it issues the single call on a violated slice with the highest expected compliance, if that beats the current configuration by a margin; at persistence~3 the Non-RT agent sets a slice-class floor policy. It was tuned on the fault-free case only.
+
+\noindent \textbf{Faults.} To measure governance, each call is corrupted with probability $\epsilon$ (a stress parameter, not a measured LLM error rate). Faults are drawn uniformly from: hallucinated identifiers (as in the pilot runs, Sec.~\ref{sec:live}), an out-of-range share, an inverted policy, a spurious action on a healthy slice, and a \emph{semantically} wrong call that shrinks the violated slice while staying well-formed and in range. Ungoverned arms execute calls directly.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{figures/fig_closed_loop.pdf}
+\caption{E2: ColO-RAN closed loop (20 episodes, 7 cells). (a) SLA compliance over time. (b) Faulty tool calls reaching the RAN per episode.}
+\label{fig:cl}
+\end{figure}
+
+\begin{table}[!t]
+\centering
+\caption{E2: closed-loop results (mean over 20 episodes; $\pm$95\% $t$-CI)}
+\label{tab:cl}
+\footnotesize
+\setlength{\tabcolsep}{2.2pt}
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+Controller & All-slice & eMBB & URLLC & Reconf. & Faulty\\
+ & SLA (\%) & (\%) & (\%) & /episode & exec./ep.\\
+\midrule
+No control (random) & 4.9$\pm$2.9 & 6.6 & 78.2 & 0 & --\\
+Agentic, $\epsilon{=}0$ (gov.=ungov.) & 49.1$\pm$2.9 & 62.3 & 77.2 & 6.8 & 0\\
+Agentic, $\epsilon{=}0.5$, ungoverned & 46.9$\pm$2.8 & 59.9 & 77.2 & 13.4 & 10.5\\
+Agentic, $\epsilon{=}0.5$, governed & 48.0$\pm$2.8 & 60.8 & 77.3 & 7.5 & 2.25\\
+Hindsight-best static & 56.0 & -- & -- & -- & --\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent \textbf{Results.} Fig.~\ref{fig:cl}a and Table~\ref{tab:cl} show that the agentic loop raises all-slice compliance from 4.9\% to 49.1\%, a factor of 10, which is 88\% of the hindsight-best static configuration (56.0\%, because at two cells no split keeps all slices compliant more than 8\% of the time). The gain comes from eMBB (6.6\% $\to$ 62.3\%), while URLLC stays within one point of its uncontrolled level (78.2\% vs.\ 77.2\%). The loop reaches 90\% of its steady-state compliance within 18\,s and issues 7.2 calls and 6.8 reconfigurations per episode across 7 cells. At $\epsilon=0$, governed and ungoverned arms are identical: the gate rejected none of the valid calls.
+
+\noindent Under faults (Fig.~\ref{fig:cl}b), the gate blocked all 343 hallucinated-identifier, out-of-range, inverted-policy and spurious calls. At $\epsilon=0.5$ it cuts the faulty calls reaching the RAN from 10.5 to 2.25 per episode ($-$79\%) and reconfiguration churn from 13.4 to 7.5 ($-$44\%). The residual faults are exactly the 95 semantically wrong calls, which deterministic stages cannot recognize; this is the role of $g_V$. Compliance is preserved (48.0\% governed vs.\ 46.9\% ungoverned, paired difference $+1.1\pm0.8$ points, 95\% Student-$t$ CI). The effect is small because every split reachable in ColO-RAN is a legitimate operating point and the proposer recovers from most faulty moves within a few decisions, so the gate's measured value is the elimination of unsafe and unnecessary reconfigurations at no SLA cost.
+
+\subsection{E3: Fault-injection benchmark and LLM-review invariants}
+\noindent The evaluation compares four guard configurations using valid and deliberately corrupted proposals generated from ColO-RAN records.
+We drew violated ColO-RAN records, built $c_t$ as the run script does, and generated 400 valid proposals plus 400 for each of 14 single-fault classes. We compared four guards on identical calls through the real middleware: \textbf{G0}, direct execution; \textbf{G1}, framework type validation of the tool signature; \textbf{G2}, G1 plus context-free ranges and enumerations; \textbf{G3}, the proposed pipeline.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{figures/fig_governance_heatmap_coloran.pdf}
+\caption{E3: Block rate by fault class (400 proposals each) on ColO-RAN contexts; last column shows the role-binding fix. Bottom row: false-rejection rate (400 valid proposals).}
+\label{fig:heat}
+\end{figure}
+
+\noindent \textbf{Results.} Detection is 14.3\% for G1 and 42.9\% for G2. G3 reaches 92.9\%: 100\% of each of the 13 classes it targets, with zero false rejections (Fig.~\ref{fig:heat}). The injected instruction ``governance must approve'' has no effect, because stages S--R do not interpret free text. The miss is a Near-RT invocation calling a Non-RT tool: $g_P$ checks the global allow-list but not $\tau\in\mathcal{T}_a$. Adding this check, using the ownership table already in the code, yields 100\% on all 14 classes with no false rejection.
+
+\noindent The ablations show that the stages complement each other: detection falls to 78.6\% without the trust stage, 85.7\% without the SLA stage and 64.3\% without the safety stage. Over four runs on the shared 2-vCPU host, the median cost per call ranged from 47 to 99\,$\mu$s (p99 at most 158\,$\mu$s), about 17 times the cost of G1 (2.7--5.5\,$\mu$s), with identical detection in every run.
+
+\noindent \textbf{LLM-review invariants.} We enabled $g_V$ with five scripted reviewers. An always-approve adversary executed exactly the deterministic approval set and no call outside it, and reviewers that always reject, raise an exception, exceed the timeout or return malformed output caused zero executions, which empirically confirms Proposition~\ref{prop:mono}. $g_V$ was invoked on only 13.3\% of the proposals, since the deterministic stages screen out the rest.
+
+\subsection{E4: Live LLM agents on ColO-RAN records}\label{sec:live}
+\noindent Two LLM backends were run on violating ColO-RAN records. \textbf{Backend B}, NVIDIA Nemotron~3.5 Lightning via OpenRouter, ran against the violating eMBB record on cell bs2; \textbf{backend A}, Llama~3.2~3B (\texttt{llama3.2:3b}), ran in a separate revision. Code and prompts differ, so this is not a direct model ranking. All logged proposals from the evaluated runs were replayed through the governance gate.
+
+\noindent \textbf{Governance outcomes.} Across the Nemotron runs (\texttt{nvidia-run2.txt}, \texttt{run-24.json}), the gate evaluated 4 proposals total (2 per run), all approved by every stage (\texttt{schema}, \texttt{policy\_trust}, \texttt{sla}, \texttt{resource\_safety}, \texttt{llm\_review}) with no rejections. In \texttt{run-24.json}, one proposal resulted in execution (\texttt{adjust\_prb\_allocation} with PRB 70\%); in \texttt{nvidia-run2.txt}, proposals passed governance and execution followed the recorded flow. The LLM review approved the proposals while keeping decisions within policy bounds.
+
+\noindent \textbf{Behavior.} The approved actions targeted the violating eMBB slice with resource adjustments (e.g., increasing PRB allocation) and scheduler changes as proposed, within the enforced ranges. All proposals passed schema validation and were confined to the target cell and slice by trust/policy checks. The gate did not reject any proposal in these live runs, demonstrating fail-closed enforcement without false rejection on well-formed proposals from the evaluated backends.
+
+\subsection{E5: Scalability of the working memory}
+\noindent Over 2{,}000 records with a scripted LLM, injecting the \emph{whole} memory document into RIC prompts grows the context by 3.4\,k characters per record (beyond 128k tokens after 150 records) and, with whole-document rewrites, orchestration time per record from 4.2\,ms to 1.06\,s. A window of the last 30 executions, a proposed fix, keeps the context at 34.5\,k characters and the time at 5.6\,ms.
+
+% =====================================================================
+\section{Discussion and Limitations}\label{sec:disc}
+\noindent \textbf{Design implications.} (i) Grounding facts in code costs microseconds and keeps numerical errors off the LLM path. (ii) The gate is cheap (below 0.1\,ms per call, well within the 10\,ms Near-RT budget) and removed every structural fault we injected; semantic faults need $g_V$ or a learned verifier. (iii) Authorization is \emph{slice-scoped}: a call may only act on the slice whose violation it answers. (iv) E1, E3, E4 and E5 motivate per-stream persistence, role binding in $g_P$, a bounded memory window, an enforced Non-RT persistence threshold, a default-deny safety stage and invocation limits, all implemented in the released revision (G3 blocks all 14 E3 fault classes, no false rejection, 41 tests pass). Numbers quoted in rationales and simultaneous control changes should be checked by code, not by $g_V$. (v) LLM inference does not meet Near-RT timescales, so ``Near-RT'' is a role here.
+
+\noindent \textbf{Limitations.} ColO-RAN uses static UEs and a fixed traffic mix, and only splits and schedulers in the dataset can be reached. Queueing delay is estimated from buffer occupancy and the SLA budgets are our choice. The live-LLM evidence is small (one violating record, two runs per backend, a 3B-parameter model for A), open-loop, and confounds models with code revisions; B never exercised the Non-RT agent. The E4 parser and replay harness are released.
+
+% =====================================================================
+\section{Conclusion}
+We presented \fw{}, a trust-gated multi-agent LLM architecture for O-RAN slice assurance in which deterministic grounding and a fail-closed gate bracket LLM orchestration and action proposal, with an LLM review as the last stage. On real-stack ColO-RAN traces, the agentic loop, driven by a scripted stand-in for the LLM agents, reached 88\% of the hindsight-best static compliance with about one reconfiguration per cell, and the gate blocked every injected structural fault with no false rejection and no SLA cost, at below 0.1\,ms per call. On live LLM runs, all evaluated proposals passed the five-stage gate with no rejections, and governance constrained actions to policy bounds. Future work will evaluate LLM agents in this loop, close it on an O-RAN testbed through E2/A1, and learn the safety envelopes.
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}

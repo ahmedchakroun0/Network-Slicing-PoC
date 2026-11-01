@@ -21,7 +21,7 @@ from typing import Any, ClassVar
 from langchain.agents import AgentState, create_agent
 from langchain.agents.middleware import ModelRequest, dynamic_prompt
 
-from src.core.llm import create_llm
+from src.core.llm import create_llm, message_text
 from src.memory.working_memory import RedisWorkingMemory
 from src.schema.monitoring import AgentInvocation
 from src.schema.near_rt_ric import (
@@ -32,13 +32,27 @@ from src.schema.near_rt_ric import (
 from src.schema.near_rt_ric import NearRTRICResult as RICResult  # shared result
 from src.repositories.mongo_repository import MongoRepository
 
+from langchain_core.messages import AIMessage
+
+from src.schema.mongo_run_document import ActionEntry, AgentMessage, KnowledgeEntry
+from src.schema.working_memory import ActionEvent
+
 from middleware.ran_authorisation import (
     PROTECTED_TOOLS,
     RAN_AUDIT,
+    AuditSink,
     RANAuthorizationMiddleware,
 )
 
 logger = logging.getLogger(__name__)
+
+# Rejection reasons from these stages are deterministic and safe to show the
+# agents again; the LLM review's reason is not kept in working memory.
+DETERMINISTIC_STAGES = frozenset(
+    {"schema", "policy_trust", "sla", "resource_safety", "invocation_limit", "invalid_proposal"}
+)
+# The LLM review's verdicts are kept in working memory as booleans only.
+REVIEW_VERDICTS = ("goal_aligned", "reasoning_sound", "behavior_acceptable")
 
 
 class RICState(AgentState):
@@ -107,8 +121,13 @@ class BaseRICAgent(ABC):
 Current {agent_name} invocation:
 {invocation}
 
-Shared network working memory:
+Working memory of this base station and slice (facts, most recent first:
+cell configuration, last records of this slice and of the other slices,
+last tool calls executed or rejected on them):
 {working_memory}
+Do not repeat a call that was just rejected with the same parameters, and
+prefer a different action when the same violation persists after executed
+actions.
 
 Your action tools: {action_tool_names}.
 Pass `target` (and `slice_id` only when the tool declares that parameter)
@@ -127,6 +146,60 @@ Do not claim an action executed unless its tool result confirms it.
             ],
             state_schema=RICState,
         )
+
+    @staticmethod
+    def _select_entry(audit: list[dict[str, Any]]) -> tuple[str, int]:
+        """Overall status of a non-empty audit and the entry the typed result
+        reports: the first executed action, or the first entry if none ran."""
+
+        def _entry_status(item: dict[str, Any]) -> str:
+            governance_item = item.get("governance") or {}
+            execution_item = item.get("execution") or {}
+            if not governance_item.get("approved"):
+                return "rejected"
+            if execution_item.get("status") == "executed":
+                return "completed"
+            if execution_item.get("status") == "rejected":
+                return "rejected"
+            return "error"
+
+        statuses = [_entry_status(item) for item in audit]
+        if "completed" in statuses:
+            return "completed", statuses.index("completed")
+        return ("rejected" if "rejected" in statuses else "error"), 0
+
+    @staticmethod
+    def _final_message(messages: list[Any]) -> AgentMessage | None:
+        """The agent's last model turn (its closing answer after the tools)."""
+        last = next((m for m in reversed(messages) if isinstance(m, AIMessage)), None)
+        if last is None:
+            return None
+        return AgentMessage(text=message_text(last))
+
+    @staticmethod
+    def _action_events(
+        actions: list[ActionEntry], context: dict[str, Any], agent: str
+    ) -> list[ActionEvent]:
+        """Working-memory facts of the calls (no LLM text)."""
+        events = []
+        for action in actions:
+            stage = action.governance.get("failed_stage")
+            reason = action.governance.get("reason") or ""
+            review = action.governance.get("llm_review") or {}
+            events.append(ActionEvent(
+                rec=context.get("record_id", ""),
+                t=context.get("window_start_s", 0.0),
+                slice=context.get("slice_id", ""),
+                agent=agent,
+                tool=action.tool,
+                params=action.params,
+                approved=bool(action.governance.get("approved")),
+                executed=action.execution.get("status") == "executed",
+                stage=stage,
+                why=reason[:160] if stage in DETERMINISTIC_STAGES else None,
+                review={k: review[k] for k in REVIEW_VERDICTS if k in review} or None,
+            ))
+        return events
 
     @staticmethod
     def _build_typed_result(
@@ -151,28 +224,8 @@ Do not claim an action executed unless its tool result confirms it.
             # No protected call: the agent abstained (or forcing failed).
             return RICResult(status="no_action")
 
-        # One audit entry per protected call. The typed result holds a single
-        # proposal/governance/execution, so it shows the first executed
-        # action (or the first entry if none executed). Every action is in
-        # `middleware_audit`.
-        def _entry_status(item: dict[str, Any]) -> str:
-            governance_item = item.get("governance") or {}
-            execution_item = item.get("execution") or {}
-            if not governance_item.get("approved"):
-                return "rejected"
-            if execution_item.get("status") == "executed":
-                return "completed"
-            if execution_item.get("status") == "rejected":
-                return "rejected"
-            return "error"
-
-        statuses = [_entry_status(item) for item in audit]
-        if "completed" in statuses:
-            overall_status = "completed"
-            entry = audit[statuses.index("completed")]
-        else:
-            overall_status = "rejected" if "rejected" in statuses else "error"
-            entry = audit[0]
+        overall_status, index = BaseRICAgent._select_entry(audit)
+        entry = audit[index]
 
         proposal_data = entry.get("proposal")
         governance_data = entry.get("governance")
@@ -237,31 +290,41 @@ Do not claim an action executed unless its tool result confirms it.
                 f"{type(self).__name__} cannot handle agent={invocation.agent!r}"
             )
 
+        context = invocation.context or {}
+        record_id = context.get("record_id")
+        run_id = context.get("run_id") or self.run_id
+        cell, slice_id = context.get("target"), context.get("slice_id")
+        store = self.mongo_repository if (self.mongo_repository is not None
+                                          and run_id and record_id) else None
+
+        def push_action(action: ActionEntry) -> None:
+            store.push_action(run_id=run_id, record_id=record_id,
+                              agent=self.agent_name, entry=action)
+
+        def push_knowledge(entry: KnowledgeEntry) -> None:
+            store.push_knowledge(run_id=run_id, record_id=record_id,
+                                 agent=self.agent_name, entry=entry)
+
+        # Fresh audit collector for this invocation only; each call and each
+        # knowledge lookup is written to the results store as it happens.
+        audit = AuditSink(
+            on_action=push_action if store is not None else None,
+            on_knowledge=push_knowledge if store is not None else None,
+        )
+
         try:
             await self.initialize()
 
-            memory = await self.memory.get() if self.memory is not None else None
             working_memory = (
-                memory.model_dump(mode="json") if memory is not None else {}
+                (await self.memory.view(cell, slice_id)).model_dump(mode="json")
+                if self.memory is not None and cell and slice_id
+                else {}
             )
 
-            context = invocation.context or {}
-            record_id = context.get("record_id")
-            run_id = context.get("run_id") or self.run_id
+            if store is not None:
+                store.start_agent(run_id=run_id, record_id=record_id, agent=self.agent_name)
 
-            if self.mongo_repository is not None and run_id and record_id:
-                self.mongo_repository.start_agent_execution(
-                    run_id=run_id,
-                    record_id=record_id,
-                    agent=self.agent_name,
-                    invocation=invocation,
-                )
-
-            # Fresh audit collector for this invocation only.
-            audit: list[dict[str, Any]] = []
             token = RAN_AUDIT.set(audit)
-            result_payload: dict[str, Any]
-
             try:
                 result = await self.agent.ainvoke(
                     {
@@ -284,43 +347,33 @@ Do not claim an action executed unless its tool result confirms it.
                 RAN_AUDIT.reset(token)
 
             typed_result = self._build_typed_result(
-                audit=audit,
+                audit=audit.entries,
                 messages=result.get("messages", []),
             )
-
             self._log_outcome(typed_result, result.get("messages", []))
 
-            result_payload = typed_result.model_dump(mode="json")
-
-            if self.mongo_repository is not None and run_id and record_id:
-                self.mongo_repository.finish_agent_execution(
-                    run_id=run_id,
-                    record_id=record_id,
-                    agent=self.agent_name,
-                    invocation=invocation,
-                    result=result_payload,
-                    middleware_audit=audit,
-                )
-
+            if store is not None:
+                selected = self._select_entry(audit.entries)[1] if audit.entries else None
+                store.finish_agent(run_id=run_id, record_id=record_id, agent=self.agent_name,
+                                   status=typed_result.status, selected_action=selected,
+                                   final_message=self._final_message(result.get("messages", [])))
             return typed_result
 
-        except Exception:
+        except Exception as exc:
             # Do not disguise an internal failure as successful execution,
             # but do not lose the cause either.
             logger.exception("%s invocation failed", self.agent_name)
-
-            context = invocation.context or {}
-            record_id = context.get("record_id")
-            run_id = context.get("run_id") or self.run_id
-
-            if self.mongo_repository is not None and run_id and record_id:
-                self.mongo_repository.finish_agent_execution(
-                    run_id=run_id,
-                    record_id=record_id,
-                    agent=self.agent_name,
-                    invocation=invocation,
-                    result={"status": "error"},
-                    middleware_audit=[],
-                )
-
+            if store is not None:
+                store.finish_agent(run_id=run_id, record_id=record_id, agent=self.agent_name,
+                                   status="error",
+                                   error={"type": type(exc).__name__, "message": str(exc)})
             return RICResult(status="error")
+
+        finally:
+            # Working memory: what was executed or rejected on this slice.
+            if self.memory is not None and cell and audit.actions:
+                try:
+                    await self.memory.record_actions(
+                        cell, self._action_events(audit.actions, context, self.agent_name))
+                except Exception:
+                    logger.exception("%s: could not update working memory", self.agent_name)

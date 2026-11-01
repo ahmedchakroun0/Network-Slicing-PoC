@@ -1,0 +1,61 @@
+{
+  "n_records": 10000,
+  "label_agreement": {
+    "latency": 1.0,
+    "jitter": 1.0,
+    "packet_loss": 1.0,
+    "throughput": 1.0,
+    "set": 1.0
+  },
+  "s1_records_with_violation": 1.0,
+  "s2_records_with_violation": 0.7791,
+  "s1_violation_sets": {
+    "latency+jitter+packet_loss": 9688,
+    "jitter+packet_loss": 215,
+    "latency+packet_loss": 66,
+    "latency+jitter+packet_loss+throughput": 17,
+    "latency+jitter": 13,
+    "jitter": 1
+  },
+  "s2_violation_sets": {
+    "latency+packet_loss": 3144,
+    "packet_loss": 2430,
+    "none": 2209,
+    "latency+jitter+packet_loss": 2192,
+    "packet_loss+throughput": 17,
+    "latency": 4,
+    "latency+jitter": 3,
+    "jitter+packet_loss": 1
+  },
+  "zero_budget_share": {
+    "latency": 0.4441,
+    "jitter": 0.7738,
+    "packet_loss": 0.2204,
+    "throughput": 0.7763
+  },
+  "s1_kpi_prevalence": {
+    "latency": 0.9784,
+    "jitter": 0.9934,
+    "packet_loss": 0.9986,
+    "throughput": 0.0017
+  },
+  "s2_kpi_prevalence": {
+    "latency": 0.5343,
+    "jitter": 0.2196,
+    "packet_loss": 0.7784,
+    "throughput": 0.0017
+  },
+  "s2_kpi_unavailable": {
+    "latency": 0.4441,
+    "jitter": 0.7738,
+    "packet_loss": 0.2204,
+    "throughput": 0.7763
+  },
+  "s1_nonrt_eligible_k3": 0.9998,
+  "s2_nonrt_eligible_k3": 0.4702,
+  "comparator_us": {
+    "median": 9.542,
+    "p95": 15.89705,
+    "p99": 28.997290000000028
+  }
+}

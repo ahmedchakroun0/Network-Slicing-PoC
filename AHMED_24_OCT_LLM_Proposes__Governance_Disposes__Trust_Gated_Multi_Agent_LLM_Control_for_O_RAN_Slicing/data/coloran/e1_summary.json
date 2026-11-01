@@ -1,0 +1,43 @@
+{
+  "n_windows": 730053,
+  "n_streams": 1749,
+  "label_agreement": {
+    "latency": 1.0,
+    "jitter": 1.0,
+    "packet_loss": 1.0,
+    "throughput": 1.0
+  },
+  "violation_rate_by_slice": {
+    "eMBB": 0.9318675263582085,
+    "MTC": 0.03587055923952938,
+    "URLLC": 0.23919001218026797
+  },
+  "kpi_rate_by_slice": {
+    "eMBB": {
+      "latency": 0.893107390167278,
+      "jitter": 0.7504852213102621,
+      "packet_loss": 0.0,
+      "throughput": 0.8848380676678126
+    },
+    "MTC": {
+      "latency": 0.007311902037736468,
+      "jitter": 0.006479419640843309,
+      "packet_loss": 0.0,
+      "throughput": 0.02946085487330274
+    },
+    "URLLC": {
+      "latency": 0.026961187740724892,
+      "jitter": 0.21108075188464956,
+      "packet_loss": 0.0,
+      "throughput": 0.028109260295618395
+    }
+  },
+  "records_with_violation": 0.4020160180151304,
+  "nonrt_eligible_k3_stream": 0.33647694071526313,
+  "nonrt_eligible_k3_global": 0.035665903708360897,
+  "k3_decision_disagreement": 0.3072050933288405,
+  "comparator_us": {
+    "median": 8.044,
+    "p99": 26.922959999999957
+  }
+}

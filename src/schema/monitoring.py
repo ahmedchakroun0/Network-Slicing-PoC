@@ -1,72 +1,71 @@
 from typing import Literal, Any
 
 from pydantic import BaseModel, ConfigDict, Field
+from pydantic.json_schema import SkipJsonSchema
+
+from src.schema.sla import SliceType
+
+# MAC schedulers of the ColO-RAN dataset (scheduling_policy 0, 1, 2). The
+# telemetry, the optimize_scheduler tool and governance share this list.
+Scheduler = Literal["round_robin", "waterfilling", "proportional_fair"]
 
 
 class TelemetryRecord(BaseModel):
     """
-    One network telemetry observation coming from the dataset.
+    Slice-level telemetry of one cell over one time window, in native
+    ColO-RAN units (scripts/prepare_coloran.py builds it from the per-UE
+    KPM reports). The field names are the CSV column names, so a prepared
+    row validates as-is.
 
-    The field names intentionally correspond to the original
-    CSV columns so that the dataset can be passed to the agent
-    without changing its semantic structure.
+    Measurements only: SLA budgets live in src/schema/sla.py.
     """
 
-    model_config = ConfigDict(
-        populate_by_name=True,
-        extra="forbid",
+    model_config = ConfigDict(extra="forbid")
+
+    record_id: str
+    cell_id: str = Field(description="Base station, e.g. 'bs3'.")
+    slice_id: SliceType
+    run: str = Field(description="Source experiment, e.g. 'sched0/tr6/exp1'.")
+    window_start_s: float = Field(description="Window start, seconds after the run started.")
+    window_s: float
+
+    # Configuration in force during the window.
+    slice_prb: int = Field(description="PRBs allocated to this slice (out of cell_prb).")
+    cell_prb: int = Field(description="PRBs of the cell (10 MHz carrier: 50).")
+    scheduler: Scheduler
+
+    # Measurements, aggregated over the slice's UEs and the window.
+    active_ues: int
+    dl_throughput_mbps: float = Field(description="Slice downlink throughput (sum over UEs).")
+    dl_throughput_per_ue_mbps: float
+    dl_buffer_bytes: float = Field(description="Mean downlink backlog per UE.")
+    queueing_delay_ms: float | None = Field(
+        default=None,
+        description="Backlog / delivery rate per UE; the window length when a "
+        "backlog was not served at all.",
     )
-
-    use_case_type: str = Field(alias="Use Case Type")
-
-    packet_loss_budget: float | None = Field(default=None, alias="Packet Loss Budget")
-
-    latency_budget_ns: float | None = Field(default=None, alias="Latency Budget (ns)")
-
-    jitter_budget_ns: float | None = Field(default=None, alias="Jitter Budget (ns)")
-
-    data_rate_budget_gbps: float | None = Field(
-        default=None, alias="Data Rate Budget (Gbps)"
+    prb_utilisation: float = Field(description="Granted / allocated PRBs, 0-1.")
+    cell_spare_prb: float = Field(
+        description="PRBs allocated to the cell's OTHER slices but left unused."
     )
-
-    required_mobility: str | None = Field(default=None, alias="Required Mobility")
-
-    required_connectivity: str | None = Field(
-        default=None, alias="Required Connectivity"
+    dl_cqi: float
+    dl_mcs: float
+    ul_sinr_db: float | None = Field(
+        default=None, description="Mean over reports with uplink activity."
     )
-
-    slice_available_transfer_rate_gbps: float | None = Field(
-        default=None, alias="Slice Available Transfer Rate (Gbps)"
-    )
-
-    slice_latency_ns: float | None = Field(default=None, alias="Slice Latency (ns)")
-
-    slice_packet_loss: float | None = Field(default=None, alias="Slice Packet Loss")
-
-    slice_jitter_ns: float | None = Field(default=None, alias="Slice Jitter (ns)")
-
-    slice_type: str | None = Field(default=None, alias="Slice Type")
-
-    slice_handover: str | None = Field(default=None, alias="Slice Handover")
-
-    # Optional cell / base-station identifier. Datasets without it fall back
-    # to a single default target in scripts/run_dataset.py.
-    cell_id: str | None = Field(default=None, alias="Cell ID")
-
-    record_id: str | None = None
 
 
 class KPIStatus(BaseModel):
     measured: float | None = None
     budget: float | None = None
+    unit: str | None = None
+    bound: Literal["min", "max"] | None = None
     status: Literal["ok", "violation", "unavailable"]
 
 
 class SLAAnalysis(BaseModel):
-    latency: KPIStatus
-    jitter: KPIStatus
-    packet_loss: KPIStatus
-    throughput: KPIStatus
+    slice_id: str | None = None
+    kpis: dict[str, KPIStatus] = Field(default_factory=dict)
 
     violations: list[str] = Field(default_factory=list)
     unavailable_metrics: list[str] = Field(default_factory=list)
@@ -134,7 +133,8 @@ class MonitoringDecision(BaseModel):
 
     action_required: bool
 
-    sla_analysis: SLAAnalysis
+    # Computed by code and set after the LLM call; the LLM never produces it.
+    sla_analysis: SkipJsonSchema[SLAAnalysis | None] = None
 
     selected_agents: list[AgentInvocation] = Field(default_factory=list)
 
@@ -143,3 +143,7 @@ class MonitoringDecision(BaseModel):
     )
 
     record_id: str | None = None
+
+    # Routing rules applied by code after the LLM decided (set by the
+    # Monitoring Agent; the LLM never produces it).
+    orchestration_notes: SkipJsonSchema[list[str]] = Field(default_factory=list)

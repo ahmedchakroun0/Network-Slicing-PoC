@@ -1,9 +1,10 @@
 """Run a telemetry dataset through the agentic RAN system.
 
 The script processes a CSV row by row, converts each record into a
-TelemetryRecord, sends it through the Monitoring Agent, and lets the agents
-and the repository layer persist everything to Mongo. Redis remains the live
-working-memory store for the agents. No result files are written.
+TelemetryRecord and runs it through the record workflow graph
+(agents/record_workflow.py): SLA analysis, Monitoring Agent, RIC agents,
+governance. The nodes persist the results to MongoDB; Redis remains the
+agents' working memory across records. No result files are written.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import os
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,21 +30,21 @@ import pandas as pd
 from agents.monitoring_agent import MonitoringAgent
 from agents.near_rt_ric_agent import NearRTRICAgent
 from agents.non_rt_ric_agent import NonRTRICAgent
-from agents.ran_trust_governance import RANTrustGovernanceAgent
+from agents.ran_trust_governance import NON_RT_MIN_PERSISTENCE, RANTrustGovernanceAgent
+from agents.record_workflow import RecordWorkflow
+from middleware.ran_authorisation import MAX_PROTECTED_CALLS
 from src.core.llm import create_llm
 from src.memory.working_memory import RedisWorkingMemory
 from src.repositories.mongo_repository import MongoRepository
 from src.schema.monitoring import TelemetryRecord
+from src.schema.sla import SLA_PROFILES
 from tools import near_rt_ric_tools
 
 logger = logging.getLogger("run_dataset")
 
 DEFAULT_KNOWLEDGE_FILE = Path("data/ran_knowledge.txt")
 DEFAULT_DATASET_PATH = Path("data/coloran_prepared_sample.csv")
-# Target used when a record has no "Cell ID" column (e.g. the synthetic
-# 6G slicing dataset); datasets with cell ids use them as the target.
-DEFAULT_TARGET = "cell-01"
-KPI_NAMES = ("latency", "jitter", "packet_loss", "throughput")
+TELEMETRY_FIELDS = frozenset(TelemetryRecord.model_fields)
 
 
 
@@ -56,145 +58,15 @@ class RunConfig:
 
 
 # --------------------------------------------------------------------------
-# CSV value helpers
+# Row -> telemetry record
 # --------------------------------------------------------------------------
 
 
-def _optional_float(value: Any) -> float | None:
-    if value is None or pd.isna(value):
-        return None
-    return float(value)
-
-
-def _optional_str(value: Any) -> str | None:
-    if value is None or pd.isna(value):
-        return None
-    text = str(value).strip()
-    return text or None
-
-
-def _truthy(value: Any) -> bool | None:
-    if value is None or pd.isna(value):
-        return None
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return bool(value)
-    text = str(value).strip().lower()
-    if text in {"true", "1", "yes", "y", "violation", "violated"}:
-        return True
-    if text in {"false", "0", "no", "n", "ok", "none", ""}:
-        return False
-    return None
-
-
-def _normalize_violation_name(name: str) -> str:
-    """'Packet Loss Violation' -> 'packet_loss' (matches SLAAnalysis names)."""
-    text = name.strip().lower()
-    if text.endswith(" violation"):
-        text = text[: -len(" violation")]
-    return text.replace("-", "_").replace(" ", "_")
-
-
-def _parse_violations(value: Any) -> list[str]:
-    if value is None or pd.isna(value):
-        return []
-    if isinstance(value, (list, tuple, set, frozenset)):
-        items = [str(item) for item in value]
-    else:
-        text = str(value).strip()
-        if not text:
-            return []
-        for token in (";", "|"):
-            text = text.replace(token, ",")
-        text = text.strip("[](){}")
-        items = text.split(",")
-
-    names = [_normalize_violation_name(item.strip("'\" ")) for item in items]
-    return [name for name in names if name and name != "none"]
-
-
-# --------------------------------------------------------------------------
-# Row -> telemetry record / ground truth
-# --------------------------------------------------------------------------
-
-
-def _record_key(row: pd.Series, row_number: int) -> str:
-    """Single source of truth for the record id used everywhere (Mongo key,
-    TelemetryRecord.record_id, and therefore the Monitoring Agent)."""
-    return _optional_str(row.get("record_id")) or f"row-{row_number}"
-
-
-def _row_to_telemetry_record(row: pd.Series, record_key: str) -> TelemetryRecord:
-    return TelemetryRecord(
-        record_id=record_key,
-        use_case_type=_optional_str(row.get("Use Case Type")),
-        packet_loss_budget=_optional_float(row.get("Packet Loss Budget")),
-        latency_budget_ns=_optional_float(row.get("Latency Budget (ns)")),
-        jitter_budget_ns=_optional_float(row.get("Jitter Budget (ns)")),
-        data_rate_budget_gbps=_optional_float(row.get("Data Rate Budget (Gbps)")),
-        required_mobility=_optional_str(row.get("Required Mobility")),
-        required_connectivity=_optional_str(row.get("Required Connectivity")),
-        slice_available_transfer_rate_gbps=_optional_float(
-            row.get("Slice Available Transfer Rate (Gbps)")
-        ),
-        slice_latency_ns=_optional_float(row.get("Slice Latency (ns)")),
-        slice_packet_loss=_optional_float(row.get("Slice Packet Loss")),
-        slice_jitter_ns=_optional_float(row.get("Slice Jitter (ns)")),
-        slice_type=_optional_str(row.get("Slice Type")),
-        slice_handover=_optional_str(row.get("Slice Handover")),
-        cell_id=_optional_str(row.get("Cell ID")),
+def _row_to_telemetry_record(row: pd.Series) -> TelemetryRecord:
+    """The prepared CSV columns are the TelemetryRecord fields (empty -> None)."""
+    return TelemetryRecord.model_validate(
+        {k: (None if pd.isna(v) else v) for k, v in row.items() if k in TELEMETRY_FIELDS}
     )
-
-
-def _ground_truth_payload(row: pd.Series, record_key: str) -> dict[str, Any]:
-    return {
-        "record_id": record_key,
-        "metric_flags": {
-            "latency": _truthy(row.get("Latency Violation")),
-            "jitter": _truthy(row.get("Jitter Violation")),
-            "packet_loss": _truthy(row.get("Packet Loss Violation")),
-            "throughput": _truthy(row.get("Throughput Violation")),
-        },
-        "sla_violations_raw": _optional_str(row.get("SLA Violations")),
-        "sla_violations": _parse_violations(row.get("SLA Violations")),
-        "sla_evaluation_status": _optional_str(row.get("SLA Evaluation Status")),
-    }
-
-
-def _compare_ground_truth(
-    record: TelemetryRecord, row: pd.Series, record_key: str
-) -> dict[str, Any]:
-    analysis = MonitoringAgent.analyze_sla(record)
-    gt = _ground_truth_payload(row, record_key)
-    expected_flags = gt["metric_flags"]
-    computed_flags = {
-        name: name in analysis.violations
-        for name in ("latency", "jitter", "packet_loss", "throughput")
-    }
-    metric_matches = {
-        name: (
-            expected_flags[name] is None or expected_flags[name] == computed_flags[name]
-        )
-        for name in computed_flags
-    }
-
-    return {
-        "computed_analysis": analysis.model_dump(mode="json"),
-        "ground_truth": gt,
-        "comparison": {
-            "metric_matches": metric_matches,
-            "sla_violations_match": (
-                not gt["sla_violations"]
-                or sorted(gt["sla_violations"]) == sorted(analysis.violations)
-            ),
-            "evaluation_status_match": (
-                gt["sla_evaluation_status"] is None
-                or gt["sla_evaluation_status"].lower()
-                == ("violation" if analysis.violations else "ok")
-            ),
-        },
-    }
 
 
 # --------------------------------------------------------------------------
@@ -212,7 +84,7 @@ async def run_dataset(config: RunConfig) -> None:
     _use_knowledge_file(config.knowledge_file)
 
     memory = RedisWorkingMemory.from_url()
-    await memory.reset() 
+    await memory.reset()
     mongo_repository = MongoRepository()
 
     governance_agent = RANTrustGovernanceAgent()
@@ -228,31 +100,23 @@ async def run_dataset(config: RunConfig) -> None:
         mongo_repository=mongo_repository,
         run_id=config.run_id,
     )
-    # Context the RIC agents and the governance agent depend on. It comes from
-    # deterministic code, never from the Monitoring LLM, and it overrides
-    # anything the LLM put in `selected_agents[].context`.
-    trusted_context: dict[str, Any] = {}
-    # Consecutive-violation counters are kept PER (cell, slice) stream: with
-    # several slices/cells interleaved in one telemetry stream, a single
-    # global counter would be reset by unrelated records.
-    persistence_by_stream: dict[tuple[str, str], dict[str, int]] = {}
-
-    def with_trusted_context(invoke):
-        async def _invoke(invocation):
-            context = {**(invocation.context or {}), **trusted_context}
-            return await invoke(invocation.model_copy(update={"context": context}))
-
-        return _invoke
-
     monitoring_agent = MonitoringAgent(
         llm=create_llm(),
         memory=memory,
         mongo_repository=mongo_repository,
         run_id=config.run_id,
         sub_agents={
-            "near_rt_ric": with_trusted_context(near_rt_agent.invoke),
-            "non_rt_ric": with_trusted_context(non_rt_agent.invoke),
+            "near_rt_ric": near_rt_agent.invoke,
+            "non_rt_ric": non_rt_agent.invoke,
         },
+    )
+    # The workflow of one record; the trusted context of the RIC agents is
+    # built from its state by deterministic code.
+    workflow = RecordWorkflow(
+        monitoring=monitoring_agent,
+        memory=memory,
+        mongo_repository=mongo_repository,
+        run_id=config.run_id,
     )
 
     dataframe = pd.read_csv(config.dataset_path)
@@ -267,63 +131,29 @@ async def run_dataset(config: RunConfig) -> None:
     summary: dict[str, Any] = {
         "rows_selected": len(selected_rows),
         "rows_processed": 0,
+        "rows_without_violation": 0,
         "rows_failed": 0,
-        "monitoring_action_required": 0,
+        "action_required": 0,
         "agent_invocations": {"near_rt_ric": 0, "non_rt_ric": 0},
     }
-    mongo_repository.ensure_run(run_id=config.run_id, summary=summary)
-    logger.info(
-        "Run %s: processing %d rows", config.run_id, summary["rows_selected"]
-    )
+    mongo_repository.start_run(run_id=config.run_id, config=_run_config(config), summary=summary)
+    logger.info("Run %s: processing %d rows", config.run_id, summary["rows_selected"])
 
     try:
         for offset, (_, row) in enumerate(selected_rows.iterrows(), start=start_index):
             row_number = offset + 1
-            record_key = _record_key(row, row_number)
-            telemetry_dump: dict[str, Any] = {}
+            record_key = str(row.get("record_id") or f"row-{row_number}")
+            telemetry_dump: dict[str, Any] | None = None
 
             try:
-                telemetry_record = _row_to_telemetry_record(row, record_key)
+                telemetry_record = _row_to_telemetry_record(row)
                 telemetry_dump = telemetry_record.model_dump(mode="json")
-                comparison = _compare_ground_truth(telemetry_record, row, record_key)
+                state = await workflow.run(telemetry_record, seq=row_number)
 
-                analysis = comparison["computed_analysis"]
-                target = telemetry_record.cell_id or DEFAULT_TARGET
-                slice_id = telemetry_record.slice_type or record_key
-                persistence = persistence_by_stream.setdefault(
-                    (target, slice_id), {name: 0 for name in KPI_NAMES}
-                )
-                for name in KPI_NAMES:
-                    persistence[name] = (
-                        persistence[name] + 1 if name in analysis["violations"] else 0
-                    )
-                trusted_context.clear()
-                trusted_context.update(
-                    target=target,
-                    slice_id=slice_id,
-                    sla_analysis=analysis,
-                    persistence=dict(persistence),
-                )
-
-                mongo_repository.start_record(
-                    run_id=config.run_id,
-                    record_document=mongo_repository.new_record_document(
-                        record_id=record_key,
-                        telemetry_record=telemetry_dump,
-                        ground_truth=comparison["ground_truth"],
-                        comparison=comparison["comparison"],
-                        computed_analysis=comparison["computed_analysis"],
-                    ),
-                )
-
-                decision = await monitoring_agent.run(
-                    telemetry_record, persistence=dict(persistence)
-                )
-
-                if decision.action_required:
-                    summary["monitoring_action_required"] += 1
-                for invocation in decision.selected_agents:
-                    summary["agent_invocations"][invocation.agent] += 1
+                if state["outcome"] == "skipped":
+                    summary["rows_without_violation"] += 1
+                    continue
+                decision = state["decision"]
                 summary["rows_processed"] += 1
 
                 logger.info(
@@ -332,25 +162,46 @@ async def run_dataset(config: RunConfig) -> None:
                     record_key,
                     decision.situation,
                     decision.action_required,
-                    [i.agent for i in decision.selected_agents],
+                    {agent: getattr(result, "status", None)
+                     for agent, result in state["agent_results"].items()},
                 )
 
             except Exception as exc:
                 logger.exception("Row %d (%s) failed", row_number, record_key)
                 summary["rows_failed"] += 1
-                mongo_repository.start_record(
+                mongo_repository.fail_record(
                     run_id=config.run_id,
-                    record_document=mongo_repository.new_record_document(
-                        record_id=record_key,
-                        telemetry_record=telemetry_dump,
-                        error={"type": type(exc).__name__, "message": str(exc)},
-                    ),
+                    record_id=record_key,
+                    seq=row_number,
+                    telemetry=telemetry_dump,
+                    error={"type": type(exc).__name__, "message": str(exc)},
                 )
+                mongo_repository.count(run_id=config.run_id, counters={"rows_failed": 1})
     finally:
-        # Always persist the summary, even on Ctrl+C or a crash mid-run.
-        mongo_repository.ensure_run(run_id=config.run_id, summary=summary)
+        # Always close the run, even on Ctrl+C or a crash mid-run.
+        mongo_repository.finish_run(run_id=config.run_id)
         await memory.close()
-        logger.info("Run %s finished: %s", config.run_id, summary)
+        logger.info(
+            "Run %s finished: %d processed, %d without violation (skipped), %d failed",
+            config.run_id, summary["rows_processed"], summary["rows_without_violation"],
+            summary["rows_failed"],
+        )
+
+
+def _run_config(config: RunConfig) -> dict[str, Any]:
+    """What the run was configured with, stored once on the run document."""
+    return {
+        "dataset": str(config.dataset_path),
+        "start_row": config.start_row,
+        "max_rows": config.max_rows,
+        "model": os.environ.get("MODEL_NAME"),
+        "non_rt_min_persistence": NON_RT_MIN_PERSISTENCE,
+        "max_protected_calls": MAX_PROTECTED_CALLS,
+        "sla_profiles": {
+            slice_id: {kpi: term.model_dump() for kpi, term in profile.items()}
+            for slice_id, profile in SLA_PROFILES.items()
+        },
+    }
 
 
 # --------------------------------------------------------------------------

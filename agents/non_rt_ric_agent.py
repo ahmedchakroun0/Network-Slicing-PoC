@@ -3,12 +3,7 @@ from pathlib import Path
 
 from agents.base_ric import BaseRICAgent
 from tools.near_rt_ric_tools import search_ran_knowledge
-from tools.non_rt_ric_tools import (
-    update_slice_resource_policy,
-    update_traffic_steering_policy,
-    update_admission_control_policy,
-    optimize_slice_capacity_policy,
-)
+from tools.non_rt_ric_tools import update_slice_resource_policy
 
 
 class NonRTRICAgent(BaseRICAgent):
@@ -19,7 +14,4 @@ class NonRTRICAgent(BaseRICAgent):
     tools = [
         search_ran_knowledge,
         update_slice_resource_policy,
-        update_traffic_steering_policy,
-        update_admission_control_policy,
-        optimize_slice_capacity_policy,
     ]

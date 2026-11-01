@@ -1,0 +1,288 @@
+{
+ "project": "/tmp/claude-0/-home-claude/a3295499-76cd-55ee-bfed-0c32eebfa84d/scratchpad/ahmed_copy",
+ "calls": 30,
+ "original": {
+  "approved": 7,
+  "invalid_proposal": 13,
+  "schema": 8,
+  "llm_review": 2
+ },
+ "replayed": {
+  "approved": 7,
+  "invalid_proposal": 13,
+  "schema": 8,
+  "llm_review": 2
+ },
+ "executed_original": 7,
+ "executed_replayed": 7,
+ "by_agent": {
+  "near_rt_ric": {
+   "original": {
+    "approved": 3,
+    "invalid_proposal": 1,
+    "schema": 1
+   },
+   "replayed": {
+    "approved": 3,
+    "invalid_proposal": 1,
+    "schema": 1
+   }
+  },
+  "non_rt_ric": {
+   "original": {
+    "approved": 4,
+    "schema": 7,
+    "invalid_proposal": 12,
+    "llm_review": 2
+   },
+   "replayed": {
+    "approved": 4,
+    "schema": 7,
+    "invalid_proposal": 12,
+    "llm_review": 2
+   }
+  }
+ },
+ "rows": [
+  {
+   "run": "run-6",
+   "record": "coloran_0000000",
+   "agent": "near_rt_ric",
+   "tool": "optimize_scheduler",
+   "original": "approved",
+   "replayed": "approved"
+  },
+  {
+   "run": "run-6",
+   "record": "coloran_0000000",
+   "agent": "near_rt_ric",
+   "tool": "adjust_prb_allocation",
+   "original": "invalid_proposal",
+   "replayed": "invalid_proposal"
+  },
+  {
+   "run": "run-6",
+   "record": "coloran_0000000",
+   "agent": "near_rt_ric",
+   "tool": "adjust_prb_allocation",
+   "original": "schema",
+   "replayed": "schema"
+  },
+  {
+   "run": "run-6",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "update_slice_resource_policy",
+   "original": "approved",
+   "replayed": "approved"
+  },
+  {
+   "run": "run-6",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "update_traffic_steering_policy",
+   "original": "schema",
+   "replayed": "schema"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "near_rt_ric",
+   "tool": "optimize_scheduler",
+   "original": "approved",
+   "replayed": "approved"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "near_rt_ric",
+   "tool": "adjust_prb_allocation",
+   "original": "approved",
+   "replayed": "approved"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "update_slice_resource_policy",
+   "original": "invalid_proposal",
+   "replayed": "invalid_proposal"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "update_slice_resource_policy",
+   "original": "approved",
+   "replayed": "approved"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "update_slice_resource_policy",
+   "original": "llm_review",
+   "replayed": "llm_review"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "update_traffic_steering_policy",
+   "original": "schema",
+   "replayed": "schema"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "update_traffic_steering_policy",
+   "original": "invalid_proposal",
+   "replayed": "invalid_proposal"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "update_traffic_steering_policy",
+   "original": "schema",
+   "replayed": "schema"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "update_admission_control_policy",
+   "original": "llm_review",
+   "replayed": "llm_review"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "optimize_slice_capacity_policy",
+   "original": "invalid_proposal",
+   "replayed": "invalid_proposal"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "optimize_slice_capacity_policy",
+   "original": "schema",
+   "replayed": "schema"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "update_slice_resource_policy",
+   "original": "approved",
+   "replayed": "approved"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "update_slice_resource_policy",
+   "original": "approved",
+   "replayed": "approved"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "update_traffic_steering_policy",
+   "original": "invalid_proposal",
+   "replayed": "invalid_proposal"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "update_traffic_steering_policy",
+   "original": "schema",
+   "replayed": "schema"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "update_traffic_steering_policy",
+   "original": "invalid_proposal",
+   "replayed": "invalid_proposal"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "update_traffic_steering_policy",
+   "original": "invalid_proposal",
+   "replayed": "invalid_proposal"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "update_admission_control_policy",
+   "original": "schema",
+   "replayed": "schema"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "update_admission_control_policy",
+   "original": "invalid_proposal",
+   "replayed": "invalid_proposal"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "optimize_slice_capacity_policy",
+   "original": "invalid_proposal",
+   "replayed": "invalid_proposal"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "optimize_slice_capacity_policy",
+   "original": "invalid_proposal",
+   "replayed": "invalid_proposal"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "optimize_slice_capacity_policy",
+   "original": "schema",
+   "replayed": "schema"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "optimize_slice_capacity_policy",
+   "original": "invalid_proposal",
+   "replayed": "invalid_proposal"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "optimize_slice_capacity_policy",
+   "original": "invalid_proposal",
+   "replayed": "invalid_proposal"
+  },
+  {
+   "run": "run-7",
+   "record": "coloran_0000000",
+   "agent": "non_rt_ric",
+   "tool": "optimize_slice_capacity_policy",
+   "original": "invalid_proposal",
+   "replayed": "invalid_proposal"
+  }
+ ]
+}

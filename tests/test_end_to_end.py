@@ -8,12 +8,15 @@ external services, replaced by in-memory fakes:
   * Redis    -> fakeredis
   * MongoDB  -> mongomock
 
-Scenario: two slices of the same cell are interleaved. Slice A violates
-latency on every record, slice B never violates. Per-(cell, slice)
-persistence must reach 3 on the 3rd A record (row 5), so the Non-RT policy
-action is rejected before and approved from then on, while Near-RT actions
-are approved immediately. With the former single global counter, B's
-healthy records reset A's persistence and no policy action could ever pass.
+Scenario: two slices of the same cell are interleaved. The URLLC slice
+violates its queueing-delay budget on every record, the MTC slice never
+violates. MTC records are skipped before the Monitoring Agent (only counted).
+Per-(cell, slice) persistence, kept in Redis, must reach 3 on the 3rd URLLC
+record (row 5): the Non-RT RIC is not invoked before (orchestration note) and
+its policy action is approved then, while Near-RT actions are approved
+immediately. With a single
+global counter, the healthy MTC records would reset it and no policy action
+could ever pass.
 """
 
 from __future__ import annotations
@@ -44,9 +47,8 @@ class _Structured:
     async def ainvoke(self, _input, *args, **kwargs):
         if self.schema is MonitoringDecision:
             return MonitoringDecision(
-                situation="critical", severity="high", global_situation="latency degradation",
+                situation="critical", severity="high", global_situation="queueing delay degradation",
                 action_required=True,
-                sla_analysis={k: {"status": "ok"} for k in ("latency", "jitter", "packet_loss", "throughput")},
                 selected_agents=[
                     AgentInvocation(agent="near_rt_ric", responsibility="fast mitigation",
                                     objective="Reduce latency", priority="high", reason="latency violation"),
@@ -98,14 +100,14 @@ class ScriptedChatModel(BaseChatModel):
         return ChatResult(generations=[ChatGeneration(message=msg)])
 
 
-def _row(record_id, slice_type, latency_ns):
+def _row(record_id, slice_id, t, delay_ms):
     return {
-        "record_id": record_id, "Use Case Type": "test", "Packet Loss Budget": 0.01,
-        "Latency Budget (ns)": 1000.0, "Jitter Budget (ns)": 1000.0, "Data Rate Budget (Gbps)": 1.0,
-        "Required Mobility": "no", "Required Connectivity": "yes",
-        "Slice Available Transfer Rate (Gbps)": 5.0, "Slice Latency (ns)": latency_ns,
-        "Slice Packet Loss": 0.0, "Slice Jitter (ns)": 10.0, "Slice Type": slice_type,
-        "Slice Handover": "no", "Cell ID": "bs7",
+        "record_id": record_id, "cell_id": "bs7", "slice_id": slice_id, "run": "sched0/tr0/exp1",
+        "window_start_s": t, "window_s": 1.0, "slice_prb": 5, "cell_prb": 50,
+        "scheduler": "round_robin", "active_ues": 2, "dl_throughput_mbps": 0.24,
+        "dl_throughput_per_ue_mbps": 0.12, "dl_buffer_bytes": 300.0, "queueing_delay_ms": delay_ms,
+        "prb_utilisation": 0.3, "cell_spare_prb": 30.0, "dl_cqi": 8.0, "dl_mcs": 12.0,
+        "ul_sinr_db": None,
     }
 
 
@@ -113,8 +115,8 @@ def _row(record_id, slice_type, latency_ns):
 async def test_run_dataset_end_to_end(tmp_path, monkeypatch):
     rows = []
     for i in range(3):
-        rows.append(_row(f"r{2 * i}", "sliceA", 5000.0))   # violates latency
-        rows.append(_row(f"r{2 * i + 1}", "sliceB", 10.0))  # healthy
+        rows.append(_row(f"r{2 * i}", "URLLC", 50.0 + i, 40.0))   # > 10 ms URLLC budget
+        rows.append(_row(f"r{2 * i + 1}", "MTC", 50.0 + i, 1.0))  # healthy
     csv = tmp_path / "telemetry.csv"
     pd.DataFrame(rows).to_csv(csv, index=False)
 
@@ -129,44 +131,54 @@ async def test_run_dataset_end_to_end(tmp_path, monkeypatch):
     config = run_dataset.RunConfig(dataset_path=csv, run_id="e2e", start_row=1, max_rows=None,
                                    knowledge_file=run_dataset.DEFAULT_KNOWLEDGE_FILE)
     store = {}
-    original_init = mongo_repo.MongoRepository.__post_init__
+    original_init = mongo_repo.MongoRepository.__init__
 
-    def _capture(self):
-        original_init(self)
-        store["collection"] = self._collection
+    def _capture(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        store["repo"] = self
 
-    monkeypatch.setattr(mongo_repo.MongoRepository, "__post_init__", _capture)
+    monkeypatch.setattr(mongo_repo.MongoRepository, "__init__", _capture)
 
     await run_dataset.run_dataset(config)
 
-    doc = store["collection"].find_one({"_id": "e2e"})
-    assert doc["summary"]["rows_processed"] == 6
-    assert doc["summary"]["rows_failed"] == 0
+    repo = store["repo"]
+    summary = repo.runs.find_one({"_id": "e2e"})["summary"]
+    assert summary["rows_processed"] == 3
+    assert summary["rows_without_violation"] == 3
+    assert summary.get("rows_failed", 0) == 0
+    assert summary["agent_invocations"] == {"near_rt_ric": 3, "non_rt_ric": 1}
 
-    recs = doc["records"]
-    # healthy slice: deterministic override -> no agent invoked
-    for rid in ("r1", "r3", "r5"):
-        assert not recs[rid]["monitoring_decision"]["selected_agents"]
+    recs = {d["_id"].split(":", 1)[1]: d for d in repo.records.find({"run_id": "e2e"})}
+    # healthy slice: skipped before the Monitoring Agent, no record document
+    assert sorted(recs) == ["r0", "r2", "r4"]
+    assert all(d["status"] == "done" for d in recs.values())
 
     def outcome(rid, agent):
-        audit = recs[rid]["agent_executions"][agent]["middleware_audit"]
-        assert len(audit) == 1
-        return audit[0]["governance"]
+        actions = recs[rid]["agents"][agent]["actions"]
+        assert len(actions) == 1
+        return actions[0]
 
     # Near-RT: approved on every violated record (LLM review included)
     for rid in ("r0", "r2", "r4"):
-        g = outcome(rid, "near_rt_ric")
-        assert g["approved"] is True and "llm_review" in g["checks_passed"]
-        ctx = recs[rid]["agent_executions"]["near_rt_ric"]["invocation"]["context"]
-        assert ctx["target"] == "bs7" and ctx["slice_id"] == "sliceA"
+        action = outcome(rid, "near_rt_ric")
+        assert action["governance"]["approved"] is True
+        assert "llm_review" in action["governance"]["checks_passed"]
+        assert action["governance"]["llm_review"]["reason"] == "Scripted approval."
+        assert action["target"] == "bs7" and action["params"]["slice_id"] == "URLLC"
+        assert action["reasoning"]["rationale"]
 
-    # Non-RT: per-(cell, slice) persistence 1, 2 -> rejected; 3 -> approved
-    assert outcome("r0", "non_rt_ric")["failed_stage"] == "sla"
-    assert outcome("r2", "non_rt_ric")["failed_stage"] == "sla"
-    assert outcome("r4", "non_rt_ric")["approved"] is True
-    assert recs["r4"]["agent_executions"]["non_rt_ric"]["invocation"]["context"]["persistence"]["latency"] == 3
+    # Non-RT: per-(cell, slice) persistence 1, 2 -> not invoked; 3 -> approved
+    for rid, observed in (("r0", 1), ("r2", 2)):
+        assert "non_rt_ric" not in recs[rid].get("agents", {})
+        note = recs[rid]["monitoring"]["orchestration_notes"][0]
+        assert f"persisted {observed} consecutive" in note
+    assert outcome("r4", "non_rt_ric")["governance"]["approved"] is True
+    assert recs["r4"]["persistence"]["queueing_delay"] == 3
+    assert recs["r4"]["sla"]["violations"] == ["queueing_delay"]
 
-    # working memory stayed bounded
-    from src.schema.working_memory import WorkingMemory
-    wm = WorkingMemory.model_validate_json(await redis.get(RedisWorkingMemory.KEY))
-    assert len(wm.tools_executed) <= RedisWorkingMemory(redis).max_tool_executions
+    # working memory: bounded lists; the healthy MTC records are in their slice history
+    from src.memory.working_memory import cell_key, slice_key
+    limit = RedisWorkingMemory(redis).max_events
+    for key in (cell_key("bs7", "records"), slice_key("bs7", "URLLC", "actions")):
+        assert 0 < await redis.llen(key) <= limit
+    assert await redis.llen(slice_key("bs7", "MTC", "records")) == 3

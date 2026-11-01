@@ -1,14 +1,11 @@
 """Regression tests for the v2 fixes (role binding, Non-RT persistence gate,
-bounded working memory, knowledge-base path, persistence in the Monitoring
+knowledge-base path, persistence in the Monitoring
 input)."""
 
-import fakeredis.aioredis
 import pytest
 
 from agents.ran_trust_governance import NON_RT_MIN_PERSISTENCE, RANTrustGovernanceAgent
-from src.memory.working_memory import RedisWorkingMemory
 from src.schema.near_rt_ric import RANActionProposal
-from src.schema.working_memory import ToolExecution
 from tools import near_rt_ric_tools
 
 
@@ -80,21 +77,6 @@ async def test_near_rt_actions_do_not_need_persistence():
     assert (await gov.authorize(p)).approved is True
 
 
-@pytest.mark.asyncio
-async def test_working_memory_is_bounded():
-    mem = RedisWorkingMemory(fakeredis.aioredis.FakeRedis(decode_responses=True), max_tool_executions=5)
-    for i in range(12):
-        await mem.add_tool_execution(ToolExecution(agent="monitoring", tool_name=f"t{i}"))
-    stored = await mem.get()
-    assert [e.tool_name for e in stored.tools_executed] == [f"t{i}" for i in range(7, 12)]
-
-
-def test_memory_bound_reads_env(monkeypatch):
-    monkeypatch.setenv("MEMORY_MAX_RECORDS", "7")
-    mem = RedisWorkingMemory(fakeredis.aioredis.FakeRedis(decode_responses=True))
-    assert mem.max_tool_executions == 7
-
-
 def test_knowledge_file_resolves_from_project_root():
     assert near_rt_ric_tools.KNOWLEDGE_FILE.is_file()
 
@@ -103,11 +85,11 @@ def test_knowledge_file_resolves_from_project_root():
 async def test_monitoring_prompt_receives_persistence(make_monitoring_agent, fake_llm, make_record):
     from src.schema.monitoring import MonitoringDecision
 
-    record = make_record(slice_latency_ns=2000.0)
+    record = make_record(queueing_delay_ms=400.0)
     agent = make_monitoring_agent()
     analysis = agent.analyze_sla(record)
     fake_llm.queue(MonitoringDecision(
-        situation="warning", severity="low", global_situation="latency",
+        situation="warning", severity="low", global_situation="queueing delay",
         action_required=False, sla_analysis=analysis, reason="test"))
-    await agent.run(record, persistence={"latency": 4})
-    assert "'latency': 4" in fake_llm.last_prompt
+    await agent.run(record, persistence={"queueing_delay": 4})
+    assert "'queueing_delay': 4" in fake_llm.last_prompt

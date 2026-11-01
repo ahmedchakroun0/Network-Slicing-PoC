@@ -1,0 +1,153 @@
+{
+  "decisions": [
+    {
+      "run": "93645d30",
+      "record": "record_00000",
+      "situation": "warning",
+      "severity": "medium",
+      "agents": [
+        "near_rt_ric",
+        "non_rt_ric"
+      ]
+    },
+    {
+      "run": "93645d30",
+      "record": "record_00001",
+      "situation": "warning",
+      "severity": "medium",
+      "agents": [
+        "near_rt_ric",
+        "non_rt_ric"
+      ]
+    },
+    {
+      "run": "93645d30",
+      "record": "record_00002",
+      "situation": "critical",
+      "severity": "high",
+      "agents": [
+        "near_rt_ric",
+        "non_rt_ric"
+      ]
+    },
+    {
+      "run": "93645d30",
+      "record": "record_00003",
+      "situation": "critical",
+      "severity": "high",
+      "agents": [
+        "non_rt_ric"
+      ]
+    },
+    {
+      "run": "a2c7e64a",
+      "record": "record_00000",
+      "situation": "critical",
+      "severity": "high",
+      "agents": [
+        "near_rt_ric",
+        "non_rt_ric"
+      ]
+    },
+    {
+      "run": "a2c7e64a",
+      "record": "record_00001",
+      "situation": "critical",
+      "severity": "high",
+      "agents": [
+        "near_rt_ric",
+        "non_rt_ric"
+      ]
+    },
+    {
+      "run": "run-1",
+      "record": "record_00001",
+      "situation": "critical",
+      "severity": "high",
+      "agents": [
+        "near_rt_ric",
+        "non_rt_ric"
+      ]
+    }
+  ],
+  "ric_outcomes": [
+    {
+      "run": "93645d30",
+      "record": "record_00000",
+      "agent": "non_rt_ric",
+      "status": "error"
+    },
+    {
+      "run": "93645d30",
+      "record": "record_00000",
+      "agent": "near_rt_ric",
+      "status": "no_action"
+    },
+    {
+      "run": "93645d30",
+      "record": "record_00001",
+      "agent": "non_rt_ric",
+      "status": "error"
+    },
+    {
+      "run": "93645d30",
+      "record": "record_00001",
+      "agent": "near_rt_ric",
+      "status": "no_action"
+    },
+    {
+      "run": "93645d30",
+      "record": "record_00002",
+      "agent": "non_rt_ric",
+      "status": "error"
+    },
+    {
+      "run": "93645d30",
+      "record": "record_00002",
+      "agent": "near_rt_ric",
+      "status": "no_action"
+    },
+    {
+      "run": "93645d30",
+      "record": "record_00003",
+      "agent": "non_rt_ric",
+      "status": "not_recorded"
+    },
+    {
+      "run": "a2c7e64a",
+      "record": "record_00000",
+      "agent": "non_rt_ric",
+      "status": "error"
+    },
+    {
+      "run": "a2c7e64a",
+      "record": "record_00000",
+      "agent": "near_rt_ric",
+      "status": "no_action"
+    },
+    {
+      "run": "a2c7e64a",
+      "record": "record_00001",
+      "agent": "non_rt_ric",
+      "status": "error"
+    },
+    {
+      "run": "a2c7e64a",
+      "record": "record_00001",
+      "agent": "near_rt_ric",
+      "status": "no_action"
+    },
+    {
+      "run": "run-1",
+      "record": "record_00001",
+      "agent": "non_rt_ric",
+      "status": "rejected"
+    },
+    {
+      "run": "run-1",
+      "record": "record_00001",
+      "agent": "near_rt_ric",
+      "status": "rejected"
+    }
+  ]
+}

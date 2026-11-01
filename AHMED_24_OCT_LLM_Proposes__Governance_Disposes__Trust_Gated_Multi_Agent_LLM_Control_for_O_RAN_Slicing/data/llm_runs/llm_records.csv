@@ -1,0 +1,6 @@
+run,record,slice,cell,violations,label_ok,action_required,severity,situation,global_situation,selected,duplicate_agent,routing_consistent,objective_names_only_violated,objectives_cover_violations,claims_recent_execution,memory_executions_before,invocations_selected,invocations_logged
+run-6,coloran_0000000,eMBB,bs2,"latency,jitter,throughput",True,True,high,warning,warning,"near_rt_ric:latency,near_rt_ric:jitter,non_rt_ric:throughput",True,True,True,True,3,0,3,2
+run-6,coloran_0000001,MTC,bs2,,True,False,none,normal,warning,,False,True,True,True,0,2,0,0
+run-7,coloran_0000000,eMBB,bs2,"latency,jitter,throughput",True,True,high,warning,warning,"near_rt_ric:latency,near_rt_ric:jitter,non_rt_ric:throughput",True,True,True,True,3,0,3,2
+run-8,coloran_0000001,MTC,bs2,,True,False,none,normal,normal,,False,True,True,True,0,0,0,0
+run-8,coloran_0000002,URLLC,bs2,,True,False,none,normal,normal,,False,True,True,True,0,0,0,0

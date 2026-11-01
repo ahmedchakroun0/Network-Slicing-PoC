@@ -1,0 +1,40 @@
+{
+  "bounded W=30 (proposed)": {
+    "n=50": {
+      "ric_context_kchars": 34.471,
+      "run_ms_median_window": 6.402750000233937
+    },
+    "n=500": {
+      "ric_context_kchars": 34.462,
+      "run_ms_median_window": 5.410512999787898
+    },
+    "n=1000": {
+      "ric_context_kchars": 34.463,
+      "run_ms_median_window": 5.231898999682016
+    },
+    "n=2000": {
+      "ric_context_kchars": 34.475,
+      "run_ms_median_window": 5.47151999990092
+    },
+    "chars_per_record_slope": 0.00631578947368421
+  },
+  "unbounded (PoC)": {
+    "n=50": {
+      "ric_context_kchars": 170.897,
+      "run_ms_median_window": 12.198435999835056
+    },
+    "n=500": {
+      "ric_context_kchars": 1717.785,
+      "run_ms_median_window": 163.3849840000039
+    },
+    "n=1000": {
+      "ric_context_kchars": 3436.782,
+      "run_ms_median_window": 459.91436699978294
+    },
+    "n=2000": {
+      "ric_context_kchars": 6874.745,
+      "run_ms_median_window": 1064.212932999908
+    },
+    "chars_per_record_slope": 3437.87
+  }
+}

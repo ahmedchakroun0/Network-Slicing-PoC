@@ -14,7 +14,7 @@ async def test_run_marks_warning_when_some_metrics_are_unavailable(
         global_situation="Partial telemetry received.",
         action_required=True,
         sla_analysis=MonitoringAgent.analyze_sla(
-            make_record(jitter_budget_ns=None, slice_jitter_ns=None)
+            make_record(queueing_delay_ms=None)
         ),
         selected_agents=[
             AgentInvocation(
@@ -32,13 +32,7 @@ async def test_run_marks_warning_when_some_metrics_are_unavailable(
     fake_llm.queue(decision)
 
     agent = make_monitoring_agent(sub_agents={})
-    record = make_record(
-        record_id="rec-warning",
-        jitter_budget_ns=None,
-        slice_jitter_ns=None,
-        slice_latency_ns=500.0,
-        latency_budget_ns=1000.0,
-    )
+    record = make_record(record_id="rec-warning", queueing_delay_ms=None)
 
     result = await agent.run(record)
 
@@ -46,12 +40,17 @@ async def test_run_marks_warning_when_some_metrics_are_unavailable(
     assert result.action_required is False
     assert result.selected_agents == []
     assert "monitoring data is incomplete" in result.reason.lower()
-    assert result.sla_analysis.unavailable_metrics == ["jitter"]
+    assert result.sla_analysis.unavailable_metrics == ["queueing_delay"]
+
+
+def _insert(mongo, record):
+    mongo.insert_record(run_id="run1", record_id=record.record_id, seq=1,
+                        telemetry=record.model_dump(mode="json"), sla={}, persistence={})
 
 
 @pytest.mark.asyncio
 async def test_run_records_missing_subagent_as_error(
-    make_monitoring_agent, fake_llm, memory, make_record
+    make_monitoring_agent, fake_llm, mongo, make_record
 ):
     decision = MonitoringDecision(
         situation="critical",
@@ -59,7 +58,7 @@ async def test_run_records_missing_subagent_as_error(
         global_situation="Near-RT intervention needed.",
         action_required=True,
         sla_analysis=MonitoringAgent.analyze_sla(
-            make_record(slice_latency_ns=3000.0, latency_budget_ns=1000.0)
+            make_record(queueing_delay_ms=300.0)
         ),
         selected_agents=[
             AgentInvocation(
@@ -76,27 +75,20 @@ async def test_run_records_missing_subagent_as_error(
     )
     fake_llm.queue(decision)
 
-    agent = make_monitoring_agent(sub_agents={})
-    result = await agent.run(
-        make_record(
-            record_id="rec-missing-agent",
-            slice_latency_ns=3000.0,
-            latency_budget_ns=1000.0,
-        )
-    )
+    record = make_record(record_id="rec-missing-agent", queueing_delay_ms=300.0)
+    _insert(mongo, record)
+    agent = make_monitoring_agent(sub_agents={}, mongo=mongo, run_id="run1")
+    result = await agent.run(record)
 
     assert result.action_required is True
-    assert memory.executions_of("near_rt_ric")[-1].tool_name == "agent_invocation"
-    assert memory.executions_of("near_rt_ric")[-1].result["status"] == "error"
-    assert (
-        "No implementation registered"
-        in memory.executions_of("near_rt_ric")[-1].result["message"]
-    )
+    stored = mongo.records.find_one({"_id": "run1:rec-missing-agent"})["agents"]["near_rt_ric"]
+    assert stored["status"] == "error"
+    assert "No implementation registered" in stored["error"]["message"]
 
 
 @pytest.mark.asyncio
 async def test_run_records_subagent_exception_as_error(
-    make_monitoring_agent, fake_llm, memory, make_record, make_sub_agent
+    make_monitoring_agent, fake_llm, mongo, make_record, make_sub_agent
 ):
     failing_agent = make_sub_agent(error=RuntimeError("policy engine unavailable"))
     decision = MonitoringDecision(
@@ -105,9 +97,7 @@ async def test_run_records_subagent_exception_as_error(
         global_situation="Policy-level action needed.",
         action_required=True,
         sla_analysis=MonitoringAgent.analyze_sla(
-            make_record(
-                slice_available_transfer_rate_gbps=3.0, data_rate_budget_gbps=10.0
-            )
+            make_record(dl_throughput_per_ue_mbps=1.5)
         ),
         selected_agents=[
             AgentInvocation(
@@ -124,16 +114,13 @@ async def test_run_records_subagent_exception_as_error(
     )
     fake_llm.queue(decision)
 
-    agent = make_monitoring_agent(sub_agents={"non_rt_ric": failing_agent})
-    result = await agent.run(
-        make_record(
-            record_id="rec-subagent-error",
-            slice_available_transfer_rate_gbps=3.0,
-            data_rate_budget_gbps=10.0,
-        )
-    )
+    record = make_record(record_id="rec-subagent-error", dl_throughput_per_ue_mbps=1.5)
+    _insert(mongo, record)
+    agent = make_monitoring_agent(sub_agents={"non_rt_ric": failing_agent}, mongo=mongo,
+                                  run_id="run1")
+    result = await agent.run(record, persistence={"throughput": 3})
 
     assert result.action_required is True
     assert failing_agent.calls[0].agent == "non_rt_ric"
-    assert memory.executions_of("non_rt_ric")[-1].result["status"] == "error"
-    assert memory.executions_of("non_rt_ric")[-1].result["error_type"] == "RuntimeError"
+    stored = mongo.records.find_one({"_id": "run1:rec-subagent-error"})["agents"]["non_rt_ric"]
+    assert stored["status"] == "error" and stored["error"]["type"] == "RuntimeError"

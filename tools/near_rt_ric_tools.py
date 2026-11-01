@@ -2,6 +2,8 @@ from pathlib import Path
 
 from langchain_core.tools import tool
 
+from src.schema.monitoring import Scheduler
+
 
 # Resolved from the project root so the tool works from any working directory.
 KNOWLEDGE_FILE = Path(__file__).resolve().parent.parent / "data" / "ran_knowledge.txt"
@@ -81,15 +83,16 @@ async def adjust_prb_allocation(
 async def optimize_scheduler(
     target: str,
     slice_id: str,
-    scheduler: str,
+    scheduler: Scheduler,
     rationale: str,
     expected_effect: str,
     confidence: float,
     evidence_sources: list[str] | None = None,
 ) -> dict:
     """
-    Optimize the scheduler configuration for a slice.
-    scheduler: round_robin | proportional_fair | max_cqi | priority_based.
+    Change the MAC scheduler used for a slice.
+    scheduler: round_robin | waterfilling | proportional_fair (the schedulers
+    of the ColO-RAN testbed).
     target and slice_id must be copied from the invocation context.
     rationale: why this tool and this exact value, citing the violated KPIs.
     expected_effect: which KPI should improve and how.
@@ -167,15 +170,19 @@ async def adjust_power_control(
 async def adjust_qos_parameters(
     target: str,
     slice_id: str,
-    qos_parameters: dict[str, float],
+    priority_level: int,
+    packet_delay_budget_ms: float,
+    guaranteed_bitrate_mbps: float,
     rationale: str,
     expected_effect: str,
     confidence: float,
     evidence_sources: list[str] | None = None,
 ) -> dict:
     """
-    Adjust QoS parameters for a network slice.
-    qos_parameters is a dictionary of QoS parameter names and their new values.
+    Adjust the QoS profile of a network slice (5QI-style characteristics).
+    priority_level: 1-10, 1 is the highest scheduling priority.
+    packet_delay_budget_ms: 5-300 ms, the delay the slice's packets may take.
+    guaranteed_bitrate_mbps: 0-10 Mbps per UE (0 = non-GBR).
     target and slice_id must be copied from the invocation context.
     rationale: why this tool and these exact values, citing the violated KPIs.
     expected_effect: which KPI should improve and how.
@@ -188,25 +195,32 @@ async def adjust_qos_parameters(
         "tool": "adjust_qos_parameters",
         "target": target,
         "slice_id": slice_id,
-        "qos_parameters": qos_parameters,
+        "priority_level": priority_level,
+        "packet_delay_budget_ms": packet_delay_budget_ms,
+        "guaranteed_bitrate_mbps": guaranteed_bitrate_mbps,
         "message": (
-            f"QoS parameters updated for {slice_id} on {target}: {qos_parameters}."
+            f"QoS of {slice_id} on {target}: priority {priority_level}, "
+            f"PDB {packet_delay_budget_ms} ms, GBR {guaranteed_bitrate_mbps} Mbps/UE."
         ),
     }
+
 
 @tool
 async def adjust_link_adaptation(
     target: str,
     slice_id: str,
-    link_adaptation_params: dict[str, float],
+    mcs_offset: int,
+    target_bler: float,
     rationale: str,
     expected_effect: str,
     confidence: float,
     evidence_sources: list[str] | None = None,
 ) -> dict:
     """
-    Adjust link adaptation parameters for a network slice.
-    link_adaptation_params is a dictionary of link adaptation parameter names and their new values.
+    Adjust downlink link adaptation for a network slice.
+    mcs_offset: -5 to 5, added to the MCS chosen from the reported CQI
+    (negative = more robust, positive = more aggressive).
+    target_bler: 0.001-0.2, the block error rate link adaptation aims for.
     target and slice_id must be copied from the invocation context.
     rationale: why this tool and these exact values, citing the violated KPIs.
     expected_effect: which KPI should improve and how.
@@ -219,8 +233,10 @@ async def adjust_link_adaptation(
         "tool": "adjust_link_adaptation",
         "target": target,
         "slice_id": slice_id,
-        "link_adaptation_params": link_adaptation_params,
+        "mcs_offset": mcs_offset,
+        "target_bler": target_bler,
         "message": (
-            f"Link adaptation parameters updated for {slice_id} on {target}: {link_adaptation_params}."
+            f"Link adaptation of {slice_id} on {target}: MCS offset {mcs_offset}, "
+            f"target BLER {target_bler}."
         ),
     }

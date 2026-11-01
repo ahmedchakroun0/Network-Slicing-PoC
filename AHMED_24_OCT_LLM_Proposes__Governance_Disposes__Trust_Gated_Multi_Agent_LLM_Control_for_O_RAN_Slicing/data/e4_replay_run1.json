@@ -1,0 +1,85 @@
+[
+  {
+    "call": "call_f4arreud",
+    "agent": "non_rt_ric",
+    "tool": "update_slice_resource_policy",
+    "reasoning_logged": true,
+    "legacy_context": {
+      "approved": false,
+      "failed_stage": "policy_trust",
+      "reason": "[policy_trust] No trusted target in the invocation context."
+    },
+    "trusted_context": {
+      "approved": false,
+      "failed_stage": "policy_trust",
+      "reason": "[policy_trust] Target 'record_00001' does not match the invocation target 'cell-01'."
+    },
+    "all_defects": [
+      "policy_trust: target 'record_00001' != 'cell-01'",
+      "policy_trust: slice_id 'run-1' != 'umMTC'",
+      "resource_safety: PRB ratios must satisfy 5<=min<=80, 20<=max<=100, min<=max."
+    ]
+  },
+  {
+    "call": "call_bz93ejca",
+    "agent": "non_rt_ric",
+    "tool": "update_traffic_steering_policy",
+    "reasoning_logged": false,
+    "legacy_context": {
+      "approved": false,
+      "failed_stage": "invalid_proposal",
+      "reason": "[invalid_proposal] rationale: Field required; expected_effect: Field required; confidence: Field required"
+    },
+    "trusted_context": {
+      "approved": false,
+      "failed_stage": "invalid_proposal",
+      "reason": "[invalid_proposal] rationale: Field required; expected_effect: Field required; confidence: Field required"
+    },
+    "all_defects": [
+      "schema: steering_mode missing; load_balance_threshold_pct missing; load_balancing_threshold extra_forbidden; load_balancing_mode extra_forbidden; slice_id extra_forbidden",
+      "policy_trust: target 'record_00001' != 'cell-01'",
+      "policy_trust: slice_id 'run-1' != 'umMTC'"
+    ]
+  },
+  {
+    "call": "call_cy438tkk",
+    "agent": "non_rt_ric",
+    "tool": "update_admission_control_policy",
+    "reasoning_logged": false,
+    "legacy_context": {
+      "approved": false,
+      "failed_stage": "invalid_proposal",
+      "reason": "[invalid_proposal] rationale: Field required; expected_effect: Field required; confidence: Field required"
+    },
+    "trusted_context": {
+      "approved": false,
+      "failed_stage": "invalid_proposal",
+      "reason": "[invalid_proposal] rationale: Field required; expected_effect: Field required; confidence: Field required"
+    },
+    "all_defects": [
+      "schema: max_utilization_pct missing; max_slice_utilization_pct extra_forbidden",
+      "policy_trust: target 'record_00001' != 'cell-01'",
+      "policy_trust: slice_id 'run-1' != 'umMTC'"
+    ]
+  },
+  {
+    "call": "call_y8fm84lz",
+    "agent": "near_rt_ric",
+    "tool": "optimize_scheduler",
+    "reasoning_logged": true,
+    "legacy_context": {
+      "approved": false,
+      "failed_stage": "policy_trust",
+      "reason": "[policy_trust] No trusted target in the invocation context."
+    },
+    "trusted_context": {
+      "approved": false,
+      "failed_stage": "policy_trust",
+      "reason": "[policy_trust] Target 'record_00001' does not match the invocation target 'cell-01'."
+    },
+    "all_defects": [
+      "policy_trust: target 'record_00001' != 'cell-01'",
+      "policy_trust: slice_id 'run-1' != 'umMTC'"
+    ]
+  }
+]

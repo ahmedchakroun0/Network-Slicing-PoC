@@ -1,78 +1,111 @@
+"""Shapes of the MongoDB results store (src/repositories/mongo_repository.py).
+
+Two collections:
+  runs     one small document per run: configuration and summary counters.
+  records  one document per telemetry record. Every agent step adds to it
+           with a targeted update ($set / $push); it is never replaced.
+
+Every fact is stored once. The context passed to the agents (target, slice,
+SLA analysis, persistence, slice state) is derivable from `telemetry`, `sla`
+and `persistence`, so invocations are stored without it.
+"""
+
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
-
-from src.schema.monitoring import AgentInvocation
+from pydantic import BaseModel, Field
 
 
-class MongoMiddlewareAuditDocument(BaseModel):
-    """One middleware audit entry captured for a protected tool call."""
+class AgentMessage(BaseModel):
+    """The visible text of a model turn (output tokens, not hidden thinking)."""
 
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    text: str | None = None
+    forced: bool = Field(
+        default=False,
+        description="The middleware produced this tool call because the model "
+        "did not call an action tool on its own.",
+    )
+
+
+class ActionEntry(BaseModel):
+    """One protected tool call: what the RIC agent proposed and what happened."""
+
+    i: int = Field(description="Position in the agent's action list.")
+    tool_call_id: str
+    at: datetime
+    tool: str
+    target: str | None = None
+    params: dict[str, Any] = Field(default_factory=dict)
+    reasoning: dict[str, Any] | None = Field(
+        default=None, description="rationale, expected_effect, evidence_sources, confidence."
+    )
+    agent_message: AgentMessage | None = Field(
+        default=None, description="The model turn that emitted this tool call."
+    )
+    governance: dict[str, Any] = Field(
+        description="approved, failed_stage, reason, checks_passed, and llm_review "
+        "(goal_aligned, reasoning_sound, behavior_acceptable, reason) "
+        "when the LLM review ran."
+    )
+    execution: dict[str, Any] = Field(description="status, result, message.")
+
+
+class KnowledgeEntry(BaseModel):
+    """One knowledge lookup of a RIC agent and what it returned."""
 
     tool_call_id: str
-    proposal: dict[str, Any] | None = None
-    governance: dict[str, Any]
-    execution: dict[str, Any]
+    at: datetime
+    tool: str
+    args: dict[str, Any] = Field(default_factory=dict)
+    result: str
 
 
-class MongoAgentExecutionDocument(BaseModel):
-    """All persisted data for one specialized agent invocation."""
+class AgentRun(BaseModel):
+    """One RIC agent invocation inside a record."""
 
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-    agent: Literal["near_rt_ric", "non_rt_ric"]
-    invocation: AgentInvocation
-    result: dict[str, Any] | None = None
-    middleware_audit: list[MongoMiddlewareAuditDocument] = Field(default_factory=list)
-
-
-class MongoDatasetRecordDocument(BaseModel):
-    """Mongo document fragment for one dataset row / telemetry record."""
-
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-    record_id: str
-    telemetry_record: dict[str, Any]
-    ground_truth: dict[str, Any] = Field(default_factory=dict)
-    comparison: dict[str, Any] = Field(default_factory=dict)
-    computed_analysis: dict[str, Any] = Field(default_factory=dict)
-    monitoring_decision: dict[str, Any] | None = None
-    agent_executions: dict[str, MongoAgentExecutionDocument] = Field(
-        default_factory=dict
+    status: Literal["running", "completed", "rejected", "no_action", "error"]
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    selected_action: int | None = Field(
+        default=None, description="Index into `actions` of the action the result reports."
     )
+    actions: list[ActionEntry] = Field(default_factory=list)
+    knowledge: list[KnowledgeEntry] = Field(default_factory=list)
+    final_message: AgentMessage | None = None
     error: dict[str, Any] | None = None
 
 
-class MongoRunDocument(BaseModel):
-    """Top-level Mongo document for one full dataset execution run."""
+class RecordDocument(BaseModel):
+    """The `records` document of one telemetry record."""
 
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    id: str = Field(alias="_id", description="'<run_id>:<record_id>'.")
+    run_id: str
+    seq: int = Field(description="Row number in the dataset.")
+    status: Literal["received", "decided", "done", "failed"]
+    telemetry: dict[str, Any]
+    sla: dict[str, Any]
+    persistence: dict[str, int] = Field(default_factory=dict)
+    monitoring: dict[str, Any] | None = Field(
+        default=None,
+        description="Effective decision after the deterministic override, plus "
+        "llm_output (the model's decision before it, when it was overridden).",
+    )
+    agents: dict[str, AgentRun] = Field(default_factory=dict)
+    error: dict[str, Any] | None = None
+
+
+class RunDocument(BaseModel):
+    """The `runs` document: run configuration and summary counters."""
 
     id: str = Field(alias="_id")
-    run_id: str
+    created_at: datetime
+    finished_at: datetime | None = None
+    status: Literal["running", "finished"] = "running"
+    config: dict[str, Any] = Field(default_factory=dict)
     summary: dict[str, Any] = Field(default_factory=dict)
-    records: dict[str, MongoDatasetRecordDocument] = Field(default_factory=dict)
-
-    def model_post_init(self, __context: Any) -> None:
-        if self.id != self.run_id:
-            raise ValueError("MongoRunDocument id and run_id must match.")
-
-    def upsert_record(self, record: MongoDatasetRecordDocument) -> None:
-        self.records[record.record_id] = record
-
-    def get_record(self, record_id: str) -> MongoDatasetRecordDocument | None:
-        return self.records.get(record_id)
-
-    def as_mongo_document(self) -> dict[str, Any]:
-        return self.model_dump(by_alias=True, mode="json")
 
 
-__all__ = [
-    "MongoMiddlewareAuditDocument",
-    "MongoAgentExecutionDocument",
-    "MongoDatasetRecordDocument",
-    "MongoRunDocument",
-]
+__all__ = ["ActionEntry", "AgentMessage", "AgentRun", "KnowledgeEntry", "RecordDocument",
+           "RunDocument"]

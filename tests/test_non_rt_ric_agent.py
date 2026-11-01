@@ -1,144 +1,116 @@
+"""BaseRICAgent.invoke with a fake LangChain agent that plays the middleware:
+it records protected calls in the real AuditSink, so the results store
+(mongomock) and the working memory (fakeredis) are exercised for real."""
+
 import pytest
-from redis.asyncio import Redis
 
 from agents.non_rt_ric_agent import NonRTRICAgent
 from middleware.ran_authorisation import RAN_AUDIT
-from src.memory.working_memory import RedisWorkingMemory
 from src.schema.monitoring import AgentInvocation
-from src.schema.near_rt_ric import GovernanceResult, RANActionProposal, RANToolResult
+from src.schema.near_rt_ric import GovernanceResult, LLMReview, RANActionProposal, RANToolResult
+
+CONTEXT = {"target": "bs1", "slice_id": "eMBB", "record_id": "r1", "run_id": "run1",
+           "window_start_s": 60.0}
+POLICY = {"slice_id": "eMBB", "min_prb_ratio_pct": 40, "max_prb_ratio_pct": 80}
+REASONING = {"rationale": "throughput 1.8 Mbps < 3.6 Mbps for 4 records; guarantee 40 % PRB.",
+             "expected_effect": "throughput per UE rises towards 3.6 Mbps.", "confidence": 0.8}
 
 
-@pytest.fixture
-async def redis_memory():
-    redis = Redis.from_url("redis://localhost:6379/0", decode_responses=True)
-    await redis.flushdb()
-    memory = RedisWorkingMemory(redis)
-    yield memory
-    await redis.flushdb()
-    await redis.aclose()
+def _call(call_id, approved, stage=None, reason="Approved.", review=None):
+    """What the middleware records for one protected call."""
+    proposal = RANActionProposal(tool_name="update_slice_resource_policy", parameters=POLICY,
+                                 target="bs1", **REASONING)
+    decision = GovernanceResult(approved=approved, reason=reason, failed_stage=stage,
+                                llm_review=review)
+    execution = RANToolResult(tool_name="update_slice_resource_policy",
+                              status="executed" if approved else "rejected", target="bs1",
+                              parameters={**POLICY, "target": "bs1"}, result={"status": "success"})
+    submitted = {"tool_name": "update_slice_resource_policy", "target": "bs1",
+                 "parameters": POLICY, **REASONING}
+    return call_id, submitted, proposal, decision, execution
+
+
+class FakeAgent:
+    """Records the given calls in the sink, then ends with a closing message."""
+
+    def __init__(self, calls):
+        self.calls = calls
+
+    async def ainvoke(self, payload):
+        self.payload = payload
+        sink = RAN_AUDIT.get()
+        for call in self.calls:
+            sink.add(*call)
+        return {"messages": []}
+
+
+def _invocation():
+    return AgentInvocation(agent="non_rt_ric", responsibility="PRB policy",
+                           objective="throughput 1.8 < 3.6 Mbps", priority="high",
+                           reason="persistent throughput violation", context=CONTEXT)
 
 
 @pytest.mark.asyncio
-async def test_non_rt_ric_agent_invoke_returns_completed_status(redis_memory):
-    class FakeAgent:
-        async def ainvoke(self, payload):
-            audit = RAN_AUDIT.get()
-            audit.append(
-                {
-                    "proposal": RANActionProposal(
-                        tool_name="update_traffic_steering_policy",
-                        parameters={
-                            "steering_mode": "latency_aware",
-                            "load_balance_threshold_pct": 70,
-                        },
-                        target="cell-1",
-                        rationale="Latency is elevated and should be reduced with a low-latency steering policy.",
-                        expected_effect="Lower latency and improve slice fairness.",
-                        evidence_sources=["latency", "throughput"],
-                        confidence=0.85,
-                        invocation_context={},
-                    ).model_dump(mode="json"),
-                    "governance": GovernanceResult(
-                        approved=True,
-                        reason="Approved by governance.",
-                        checks_passed=[
-                            "schema",
-                            "policy_trust",
-                            "sla",
-                            "resource_safety",
-                        ],
-                    ).model_dump(mode="json"),
-                    "execution": RANToolResult(
-                        tool_name="update_traffic_steering_policy",
-                        status="executed",
-                        target="cell-1",
-                        parameters={
-                            "steering_mode": "latency_aware",
-                            "load_balance_threshold_pct": 70,
-                        },
-                        result={"channel": "A1", "applied": True, "simulated": True},
-                        message="Policy applied.",
-                    ).model_dump(mode="json"),
-                }
-            )
-            return {"messages": [{"tool_calls": [{"name": "update_traffic_steering_policy"}]}]}
+async def test_completed_invocation_is_stored_and_remembered(memory, mongo):
+    mongo.insert_record(run_id="run1", record_id="r1", seq=1, telemetry={}, sla={}, persistence={})
+    review = LLMReview(goal_aligned=True, reasoning_sound=False, behavior_acceptable=True,
+                       reason="Rationale cites a value not in the context.")
+    agent = NonRTRICAgent(trust_governance_agent=object(), memory=memory, mongo_repository=mongo)
+    agent.agent = FakeAgent([
+        _call("c0", False, "llm_review", "rejected by review", review),
+        _call("c1", True),
+    ])
 
-    agent = NonRTRICAgent(trust_governance_agent=object(), memory=redis_memory)
-    agent.agent = FakeAgent()
-
-    invocation = AgentInvocation(
-        agent="non_rt_ric",
-        responsibility="Perform long-term policy optimization.",
-        objective="Reduce persistent latency degradation.",
-        priority="high",
-        reason="Persistent KPI degradation requires policy action.",
-        context={"target": "cell-1", "slice_id": "slice-1"},
-    )
-
-    result = await agent.invoke(invocation)
+    result = await agent.invoke(_invocation())
 
     assert result.status == "completed"
-    assert result.proposal is not None
-    assert result.governance is not None
-    assert result.execution is not None
     assert result.execution.status == "executed"
+    stored = mongo.records.find_one({"_id": "run1:r1"})["agents"]["non_rt_ric"]
+    assert stored["status"] == "completed" and stored["selected_action"] == 1
+    first = stored["actions"][0]
+    assert first["reasoning"]["rationale"] == REASONING["rationale"]
+    assert first["governance"]["llm_review"]["reason"] == review.reason
+    assert first["params"] == POLICY                       # target kept apart, not duplicated
+
+    actions = (await memory.view("bs1", "eMBB")).slice_actions
+    assert [(a.approved, a.stage) for a in actions] == [(True, None), (False, "llm_review")]
+    assert actions[1].review == {"goal_aligned": True, "reasoning_sound": False,
+                                 "behavior_acceptable": True}
+    assert actions[1].why is None                           # no LLM text in working memory
 
 
 @pytest.mark.asyncio
-async def test_non_rt_ric_agent_invoke_returns_rejected_status_on_governance_failure(
-    redis_memory,
-):
-    class FakeAgent:
-        async def ainvoke(self, payload):
-            audit = RAN_AUDIT.get()
-            audit.append(
-                {
-                    "proposal": RANActionProposal(
-                        tool_name="update_admission_control_policy",
-                        parameters={
-                            "slice_id": "slice-1",
-                            "max_utilization_pct": 90,
-                        },
-                        target="cell-1",
-                        rationale="Admission should be tightened.",
-                        expected_effect="Lower overload risk.",
-                        evidence_sources=["throughput"],
-                        confidence=0.7,
-                        invocation_context={},
-                    ).model_dump(mode="json"),
-                    "governance": GovernanceResult(
-                        approved=False,
-                        reason="Admission policy exceeds the allowed policy guardrails.",
-                        failed_stage="policy_trust",
-                        checks_passed=["schema"],
-                    ).model_dump(mode="json"),
-                    "execution": RANToolResult(
-                        tool_name="update_admission_control_policy",
-                        status="rejected",
-                        target="cell-1",
-                        parameters={"slice_id": "slice-1", "max_utilization_pct": 90},
-                        result={"status": "rejected"},
-                        message="Rejected.",
-                    ).model_dump(mode="json"),
-                }
-            )
-            return {"messages": [{"tool_calls": [{"name": "update_traffic_steering_policy"}]}]}
+async def test_rejected_invocation_and_memory_view_in_prompt_state(memory, mongo):
+    mongo.insert_record(run_id="run1", record_id="r1", seq=1, telemetry={}, sla={}, persistence={})
+    agent = NonRTRICAgent(trust_governance_agent=object(), memory=memory, mongo_repository=mongo)
+    fake = FakeAgent([_call("c0", False, "sla", "[sla] Policy actions require a violation "
+                                                 "persisting for at least 3 consecutive records")])
+    agent.agent = fake
 
-    agent = NonRTRICAgent(memory=redis_memory)
-    agent.agent = FakeAgent()
-    invocation = AgentInvocation(
-        agent="non_rt_ric",
-        responsibility="Review long-term policy options.",
-        objective="Limit persistent overload.",
-        priority="medium",
-        reason="Policy change needed.",
-        context={"target": "cell-1", "slice_id": "slice-1"},
-    )
-
-    result = await agent.invoke(invocation)
+    result = await agent.invoke(_invocation())
 
     assert result.status == "rejected"
-    assert result.governance is not None
-    assert result.governance.approved is False
-    assert result.execution is not None
-    assert result.execution.status == "rejected"
+    assert result.governance.failed_stage == "sla"
+    assert set(fake.payload["working_memory"]) >= {"cell", "slice_records", "slice_actions"}
+    stored = mongo.records.find_one({"_id": "run1:r1"})["agents"]["non_rt_ric"]
+    assert stored["status"] == "rejected"
+    why = (await memory.view("bs1", "eMBB")).slice_actions[0].why
+    assert why.startswith("[sla] Policy actions require")   # deterministic reason is kept
+
+
+@pytest.mark.asyncio
+async def test_failure_is_recorded_as_error(memory, mongo):
+    mongo.insert_record(run_id="run1", record_id="r1", seq=1, telemetry={}, sla={}, persistence={})
+
+    class Broken:
+        async def ainvoke(self, payload):
+            raise RuntimeError("model endpoint down")
+
+    agent = NonRTRICAgent(trust_governance_agent=object(), memory=memory, mongo_repository=mongo)
+    agent.agent = Broken()
+
+    result = await agent.invoke(_invocation())
+
+    assert result.status == "error"
+    stored = mongo.records.find_one({"_id": "run1:r1"})["agents"]["non_rt_ric"]
+    assert stored["status"] == "error" and stored["error"]["type"] == "RuntimeError"

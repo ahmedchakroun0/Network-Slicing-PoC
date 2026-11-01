@@ -31,11 +31,12 @@ NOTE: the limits below are PoC values, not standards. Tune them freely.
 import asyncio
 import os
 import json
-from typing import Any
+from typing import Any, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from src.schema.near_rt_ric import GovernanceResult, RANActionProposal
+from src.schema.monitoring import Scheduler
+from src.schema.near_rt_ric import GovernanceResult, LLMReview, RANActionProposal
 
 # --------------------------------------------------------------------------
 # Stage 1: schema (exact argument shape per tool)
@@ -46,6 +47,11 @@ class _BaseArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     target: str = Field(min_length=1)
+
+
+# Every model mirrors the signature of its tool in tools/ (minus the
+# reasoning fields). extra="forbid": an argument the tool does not declare
+# is rejected here, not silently dropped.
 
 
 class _PRBArgs(_BaseArgs):
@@ -65,15 +71,24 @@ class _HandoverArgs(_BaseArgs):
 class _PowerArgs(_BaseArgs):
     power_offset_db: float
 
+
 class _QoSArgs(_BaseArgs):
-    # Must mirror the tool signature in tools/near_rt_ric_tools.py.
     slice_id: str = Field(min_length=1)
-    qos_parameters: dict[str, Any]
+    priority_level: int
+    packet_delay_budget_ms: float
+    guaranteed_bitrate_mbps: float
 
 
 class _LinkAdaptationArgs(_BaseArgs):
     slice_id: str = Field(min_length=1)
-    link_adaptation_params: dict[str, Any]
+    mcs_offset: int
+    target_bler: float
+
+
+class _SlicePolicyArgs(_BaseArgs):
+    slice_id: str = Field(min_length=1)
+    min_prb_ratio_pct: int
+    max_prb_ratio_pct: int
 
 
 ARG_MODELS: dict[str, type[BaseModel]] = {
@@ -83,37 +98,8 @@ ARG_MODELS: dict[str, type[BaseModel]] = {
     "adjust_power_control": _PowerArgs,
     "adjust_qos_parameters": _QoSArgs,
     "adjust_link_adaptation": _LinkAdaptationArgs,
+    "update_slice_resource_policy": _SlicePolicyArgs,
 }
-
-
-class _SlicePolicyArgs(_BaseArgs):
-    slice_id: str = Field(min_length=1)
-    min_prb_ratio_pct: int
-    max_prb_ratio_pct: int
-
-
-class _SteeringArgs(_BaseArgs):
-    steering_mode: str = Field(min_length=1)
-    load_balance_threshold_pct: int
-
-
-class _AdmissionArgs(_BaseArgs):
-    slice_id: str = Field(min_length=1)
-    max_utilization_pct: int
-
-class _SliceCapacityArgs(_BaseArgs):
-    slice_id: str = Field(min_length=1)
-    min_prb_ratio_pct: int
-    max_prb_ratio_pct: int
-
-ARG_MODELS.update(
-    {
-        "update_slice_resource_policy": _SlicePolicyArgs,
-        "update_traffic_steering_policy": _SteeringArgs,
-        "update_admission_control_policy": _AdmissionArgs,
-        "optimize_slice_capacity_policy": _SliceCapacityArgs,
-    }
-)
 
 TOOL_OWNERS = {
     "near_rt_ric": frozenset(
@@ -126,18 +112,8 @@ TOOL_OWNERS = {
             "adjust_link_adaptation",
         }
     ),
-    "non_rt_ric": frozenset(
-        {
-            "update_slice_resource_policy",
-            "update_traffic_steering_policy",
-            "update_admission_control_policy",
-            "optimize_slice_capacity_policy",
-        }
-    ),
+    "non_rt_ric": frozenset({"update_slice_resource_policy"}),
 }
-ALLOWED_STEERING_MODES = frozenset(
-    {"load_balancing", "latency_aware", "throughput_aware"}
-)
 NON_RT_MIN_PERSISTENCE = int(os.getenv("NON_RT_MIN_PERSISTENCE", "3"))
 
 
@@ -148,54 +124,69 @@ NON_RT_MIN_PERSISTENCE = int(os.getenv("NON_RT_MIN_PERSISTENCE", "3"))
 PRB_PERCENTAGE_RANGE = (5, 90)
 HANDOVER_MARGIN_RANGE_DB = (0.0, 10.0)
 POWER_OFFSET_RANGE_DB = (-6.0, 6.0)
-ALLOWED_SCHEDULERS = frozenset(
-    {"round_robin", "proportional_fair", "max_cqi", "priority_based"}
-)
+# The schedulers of the ColO-RAN testbed (same list as the telemetry).
+ALLOWED_SCHEDULERS = frozenset(get_args(Scheduler))
+QOS_PRIORITY_RANGE = (1, 10)                 # 1 = highest priority
+QOS_DELAY_BUDGET_RANGE_MS = (5.0, 300.0)     # 3GPP 5QI packet delay budgets
+QOS_GBR_RANGE_MBPS = (0.0, 10.0)             # per UE, 10 MHz carrier
+MCS_OFFSET_RANGE = (-5, 5)
+TARGET_BLER_RANGE = (0.001, 0.2)
+SLICE_POLICY_MIN_RANGE_PCT = (5, 80)
+SLICE_POLICY_MAX_RANGE_PCT = (20, 100)
+
+
+def _outside(value: float, bounds: tuple[float, float], name: str) -> str | None:
+    low, high = bounds
+    return None if low <= value <= high else f"{name} must be within [{low}, {high}]."
 
 
 def _safety_violation(tool_name: str, args: dict[str, Any]) -> str | None:
     if tool_name == "adjust_prb_allocation":
-        low, high = PRB_PERCENTAGE_RANGE
-        if not low <= args["prb_percentage"] <= high:
-            return f"prb_percentage must be within [{low}, {high}]."
+        return _outside(args["prb_percentage"], PRB_PERCENTAGE_RANGE, "prb_percentage")
 
-    elif tool_name == "optimize_scheduler":
+    if tool_name == "optimize_scheduler":
         if args["scheduler"] not in ALLOWED_SCHEDULERS:
             return (
                 f"scheduler {args['scheduler']!r} is not allowed; "
                 f"allowed: {sorted(ALLOWED_SCHEDULERS)}."
             )
+        return None
 
-    elif tool_name == "optimize_handover":
-        low, high = HANDOVER_MARGIN_RANGE_DB
-        if not low <= args["handover_margin_db"] <= high:
-            return f"handover_margin_db must be within [{low}, {high}]."
+    if tool_name == "optimize_handover":
+        return _outside(args["handover_margin_db"], HANDOVER_MARGIN_RANGE_DB, "handover_margin_db")
 
-    elif tool_name == "adjust_power_control":
-        low, high = POWER_OFFSET_RANGE_DB
-        if not low <= args["power_offset_db"] <= high:
-            return f"power_offset_db must be within [{low}, {high}]."
-    elif tool_name in ("update_slice_resource_policy", "optimize_slice_capacity_policy"):
-        lo, hi = args["min_prb_ratio_pct"], args["max_prb_ratio_pct"]
-        if not (5 <= lo <= 80 and 20 <= hi <= 100 and lo <= hi):
-            return "PRB ratios must satisfy 5<=min<=80, 20<=max<=100, min<=max."
-    elif tool_name == "update_traffic_steering_policy":
-        if args["steering_mode"] not in ALLOWED_STEERING_MODES:
-            return f"steering_mode must be in {sorted(ALLOWED_STEERING_MODES)}."
-        if not 50 <= args["load_balance_threshold_pct"] <= 95:
-            return "load_balance_threshold_pct must be within [50, 95]."
-    elif tool_name == "update_admission_control_policy":
-        if not 60 <= args["max_utilization_pct"] <= 100:
-            return "max_utilization_pct must be within [60, 100]."
-    else:
-        # Default deny: a tool whose parameters have no safety envelope is
-        # never executed (e.g. free-form QoS / link-adaptation dictionaries).
+    if tool_name == "adjust_power_control":
+        return _outside(args["power_offset_db"], POWER_OFFSET_RANGE_DB, "power_offset_db")
+
+    if tool_name == "adjust_qos_parameters":
         return (
-            f"No safety envelope is defined for {tool_name!r}; "
-            "action not allowed (fail closed)."
+            _outside(args["priority_level"], QOS_PRIORITY_RANGE, "priority_level")
+            or _outside(args["packet_delay_budget_ms"], QOS_DELAY_BUDGET_RANGE_MS,
+                        "packet_delay_budget_ms")
+            or _outside(args["guaranteed_bitrate_mbps"], QOS_GBR_RANGE_MBPS,
+                        "guaranteed_bitrate_mbps")
         )
 
-    return None
+    if tool_name == "adjust_link_adaptation":
+        return (
+            _outside(args["mcs_offset"], MCS_OFFSET_RANGE, "mcs_offset")
+            or _outside(args["target_bler"], TARGET_BLER_RANGE, "target_bler")
+        )
+
+    if tool_name == "update_slice_resource_policy":
+        lo, hi = args["min_prb_ratio_pct"], args["max_prb_ratio_pct"]
+        return (
+            _outside(lo, SLICE_POLICY_MIN_RANGE_PCT, "min_prb_ratio_pct")
+            or _outside(hi, SLICE_POLICY_MAX_RANGE_PCT, "max_prb_ratio_pct")
+            or (None if lo <= hi else "min_prb_ratio_pct must be <= max_prb_ratio_pct.")
+        )
+
+    # Default deny: a tool whose parameters have no safety envelope is
+    # never executed.
+    return (
+        f"No safety envelope is defined for {tool_name!r}; "
+        "action not allowed (fail closed)."
+    )
 
 
 # --------------------------------------------------------------------------
@@ -226,7 +217,13 @@ class _LLMReview(BaseModel):
             "target and slice, and free of unsupported claims."
         )
     )
-    reason: str = Field(description="Short, specific justification (1-2 sentences).")
+    reason: str = Field(
+        description=(
+            "Why you accept or reject this action (1-3 sentences): cite the "
+            "RIC agent's claim, the tool and parameter values, and the KPI "
+            "values that support or contradict it."
+        )
+    )
 
 
 _ROLE_DESCRIPTIONS = {
@@ -293,7 +290,7 @@ class RANTrustGovernanceAgent:
         allowed_tools: set[str] | None = None,
         *,
         use_llm: bool = True,
-        llm_timeout_s: float = 30.0,
+        llm_timeout_s: float | None = None,
     ) -> None:
         """
         Args:
@@ -302,14 +299,18 @@ class RANTrustGovernanceAgent:
                 lazily on the first review.
             allowed_tools: tools this governance instance may approve.
             use_llm: set False to run only the deterministic stages.
-            llm_timeout_s: LLM review timeout; on timeout the action is
-                rejected (fail closed).
+            llm_timeout_s: LLM review timeout, retries and rate-limit waits
+                included (default env GOVERNANCE_LLM_TIMEOUT_S, 180 s); on
+                timeout the action is rejected (fail closed).
         """
         self.allowed_tools = (
             set(allowed_tools) if allowed_tools is not None else set(ARG_MODELS)
         )
         self.use_llm = use_llm
-        self.llm_timeout_s = llm_timeout_s
+        self.llm_timeout_s = (
+            llm_timeout_s if llm_timeout_s is not None
+            else float(os.getenv("GOVERNANCE_LLM_TIMEOUT_S", "180"))
+        )
         self._reviewer = (
             llm.with_structured_output(_LLMReview) if llm is not None else None
         )
@@ -336,13 +337,10 @@ class RANTrustGovernanceAgent:
             )
 
         try:
-            params = {
-                key: value
-                for key, value in proposal.parameters.items()
-                if key not in {"policy_tool_name", "tool_name"}
-            }
+            # Every submitted parameter is validated: an argument the tool
+            # does not declare fails here (extra="forbid").
             args = model.model_validate(
-                {**params, "target": proposal.target}
+                {**proposal.parameters, "target": proposal.target}
             ).model_dump()
         except ValidationError as exc:
             details = "; ".join(
@@ -384,15 +382,18 @@ class RANTrustGovernanceAgent:
                 checks_passed=passed,
             )
 
-        approved, llm_reason = await self._llm_review(proposal, args)
+        approved, llm_reason, review = await self._llm_review(proposal, args)
         if not approved:
-            return self._reject("llm_review", llm_reason, passed)
+            result = self._reject("llm_review", llm_reason, passed)
+            result.llm_review = review
+            return result
         passed.append("llm_review")
 
         return GovernanceResult(
             approved=True,
             reason=f"Action passed all governance checks. LLM review: {llm_reason}",
             checks_passed=passed,
+            llm_review=review,
         )
 
     # ------------------------------------------------------------------
@@ -536,8 +537,8 @@ class RANTrustGovernanceAgent:
 
     async def _llm_review(
         self, proposal: RANActionProposal, args: dict[str, Any]
-    ) -> tuple[bool, str]:
-        """Return (approved, reason). Fails closed on any problem."""
+    ) -> tuple[bool, str, LLMReview | None]:
+        """Return (approved, reason, full review). Fails closed on any problem."""
         try:
             reviewer = self._get_reviewer()
             raw = await asyncio.wait_for(
@@ -551,14 +552,15 @@ class RANTrustGovernanceAgent:
             return False, (
                 f"LLM review unavailable ({type(exc).__name__}: {exc}); "
                 "action not approved."
-            )
+            ), None
 
+        full = LLMReview(**review.model_dump())
         if (
             review.reasoning_sound
             and review.goal_aligned
             and review.behavior_acceptable
         ):
-            return True, review.reason
+            return True, review.reason, full
 
         problems = []
         if not review.reasoning_sound:
@@ -568,7 +570,7 @@ class RANTrustGovernanceAgent:
         if not review.behavior_acceptable:
             problems.append("behavior not acceptable")
 
-        return False, f"{'; '.join(problems)}. {review.reason}"
+        return False, f"{'; '.join(problems)}. {review.reason}", full
 
     @staticmethod
     def _reject(stage: str, reason: str, passed: list[str]) -> GovernanceResult:

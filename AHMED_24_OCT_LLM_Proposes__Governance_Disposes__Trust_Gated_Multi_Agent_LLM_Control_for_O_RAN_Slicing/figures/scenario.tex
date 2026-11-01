@@ -1,0 +1,35 @@
+% Fig. 1 -- target scenario and crucial point (TikZ; editable in Overleaf).
+% Requires: tikz libraries positioning, arrows.meta, calc
+% and the colours/macros defined in the preamble of main.tex.
+\begin{tikzpicture}[
+  font=\scriptsize, >=Stealth,
+  box/.style={draw=ink, rounded corners=2pt, align=center, inner sep=2.5pt, line width=0.5pt, fill=white},
+  llm/.style={box, fill=llmfill},
+  det/.style={box, fill=detfill},
+  ctx/.style={->, densely dashed, line width=0.6pt, draw=detline},
+]
+% ---------- main chain: LLM agents -> gate -> cell
+\node[llm, text width=21mm, minimum height=12mm] (ag) at (0,0) {\textbf{LLM agents}\\Near-/Non-RT RIC};
+\node[det, text width=15mm, minimum height=12mm, right=17mm of ag] (gt) {\textbf{\fw{}}\\trust gate};
+\node[box, text width=15mm, minimum height=12mm, right=13mm of gt] (cell) {\textbf{Cell}\\eMBB, URLLC,\\MTC slices};
+% ---------- deterministic SLA analyzer (facts + trusted context)
+\node[det, text width=21mm, above=9mm of gt] (sla) {\textbf{SLA analyzer}\\(code, not LLM)};
+
+\draw[->, line width=0.6pt, draw=ink] (ag) -- node[above]{call $u$} (gt);
+\draw[->, line width=0.6pt, draw=okline] (gt) -- node[above, text=okline]{approved} (cell);
+% KPIs up to the analyzer, facts down to the agents, trusted context to the gate
+\draw[->, line width=0.6pt, draw=ink] (cell.north) |- node[pos=0.75, above]{KPIs} (sla.east);
+\draw[->, line width=0.6pt, draw=ink] (sla.west) -| node[pos=0.25, above]{SLA violation $V_t$} (ag.north);
+\draw[ctx] (sla.south) -- node[right, text=detline]{$c_t$} (gt.north);
+
+% ---------- failure path without a gate
+\coordinate (b1) at ([yshift=-9mm]ag.south);
+\coordinate (b2) at ([yshift=-9mm]cell.south);
+\draw[->, line width=0.6pt, densely dashed, draw=rejline] (ag.south) -- (b1) -- (b2) -- (cell.south);
+\node[text=rejline, align=center, below=0.6mm of $(b1)!0.5!(b2)$, font=\scriptsize]
+  {ungoverned: a hallucinated, out-of-range or\\spurious call reaches the RAN and degrades a slice};
+\node[text=rejline, font=\scriptsize\bfseries, below=1mm of gt] {faulty $\Rightarrow$ blocked};
+% ---------- gate returns the outcome to the agent (result if approved, reason if rejected)
+\draw[->, line width=0.5pt, densely dotted, draw=inkmuted]
+  ([yshift=-3mm]gt.west) -- node[below, font=\tiny, inner sep=1pt]{\scriptsize result\,/\,reason} ([yshift=-3mm]ag.east);
+\end{tikzpicture}

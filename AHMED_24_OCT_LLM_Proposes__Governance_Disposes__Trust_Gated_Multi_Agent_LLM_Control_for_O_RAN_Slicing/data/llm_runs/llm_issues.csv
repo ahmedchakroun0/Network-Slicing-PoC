@@ -1,0 +1,24 @@
+run,record,component,issue,detail
+run-6,coloran_0000000,monitoring,fabricated history,3 selected agent(s) justified by 'Recent execution ... executed successfully' although the working memory was reset and empty
+run-6,coloran_0000000,monitoring,duplicate selection,"selected ['near_rt_ric', 'near_rt_ric', 'non_rt_ric']; the prompt says never select an agent twice"
+run-6,coloran_0000000,audit,lost invocation,"3 invocations, 2 stored (agent_executions is keyed by agent name); lost: ['near_rt_ric:latency']"
+run-6,coloran_0000000,near_rt_ric,objective mismatch approved,"optimize_scheduler {'slice_id': 'eMBB', 'scheduler': 'proportional_fair'} approved; objective=['jitter'], expected_effect='throughput'"
+run-6,coloran_0000000,near_rt_ric,claims unknown current value,adjust_prb_allocation: 'Increasing PRB allocation from 50 to 60 should improve throughput for the eMBB s'
+run-6,coloran_0000000,near_rt_ric,no evidence cited,evidence_sources empty in every call of this invocation
+run-6,coloran_0000000,non_rt_ric,extreme action approved,"update_slice_resource_policy {'slice_id': 'eMBB', 'min_prb_ratio_pct': 80, 'max_prb_ratio_pct': 100}: guaranteed PRB share 80% for one slice; passes the 5<=min<=80 limit and the LLM review"
+run-6,coloran_0000000,non_rt_ric,policy action on a single record,update_slice_resource_policy executed although the violation was observed in 1 record (v2 persistence gate removed)
+run-6,coloran_0000000,non_rt_ric,no evidence cited,evidence_sources empty in every call of this invocation
+run-7,coloran_0000000,monitoring,fabricated history,3 selected agent(s) justified by 'Recent execution ... executed successfully' although the working memory was reset and empty
+run-7,coloran_0000000,monitoring,duplicate selection,"selected ['near_rt_ric', 'near_rt_ric', 'non_rt_ric']; the prompt says never select an agent twice"
+run-7,coloran_0000000,audit,lost invocation,"3 invocations, 2 stored (agent_executions is keyed by agent name); lost: ['near_rt_ric:latency']"
+run-7,coloran_0000000,near_rt_ric,objective mismatch approved,"optimize_scheduler {'slice_id': 'eMBB', 'scheduler': 'proportional_fair'} approved; objective=['jitter'], expected_effect='throughput'"
+run-7,coloran_0000000,near_rt_ric,objective mismatch approved,"adjust_prb_allocation {'slice_id': 'eMBB', 'prb_percentage': 60} approved; objective=['jitter'], expected_effect='throughput'"
+run-7,coloran_0000000,near_rt_ric,no evidence cited,evidence_sources empty in every call of this invocation
+run-7,coloran_0000000,non_rt_ric,policy action on a single record,update_slice_resource_policy executed although the violation was observed in 1 record (v2 persistence gate removed)
+run-7,coloran_0000000,non_rt_ric,extreme action approved,"update_slice_resource_policy {'min_prb_ratio_pct': 60, 'max_prb_ratio_pct': 80, 'slice_id': 'eMBB'}: guaranteed PRB share 60% for one slice; passes the 5<=min<=80 limit and the LLM review"
+run-7,coloran_0000000,non_rt_ric,policy action on a single record,update_slice_resource_policy executed although the violation was observed in 1 record (v2 persistence gate removed)
+run-7,coloran_0000000,non_rt_ric,misquoted KPI value approved,"update_slice_resource_policy: rationale quotes ['30194438'], not in the trusted context"
+run-7,coloran_0000000,non_rt_ric,objective mismatch approved,"update_slice_resource_policy {'max_prb_ratio_pct': 80, 'min_prb_ratio_pct': 60, 'slice_id': 'eMBB'} approved; objective=['throughput'], expected_effect='latency'"
+run-7,coloran_0000000,non_rt_ric,extreme action approved,"update_slice_resource_policy {'max_prb_ratio_pct': 80, 'min_prb_ratio_pct': 60, 'slice_id': 'eMBB'}: guaranteed PRB share 60% for one slice; passes the 5<=min<=80 limit and the LLM review"
+run-7,coloran_0000000,non_rt_ric,policy action on a single record,update_slice_resource_policy executed although the violation was observed in 1 record (v2 persistence gate removed)
+run-7,coloran_0000000,non_rt_ric,no evidence cited,evidence_sources empty in every call of this invocation

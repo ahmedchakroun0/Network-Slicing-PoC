@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 from pathlib import Path
@@ -12,11 +13,18 @@ from src.schema.monitoring import (
     MonitoringDecision,
     SLAAnalysis,
 )
-from src.schema.working_memory import ToolExecution
+from agents.ran_trust_governance import NON_RT_MIN_PERSISTENCE
+from src.schema.sla import SLA_PROFILES, KPIBudget
+from src.schema.working_memory import RecordEvent
 from src.repositories.mongo_repository import MongoRepository
 
+logger = logging.getLogger(__name__)
 
 SubAgent = Callable[[AgentInvocation], Awaitable[Any]]
+# Not stored with the decision: the SLA analysis is on the record, and the
+# agent context is injected by trusted code.
+_STORED_EXCLUDE = {"sla_analysis": True, "record_id": True,
+                   "selected_agents": {"__all__": {"context"}}}
 _PROMPT_PATH = Path("prompts/monitoring.txt")
 
 
@@ -27,12 +35,12 @@ class MonitoringAgent:
         self,
         llm: Any,
         memory: RedisWorkingMemory,
-        sub_agents: dict[AgentName, SubAgent],
+        sub_agents: dict[AgentName, SubAgent] | None = None,
         mongo_repository: MongoRepository | None = None,
         run_id: str | None = None,
     ) -> None:
         self.memory = memory
-        self.sub_agents = sub_agents
+        self.sub_agents = sub_agents or {}
         self.mongo_repository = mongo_repository
         self.run_id = run_id
         if not _PROMPT_PATH.is_file():
@@ -50,17 +58,17 @@ class MonitoringAgent:
                 (
                     "human",
                     """
-Incoming telemetry:
+Incoming slice telemetry (one cell, one slice, one time window):
 {telemetry}
 
-Deterministic SLA analysis:
+Deterministic SLA analysis against the {slice_id} SLA profile:
 {sla_analysis}
 
-Current shared network status:
-{network_status}
-
-Recent agent tool executions:
-{recent_tool_executions}
+Working memory of this base station and slice (deterministic facts, most
+recent first): the base-station configuration, the last records of this
+slice and of the cell's other slices, and the last tool calls executed or
+rejected on them:
+{working_memory}
 
 Consecutive-violation persistence for this cell and slice (per KPI,
 computed deterministically; "not provided" if unknown):
@@ -73,82 +81,104 @@ Return a MonitoringDecision.
         )
 
     @staticmethod
-    def _compare(
-        measured: float | None,
-        budget: float | None,
-        *,
-        lower_is_better: bool,
-    ) -> KPIStatus:
-        """Compare a measured KPI with its corresponding budget."""
-        if measured is None or budget is None:
-            return KPIStatus(
-                measured=measured,
-                budget=budget,
-                status="unavailable",
-            )
-
-        violation = measured > budget if lower_is_better else measured < budget
-
-        return KPIStatus(
-            measured=measured,
-            budget=budget,
-            status="violation" if violation else "ok",
-        )
+    def _compare(measured: float | None, term: KPIBudget) -> KPIStatus:
+        """Compare a measured KPI with its SLA term."""
+        status = KPIStatus(measured=measured, budget=term.budget, unit=term.unit,
+                           bound=term.bound, status="unavailable")
+        if measured is None:
+            return status
+        violation = measured < term.budget if term.bound == "min" else measured > term.budget
+        status.status = "violation" if violation else "ok"
+        return status
 
     @classmethod
     def analyze_sla(cls, record: TelemetryRecord) -> SLAAnalysis:
-        """Calculate SLA violations deterministically."""
-        analysis = SLAAnalysis(
-            latency=cls._compare(
-                record.slice_latency_ns,
-                record.latency_budget_ns,
-                lower_is_better=True,
-            ),
-            jitter=cls._compare(
-                record.slice_jitter_ns,
-                record.jitter_budget_ns,
-                lower_is_better=True,
-            ),
-            packet_loss=cls._compare(
-                record.slice_packet_loss,
-                record.packet_loss_budget,
-                lower_is_better=True,
-            ),
-            throughput=cls._compare(
-                record.slice_available_transfer_rate_gbps,
-                record.data_rate_budget_gbps,
-                lower_is_better=False,
-            ),
-        )
+        """Evaluate the record against its slice's SLA profile deterministically."""
+        profile = SLA_PROFILES.get(record.slice_id, {})
         kpis = {
-            "latency": analysis.latency,
-            "jitter": analysis.jitter,
-            "packet_loss": analysis.packet_loss,
-            "throughput": analysis.throughput,
+            name: cls._compare(getattr(record, term.field), term)
+            for name, term in profile.items()
         }
+        return SLAAnalysis(
+            slice_id=record.slice_id,
+            kpis=kpis,
+            violations=[n for n, s in kpis.items() if s.status == "violation"],
+            unavailable_metrics=[n for n, s in kpis.items() if s.status == "unavailable"],
+        )
 
-        analysis.violations = [
-            name for name, status in kpis.items() if status.status == "violation"
-        ]
-
-        analysis.unavailable_metrics = [
-            name for name, status in kpis.items() if status.status == "unavailable"
-        ]
-
-        return analysis
     @staticmethod
     def _severity(analysis: SLAAnalysis) -> str:
+        """How far the worst violated KPI is beyond its budget (x budget)."""
         worst = 0.0
         for name in analysis.violations:
-            s = getattr(analysis, name)
+            s = analysis.kpis[name]
             if not s.budget:
                 continue
-            if name == "throughput":
+            if s.bound == "min":
                 ratio = s.budget / s.measured if s.measured else float("inf")
             else:
                 ratio = s.measured / s.budget
             worst = max(worst, ratio)
         return "high" if worst >= 3 else "medium" if worst >= 1.5 else "low"
+
+    @staticmethod
+    def _stored_decision(
+        decision: MonitoringDecision, llm_output: dict[str, Any]
+    ) -> dict[str, Any]:
+        """The effective decision, and the model's own decision only when the
+        deterministic override changed it."""
+        stored = decision.model_dump(mode="json", exclude=_STORED_EXCLUDE)
+        # orchestration_notes is set by code, never by the LLM: not compared.
+        llm_output = {k: v for k, v in llm_output.items() if k != "orchestration_notes"}
+        effective = {k: v for k, v in stored.items() if k != "orchestration_notes"}
+        stored["overridden"] = effective != llm_output
+        if stored["overridden"]:
+            stored["llm_output"] = llm_output
+        return stored
+
+    @staticmethod
+    def _apply_routing_rules(
+        decision: MonitoringDecision,
+        sla_analysis: SLAAnalysis,
+        persistence: dict[str, int] | None,
+    ) -> None:
+        """Deterministic routing for a record with violations.
+
+        1. The Non-RT RIC (policy level) is invoked only for a persistent
+           violation: at least NON_RT_MIN_PERSISTENCE consecutive records.
+        2. A violation is never left unhandled: with no agent left, the
+           Near-RT RIC is invoked for the violated KPIs.
+        Each change is noted on the decision (the LLM's own selection stays
+        in the stored llm_output).
+        """
+        notes = decision.orchestration_notes
+        observed = max(
+            ((persistence or {}).get(kpi, 0) for kpi in sla_analysis.violations), default=0
+        )
+        if NON_RT_MIN_PERSISTENCE > 1 and observed < NON_RT_MIN_PERSISTENCE:
+            if any(i.agent == "non_rt_ric" for i in decision.selected_agents):
+                decision.selected_agents = [
+                    i for i in decision.selected_agents if i.agent != "non_rt_ric"
+                ]
+                notes.append(
+                    f"non_rt_ric not invoked: the violation persisted {observed} "
+                    f"consecutive record(s), policy actions need {NON_RT_MIN_PERSISTENCE}."
+                )
+
+        if not decision.selected_agents:
+            violated = ", ".join(
+                f"{kpi} ({sla_analysis.kpis[kpi].measured} {sla_analysis.kpis[kpi].unit} vs "
+                f"{sla_analysis.kpis[kpi].bound} {sla_analysis.kpis[kpi].budget})"
+                for kpi in sla_analysis.violations
+            )
+            decision.selected_agents = [AgentInvocation(
+                agent="near_rt_ric",
+                responsibility="Mitigate the SLA violations of this slice.",
+                objective=f"Restore the violated KPIs: {violated}.",
+                priority={"high": "high", "medium": "medium"}.get(decision.severity, "low"),
+                reason="Fallback: the record has SLA violations but no agent was selected.",
+            )]
+            notes.append("near_rt_ric invoked by fallback: SLA violations with no agent selected.")
 
     @staticmethod
     def _merge_duplicate_agents(selected: list) -> list:
@@ -169,50 +199,47 @@ Return a MonitoringDecision.
             first.reason = f"{first.reason} {inv.reason}".strip()
         return list(merged.values())
 
-    async def run(
+    async def decide(
         self,
         record: TelemetryRecord,
         persistence: dict[str, int] | None = None,
+        sla_analysis: SLAAnalysis | None = None,
     ) -> MonitoringDecision:
-        """Analyze one telemetry record and invoke selected agents."""
-        # 1. Read the latest shared network context.
-        memory = await self.memory.get()
+        """Decide which agents act on one record (no agent is invoked here).
 
-        # 2. Calculate SLA violations without relying on the LLM.
-        sla_analysis = self.analyze_sla(record)
+        The LLM decision is overridden by the deterministic SLA analysis and
+        routing rules, then stored (MongoDB) and remembered (Redis)."""
+        record_id = record.record_id
+        store = self.mongo_repository if self.run_id is not None else None
 
-        record_id = record.record_id or f"record-{id(record)}"
+        # 1. Calculate SLA violations without relying on the LLM.
+        if sla_analysis is None:
+            sla_analysis = self.analyze_sla(record)
 
-        if self.mongo_repository is not None and self.run_id is not None:
-            self.mongo_repository.start_record(
-                run_id=self.run_id,
-                record_document=self.mongo_repository.new_record_document(
-                    record_id=record_id,
-                    telemetry_record=record.model_dump(mode="json"),
-                    ground_truth={},
-                    comparison={},
-                    computed_analysis=sla_analysis.model_dump(mode="json"),
-                ),
-            )
+        # 2. Read the working memory of this base station and slice.
+        working_memory = (
+            (await self.memory.view(record.cell_id, record.slice_id))
+            .model_dump(mode="json", exclude={"persistence"})
+            if self.memory is not None
+            else {}
+        )
 
         # 3. Ask the LLM for a structured orchestration decision.
         prompt_value = self.prompt.invoke(
             {
-                "telemetry": record.model_dump(
-                    by_alias=True,
-                    mode="json",
-                ),
+                "telemetry": record.model_dump(mode="json"),
+                "slice_id": record.slice_id,
                 "sla_analysis": sla_analysis.model_dump(mode="json"),
-                "network_status": memory.network_status,
-                "recent_tool_executions": [
-                    execution.model_dump(mode="json")
-                    for execution in memory.tools_executed[-10:]
-                ],
+                "working_memory": working_memory,
                 "persistence": persistence if persistence is not None else "not provided",
             }
         )
 
-        decision: MonitoringDecision = await self.decision_llm.ainvoke(prompt_value)
+        decision = await self.decision_llm.ainvoke(prompt_value)
+        if not isinstance(decision, MonitoringDecision):
+            decision = MonitoringDecision.model_validate(decision)
+        # What the model decided, before the deterministic override (for evaluation).
+        llm_output = decision.model_dump(mode="json", exclude=_STORED_EXCLUDE)
 
         # 4. Treat deterministic SLA results as authoritative.
         decision.sla_analysis = sla_analysis
@@ -240,7 +267,6 @@ Return a MonitoringDecision.
                     "All monitored KPIs were evaluated and no SLA violations "
                     "were detected."
                 )
-            decision.action_required = bool(decision.selected_agents)
         else:
             decision.severity = self._severity(sla_analysis)
             # A record with verified violations is never "normal" (run-24 had
@@ -249,104 +275,82 @@ Return a MonitoringDecision.
             if decision.situation == "normal":
                 decision.situation = "warning"
             decision.selected_agents = self._merge_duplicate_agents(decision.selected_agents)
-        # Persist the EFFECTIVE decision (after the deterministic override),
-        # so the audit trail matches what was actually executed.
-        if self.mongo_repository is not None and self.run_id is not None:
-            self.mongo_repository.set_monitoring_decision(
+            self._apply_routing_rules(decision, sla_analysis, persistence)
+            decision.action_required = bool(decision.selected_agents)
+
+        # 5. Store the EFFECTIVE decision (after the deterministic override), so
+        # the results match what was executed. The SLA analysis is stored once
+        # on the record, and the agent context is injected by trusted code.
+        if store is not None:
+            store.set_decision(
                 run_id=self.run_id,
                 record_id=record_id,
-                monitoring_decision=decision.model_dump(mode="json"),
+                decision=self._stored_decision(decision, llm_output),
             )
 
-        # 5. Update the shared network status.
-        await self.memory.update_network_status(decision.global_situation)
-
-        # 6. Record the decision before invoking subagents.
-        await self.memory.add_tool_execution(
-            ToolExecution(
-                agent="monitoring",
-                tool_name="analyze_telemetry_and_decide",
-                result={
-                    "record_id": record_id,
-                    "situation": decision.situation,
-                    "severity": decision.severity,
-                    "action_required": decision.action_required,
-                    "sla_analysis": sla_analysis.model_dump(mode="json"),
-                    "selected_agents": [
-                        invocation.model_dump(mode="json")
-                        for invocation in decision.selected_agents
-                    ],
-                    "reason": decision.reason,
-                },
+        # 6. Working memory: this record, for the next decisions on the cell.
+        if self.memory is not None:
+            await self.memory.record_decision(
+                record.cell_id,
+                RecordEvent.of(
+                    record, sla_analysis, decision.severity,
+                    [i.agent for i in decision.selected_agents],
+                ),
             )
-        )
 
-        # 7. Invoke only the agents selected by the Monitoring Agent.
+        return decision
+
+    async def invoke_agent(
+        self,
+        invocation: AgentInvocation,
+        record_id: str,
+        trusted_context: dict[str, Any] | None = None,
+    ) -> Any:
+        """Invoke one selected agent. The trusted context (deterministic code)
+        overrides anything the LLM put in the invocation context. A missing
+        agent or a failure is recorded and returns None."""
+        store = self.mongo_repository if self.run_id is not None else None
+        agent = self.sub_agents.get(invocation.agent)
+        invocation_context = {**invocation.context, **(trusted_context or {})}
+        invocation_context.setdefault("record_id", record_id)
+        if self.run_id is not None:
+            invocation_context.setdefault("run_id", self.run_id)
+        invocation = invocation.model_copy(update={"context": invocation_context})
+
+        if agent is None:
+            logger.error("No implementation registered for %s", invocation.agent)
+            if store is not None:
+                store.finish_agent(
+                    run_id=self.run_id, record_id=record_id, agent=invocation.agent,
+                    status="error",
+                    error={"type": "MissingAgent",
+                           "message": "No implementation registered for this agent."},
+                )
+            return None
+
+        try:
+            return await agent(invocation)
+        except Exception as exc:
+            # The RIC agents record their own failures; this catches a
+            # failure around them so it is still visible in the results.
+            logger.exception("%s invocation failed", invocation.agent)
+            if store is not None:
+                store.finish_agent(
+                    run_id=self.run_id, record_id=record_id, agent=invocation.agent,
+                    status="error",
+                    error={"type": type(exc).__name__, "message": str(exc)},
+                )
+            return None
+
+    async def run(
+        self,
+        record: TelemetryRecord,
+        persistence: dict[str, int] | None = None,
+    ) -> MonitoringDecision:
+        """Decide on one record and invoke the selected agents in order
+        (without the record workflow graph; see agents/record_workflow.py)."""
+        decision = await self.decide(record, persistence)
         if decision.action_required:
             for invocation in decision.selected_agents:
-                agent = self.sub_agents.get(invocation.agent)
-                invocation_context = dict(invocation.context)
-                invocation_context.setdefault("record_id", record_id)
-                if self.run_id is not None:
-                    invocation_context.setdefault("run_id", self.run_id)
-                invocation = invocation.model_copy(
-                    update={"context": invocation_context}
-                )
-
-                if agent is None:
-                    await self.memory.add_tool_execution(
-                        ToolExecution(
-                            agent=invocation.agent,
-                            tool_name="agent_invocation",
-                            result={
-                                "status": "error",
-                                "message": "No implementation registered "
-                                "for this agent.",
-                            },
-                        )
-                    )
-
-                    if self.mongo_repository is not None and self.run_id is not None:
-                        self.mongo_repository.finish_agent_execution(
-                            run_id=self.run_id,
-                            record_id=record_id,
-                            agent=invocation.agent,
-                            invocation=invocation,
-                            result={
-                                "status": "error",
-                                "message": "No implementation registered for this agent.",
-                            },
-                            middleware_audit=[],
-                        )
-                    continue
-
-                try:
-                    result = await agent(invocation)
-
-                    await self.memory.add_tool_execution(
-                        ToolExecution(
-                            agent=invocation.agent,
-                            tool_name="agent_invocation",
-                            result={
-                                "status": "completed",
-                                "instruction": invocation.model_dump(mode="json"),
-                                "result": result,
-                            },
-                        )
-                    )
-
-                except Exception as exc:
-                    # Record the failure so it is visible in the PoC trace.
-                    await self.memory.add_tool_execution(
-                        ToolExecution(
-                            agent=invocation.agent,
-                            tool_name="agent_invocation",
-                            result={
-                                "status": "error",
-                                "error_type": type(exc).__name__,
-                                "message": str(exc),
-                            },
-                        )
-                    )
-
+                await self.invoke_agent(invocation, record.record_id)
         return decision

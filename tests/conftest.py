@@ -1,21 +1,32 @@
 # tests/conftest.py
 """Fixtures shared by every test module.
 
-Nothing here touches the network, Redis or a real model:
+Nothing here touches the network, a real Redis/MongoDB or a real model:
 
 - FakeLLM            replaces the chat model. It mimics `with_structured_output`
                      and returns whatever the test queued (or raises it).
-- FakeWorkingMemory  in-memory stand-in for RedisWorkingMemory.
+- memory             the real RedisWorkingMemory on fakeredis.
+- mongo              the real MongoRepository on mongomock.
 - make_record / make_invocation / make_decision
                      factories with sane defaults; override only what a test
                      is about.
 - make_sub_agent     async callable that records how it was invoked.
 """
 
+import os
 from collections import deque
 from typing import Any
 
+# Tests never send traces, whatever .env says (load_dotenv keeps this value).
+os.environ["LANGSMITH_TRACING"] = "false"
+
+import fakeredis.aioredis
+import mongomock
 import pytest
+
+import src.repositories.mongo_repository as mongo_repository_module
+from src.memory.working_memory import RedisWorkingMemory
+from src.repositories.mongo_repository import MongoRepository
 
 from src.schema.monitoring import (
     AgentInvocation,
@@ -24,7 +35,6 @@ from src.schema.monitoring import (
     SLAAnalysis,
     TelemetryRecord,
 )
-from src.schema.working_memory import ToolExecution, WorkingMemory
 
 # --------------------------------------------------------------------------
 # Fake LLM
@@ -80,58 +90,58 @@ def fake_llm() -> FakeLLM:
 
 
 # --------------------------------------------------------------------------
-# Fake working memory
+# Stores: real code on in-memory backends
 # --------------------------------------------------------------------------
 
 
-class FakeWorkingMemory:
-    """Same async API as RedisWorkingMemory, backed by a plain object."""
-
-    def __init__(self) -> None:
-        self.state = WorkingMemory()
-
-    async def get(self) -> WorkingMemory:
-        return self.state.model_copy(deep=True)
-
-    async def update_network_status(self, status: str) -> None:
-        self.state.network_status = status
-
-    async def add_tool_execution(self, execution: ToolExecution) -> None:
-        self.state.tools_executed.append(execution)
-
-    # test helper
-    def executions_of(self, agent: str) -> list[ToolExecution]:
-        return [e for e in self.state.tools_executed if e.agent == agent]
+@pytest.fixture
+def redis():
+    return fakeredis.aioredis.FakeRedis(decode_responses=True)
 
 
 @pytest.fixture
-def memory() -> FakeWorkingMemory:
-    return FakeWorkingMemory()
+def memory(redis) -> RedisWorkingMemory:
+    return RedisWorkingMemory(redis, max_events=30)
+
+
+@pytest.fixture
+def mongo(monkeypatch) -> MongoRepository:
+    monkeypatch.setattr(mongo_repository_module, "MongoClient", mongomock.MongoClient)
+    return MongoRepository()
 
 
 # --------------------------------------------------------------------------
 # Data factories
 # --------------------------------------------------------------------------
 
-# A record where every KPI is within budget.
+# An eMBB record where every KPI of the eMBB SLA profile is within budget
+# (throughput >= 3.6 Mbps per UE, queueing delay <= 100 ms).
 _OK_RECORD: dict[str, Any] = {
-    "use_case_type": "eMBB",
-    "packet_loss_budget": 0.01,
-    "latency_budget_ns": 1000.0,
-    "jitter_budget_ns": 100.0,
-    "data_rate_budget_gbps": 10.0,
-    "slice_available_transfer_rate_gbps": 20.0,
-    "slice_latency_ns": 500.0,
-    "slice_packet_loss": 0.001,
-    "slice_jitter_ns": 50.0,
-    "slice_type": "eMBB",
     "record_id": "rec-1",
+    "cell_id": "bs1",
+    "slice_id": "eMBB",
+    "run": "sched0/tr6/exp1",
+    "window_start_s": 60.0,
+    "window_s": 1.0,
+    "slice_prb": 42,
+    "cell_prb": 50,
+    "scheduler": "round_robin",
+    "active_ues": 2,
+    "dl_throughput_mbps": 8.0,
+    "dl_throughput_per_ue_mbps": 4.0,
+    "dl_buffer_bytes": 10_000.0,
+    "queueing_delay_ms": 20.0,
+    "prb_utilisation": 0.9,
+    "cell_spare_prb": 6.0,
+    "dl_cqi": 8.5,
+    "dl_mcs": 15.0,
+    "ul_sinr_db": 10.0,
 }
 
 
 @pytest.fixture
 def make_record():
-    """make_record(slice_latency_ns=2000.0, jitter_budget_ns=None, ...)"""
+    """make_record(queueing_delay_ms=400.0, slice_id="URLLC", ...)"""
 
     def _make(**overrides: Any) -> TelemetryRecord:
         return TelemetryRecord(**{**_OK_RECORD, **overrides})
@@ -158,7 +168,7 @@ def make_invocation():
 
 def _unavailable_sla() -> SLAAnalysis:
     kpi = KPIStatus(status="unavailable")
-    return SLAAnalysis(latency=kpi, jitter=kpi, packet_loss=kpi, throughput=kpi)
+    return SLAAnalysis(kpis={"throughput": kpi, "queueing_delay": kpi})
 
 
 @pytest.fixture
@@ -235,7 +245,9 @@ def monitoring_prompt_dir(tmp_path, monkeypatch):
 
 @pytest.fixture
 def make_monitoring_agent(MonitoringAgent, fake_llm, memory, monitoring_prompt_dir):
-    def _make(sub_agents: dict[str, Any] | None = None):
-        return MonitoringAgent(llm=fake_llm, memory=memory, sub_agents=sub_agents or {})
+    def _make(sub_agents: dict[str, Any] | None = None, mongo: MongoRepository | None = None,
+              run_id: str | None = None):
+        return MonitoringAgent(llm=fake_llm, memory=memory, sub_agents=sub_agents or {},
+                               mongo_repository=mongo, run_id=run_id)
 
     return _make

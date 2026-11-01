@@ -1,0 +1,218 @@
+{
+ "_id": "run-8",
+ "run_id": "run-8",
+ "summary": {
+  "rows_selected": 2,
+  "rows_processed": 2,
+  "rows_failed": 0,
+  "monitoring_action_required": 0,
+  "agent_invocations": {
+   "near_rt_ric": 0,
+   "non_rt_ric": 0
+  }
+ },
+ "records": {
+  "coloran_0000001": {
+   "record_id": "coloran_0000001",
+   "telemetry_record": {
+    "use_case_type": "MTC sensing (Poisson 30 pkt/s)",
+    "packet_loss_budget": 0.01,
+    "latency_budget_ns": 100000000,
+    "jitter_budget_ns": 50000000,
+    "data_rate_budget_gbps": 3e-05,
+    "required_mobility": "no",
+    "required_connectivity": "yes",
+    "slice_available_transfer_rate_gbps": 0.000126672,
+    "slice_latency_ns": 0,
+    "slice_packet_loss": 0,
+    "slice_jitter_ns": 0,
+    "slice_type": "MTC",
+    "slice_handover": "no",
+    "cell_id": "bs2",
+    "record_id": "coloran_0000001"
+   },
+   "ground_truth": {
+    "record_id": "coloran_0000001",
+    "metric_flags": {
+     "latency": false,
+     "jitter": false,
+     "packet_loss": false,
+     "throughput": false
+    },
+    "sla_violations_raw": "[]",
+    "sla_violations": [],
+    "sla_evaluation_status": "ok"
+   },
+   "comparison": {
+    "metric_matches": {
+     "latency": true,
+     "jitter": true,
+     "packet_loss": true,
+     "throughput": true
+    },
+    "sla_violations_match": true,
+    "evaluation_status_match": true
+   },
+   "computed_analysis": {
+    "latency": {
+     "measured": 0,
+     "budget": 100000000,
+     "status": "ok"
+    },
+    "jitter": {
+     "measured": 0,
+     "budget": 50000000,
+     "status": "ok"
+    },
+    "packet_loss": {
+     "measured": 0,
+     "budget": 0.01,
+     "status": "ok"
+    },
+    "throughput": {
+     "measured": 0.000126672,
+     "budget": 3e-05,
+     "status": "ok"
+    },
+    "violations": [],
+    "unavailable_metrics": []
+   },
+   "monitoring_decision": {
+    "situation": "normal",
+    "severity": "none",
+    "global_situation": "normal",
+    "action_required": false,
+    "sla_analysis": {
+     "latency": {
+      "measured": 0,
+      "budget": 100000000,
+      "status": "ok"
+     },
+     "jitter": {
+      "measured": 0,
+      "budget": 50000000,
+      "status": "ok"
+     },
+     "packet_loss": {
+      "measured": 0,
+      "budget": 0.01,
+      "status": "ok"
+     },
+     "throughput": {
+      "measured": 0.000126672,
+      "budget": 3e-05,
+      "status": "ok"
+     },
+     "violations": [],
+     "unavailable_metrics": []
+    },
+    "selected_agents": [],
+    "reason": "All monitored KPIs were evaluated and no SLA violations were detected.",
+    "record_id": "coloran_0000001"
+   },
+   "agent_executions": {},
+   "error": null
+  },
+  "coloran_0000002": {
+   "record_id": "coloran_0000002",
+   "telemetry_record": {
+    "use_case_type": "URLLC control (Poisson 10 pkt/s)",
+    "packet_loss_budget": 0.001,
+    "latency_budget_ns": 10000000,
+    "jitter_budget_ns": 5000000,
+    "data_rate_budget_gbps": 1e-05,
+    "required_mobility": "no",
+    "required_connectivity": "yes",
+    "slice_available_transfer_rate_gbps": 0.000186608,
+    "slice_latency_ns": 2584200.411111044,
+    "slice_packet_loss": 0,
+    "slice_jitter_ns": 4688948.609643817,
+    "slice_type": "URLLC",
+    "slice_handover": "no",
+    "cell_id": "bs2",
+    "record_id": "coloran_0000002"
+   },
+   "ground_truth": {
+    "record_id": "coloran_0000002",
+    "metric_flags": {
+     "latency": false,
+     "jitter": false,
+     "packet_loss": false,
+     "throughput": false
+    },
+    "sla_violations_raw": "[]",
+    "sla_violations": [],
+    "sla_evaluation_status": "ok"
+   },
+   "comparison": {
+    "metric_matches": {
+     "latency": true,
+     "jitter": true,
+     "packet_loss": true,
+     "throughput": true
+    },
+    "sla_violations_match": true,
+    "evaluation_status_match": true
+   },
+   "computed_analysis": {
+    "latency": {
+     "measured": 2584200.411111044,
+     "budget": 10000000,
+     "status": "ok"
+    },
+    "jitter": {
+     "measured": 4688948.609643817,
+     "budget": 5000000,
+     "status": "ok"
+    },
+    "packet_loss": {
+     "measured": 0,
+     "budget": 0.001,
+     "status": "ok"
+    },
+    "throughput": {
+     "measured": 0.000186608,
+     "budget": 1e-05,
+     "status": "ok"
+    },
+    "violations": [],
+    "unavailable_metrics": []
+   },
+   "monitoring_decision": {
+    "situation": "normal",
+    "severity": "none",
+    "global_situation": "normal",
+    "action_required": false,
+    "sla_analysis": {
+     "latency": {
+      "measured": 2584200.411111044,
+      "budget": 10000000,
+      "status": "ok"
+     },
+     "jitter": {
+      "measured": 4688948.609643817,
+      "budget": 5000000,
+      "status": "ok"
+     },
+     "packet_loss": {
+      "measured": 0,
+      "budget": 0.001,
+      "status": "ok"
+     },
+     "throughput": {
+      "measured": 0.000186608,
+      "budget": 1e-05,
+      "status": "ok"
+     },
+     "violations": [],
+     "unavailable_metrics": []
+    },
+    "selected_agents": [],
+    "reason": "All monitored KPIs were evaluated and no SLA violations were detected.",
+    "record_id": "coloran_0000002"
+   },
+   "agent_executions": {},
+   "error": null
+  }
+ }
+}

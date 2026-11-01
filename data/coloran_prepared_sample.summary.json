@@ -1,30 +1,30 @@
 {
-  "records": 26562,
+  "records": 25974,
   "cell_runs": 21,
   "window_s": 1.0,
-  "violation_rate_by_slice": {
-    "MTC": 0.0271,
-    "URLLC": 0.2603,
-    "eMBB": 1.0
+  "records_by_slice": {
+    "eMBB": 8658,
+    "MTC": 8658,
+    "URLLC": 8658
   },
-  "budgets": {
-    "eMBB": {
-      "thr_mbps": 7.2,
-      "lat_ms": 100.0,
-      "jit_ms": 50.0,
-      "loss": 0.01
-    },
+  "kpi_median_by_slice": {
     "MTC": {
-      "thr_mbps": 0.03,
-      "lat_ms": 100.0,
-      "jit_ms": 50.0,
-      "loss": 0.01
+      "dl_throughput_per_ue_mbps": 0.0597,
+      "queueing_delay_ms": 0.0,
+      "prb_utilisation": 0.0396,
+      "cell_spare_prb": 14.7015
     },
     "URLLC": {
-      "thr_mbps": 0.01,
-      "lat_ms": 10.0,
-      "jit_ms": 5.0,
-      "loss": 0.001
+      "dl_throughput_per_ue_mbps": 0.1211,
+      "queueing_delay_ms": 0.8361,
+      "prb_utilisation": 0.1221,
+      "cell_spare_prb": 20.223
+    },
+    "eMBB": {
+      "dl_throughput_per_ue_mbps": 1.8217,
+      "queueing_delay_ms": 803.1262,
+      "prb_utilisation": 0.9975,
+      "cell_spare_prb": 30.017
     }
   },
   "source": "ColO-RAN (Polese et al., IEEE TMC 2023), GPL-3.0"

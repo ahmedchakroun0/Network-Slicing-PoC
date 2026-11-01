@@ -1,21 +1,28 @@
 """Regression tests for the issues found in the live-LLM runs (results/run-6..8).
 
-1. A tool without a safety envelope must never be executed (default deny);
-   optimize_slice_capacity_policy gets the same envelope as the slice policy.
-2. Governance argument models must mirror the tool signatures
-   (adjust_qos_parameters / adjust_link_adaptation were always rejected).
+1. The slice policy has a safety envelope; a tool without one is never
+   executed (default deny).
+2. Governance argument models mirror the tool signatures: QoS and link
+   adaptation take typed parameters with envelopes (v3.3).
 3. A duplicate agent selection must not overwrite the first invocation's audit.
-4. One executed call per tool per invocation, and a bounded number of calls.
+4. One executed change per resource per invocation, and a bounded number of calls.
+5. An argument the tool does not declare is rejected, not dropped (v3.3).
 """
 
 import json
 
 import pytest
 from langchain_core.messages import ToolMessage
+from langchain_core.tracers.context import collect_runs
 
 from agents.monitoring_agent import MonitoringAgent
 from agents.ran_trust_governance import RANTrustGovernanceAgent
-from middleware.ran_authorisation import MAX_PROTECTED_CALLS, RAN_AUDIT, RANAuthorizationMiddleware
+from middleware.ran_authorisation import (
+    MAX_PROTECTED_CALLS,
+    RAN_AUDIT,
+    AuditSink,
+    RANAuthorizationMiddleware,
+)
 from src.schema.monitoring import AgentInvocation
 from src.schema.near_rt_ric import RANActionProposal
 
@@ -41,28 +48,48 @@ def _proposal(tool, params, agent):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("lo,hi,ok", [(900, -4, False), (100, 100, False), (20, 60, True)])
-async def test_capacity_policy_has_safety_envelope(lo, hi, ok):
+async def test_slice_policy_has_safety_envelope(lo, hi, ok):
     gov = RANTrustGovernanceAgent(use_llm=False)
     d = await gov.authorize(_proposal(
-        "optimize_slice_capacity_policy",
+        "update_slice_resource_policy",
         {"slice_id": "eMBB", "min_prb_ratio_pct": lo, "max_prb_ratio_pct": hi}, "non_rt_ric"))
     assert d.approved is ok
     if not ok:
         assert d.failed_stage == "resource_safety"
 
 
+QOS = {"slice_id": "eMBB", "priority_level": 2, "packet_delay_budget_ms": 100,
+       "guaranteed_bitrate_mbps": 3.6}
+LINK = {"slice_id": "eMBB", "mcs_offset": 2, "target_bler": 0.1}
+
+
 @pytest.mark.asyncio
-@pytest.mark.parametrize("tool,params", [
-    ("adjust_qos_parameters", {"slice_id": "eMBB", "qos_parameters": {"priority": 1e9}}),
-    ("adjust_link_adaptation", {"slice_id": "eMBB", "link_adaptation_params": {"mcs_offset": -2}}),
+@pytest.mark.parametrize("tool,params,ok,field", [
+    ("adjust_qos_parameters", QOS, True, None),
+    ("adjust_qos_parameters", {**QOS, "priority_level": 0}, False, "priority_level"),
+    ("adjust_qos_parameters", {**QOS, "packet_delay_budget_ms": 1}, False, "packet_delay_budget_ms"),
+    ("adjust_qos_parameters", {**QOS, "guaranteed_bitrate_mbps": 50}, False, "guaranteed_bitrate_mbps"),
+    ("adjust_link_adaptation", LINK, True, None),
+    ("adjust_link_adaptation", {**LINK, "mcs_offset": 9}, False, "mcs_offset"),
+    ("adjust_link_adaptation", {**LINK, "target_bler": 0.5}, False, "target_bler"),
+    ("optimize_scheduler", {"slice_id": "eMBB", "scheduler": "waterfilling"}, True, None),
+    ("optimize_scheduler", {"slice_id": "eMBB", "scheduler": "max_cqi"}, False, "scheduler"),
 ])
-async def test_free_form_tools_pass_schema_but_are_denied(tool, params):
+async def test_typed_tools_have_envelopes(tool, params, ok, field):
     gov = RANTrustGovernanceAgent(use_llm=False)
     d = await gov.authorize(_proposal(tool, params, "near_rt_ric"))
-    assert d.approved is False
-    assert "schema" in d.checks_passed          # signature now matches the tool
-    assert d.failed_stage == "resource_safety"  # default deny: no envelope
-    assert "No safety envelope" in d.reason
+    assert d.approved is ok
+    if not ok:
+        assert d.failed_stage == "resource_safety" and field in d.reason
+
+
+@pytest.mark.asyncio
+async def test_old_free_form_arguments_are_rejected_at_schema():
+    gov = RANTrustGovernanceAgent(use_llm=False)
+    d = await gov.authorize(_proposal(
+        "adjust_qos_parameters", {"slice_id": "eMBB", "qos_parameters": {"priority": 1}}, "near_rt_ric"))
+    assert d.approved is False and d.failed_stage == "schema"
+    assert "qos_parameters" in d.reason
 
 
 def test_duplicate_agent_selection_is_merged():
@@ -81,14 +108,14 @@ def test_duplicate_agent_selection_is_merged():
 
 
 class _Req:
-    def __init__(self, name, args, call_id):
+    def __init__(self, name, args, call_id, agent="non_rt_ric"):
         self.tool_call = {"name": name, "args": args, "id": call_id}
         self.tool = None
-        self.state = {"agent_invocation": {"agent": "non_rt_ric", "context": CTX}}
+        self.state = {"agent_invocation": {"agent": agent, "context": CTX}}
 
 
 @pytest.mark.asyncio
-async def test_one_execution_per_tool_and_call_budget():
+async def test_one_execution_per_resource_and_call_budget():
     mw = RANAuthorizationMiddleware(RANTrustGovernanceAgent(use_llm=False))
     executed = []
 
@@ -98,7 +125,7 @@ async def test_one_execution_per_tool_and_call_budget():
 
     reasoning = {"rationale": "throughput below budget", "expected_effect": "throughput up",
                  "confidence": 0.6}
-    audit = []
+    audit = AuditSink()
     token = RAN_AUDIT.set(audit)
     try:
         for i, (lo, hi) in enumerate([(5, 80), (60, 80), (60, 80)]):
@@ -106,16 +133,66 @@ async def test_one_execution_per_tool_and_call_budget():
                     "max_prb_ratio_pct": hi, **reasoning}
             await mw.awrap_tool_call(_Req("update_slice_resource_policy", args, f"c{i}"), handler)
         assert len(executed) == 1  # the run-7 sequence executed 3 times
-        assert [a["governance"]["failed_stage"] for a in audit] == [None, "invocation_limit", "invocation_limit"]
+        stages = [a["governance"]["failed_stage"] for a in audit.entries]
+        assert stages == [None, "invocation_limit", "invocation_limit"]
+        assert "prb_policy" in audit.entries[1]["governance"]["reason"]
         for i in range(MAX_PROTECTED_CALLS + 2):
-            await mw.awrap_tool_call(_Req("update_traffic_steering_policy",
-                                          {"target": "bs2", "steering_mode": "bogus"}, f"s{i}"), handler)
+            await mw.awrap_tool_call(_Req("optimize_scheduler",
+                                          {"target": "bs2", "slice_id": "eMBB",
+                                           "scheduler": "bogus", **reasoning}, f"s{i}"), handler)
         assert len(audit) == 3 + MAX_PROTECTED_CALLS + 2
-        assert audit[-1]["governance"]["failed_stage"] == "invocation_limit"
-        assert "protected calls" in audit[-1]["governance"]["reason"]
+        assert audit.entries[-1]["governance"]["failed_stage"] == "invocation_limit"
+        assert "protected calls" in audit.entries[-1]["governance"]["reason"]
     finally:
         RAN_AUDIT.reset(token)
 
+
+
+@pytest.mark.asyncio
+async def test_undeclared_argument_is_rejected_not_dropped():
+    mw = RANAuthorizationMiddleware(RANTrustGovernanceAgent(use_llm=False))
+    executed = []
+
+    async def handler(req):
+        executed.append(req.tool_call["args"])
+        return ToolMessage(content="{}", tool_call_id=req.tool_call["id"])
+
+    audit = AuditSink()
+    token = RAN_AUDIT.set(audit)
+    try:
+        args = {"target": "bs2", "slice_id": "eMBB", "prb_percentage": 60, "boost": True,
+                "rationale": "throughput below budget", "expected_effect": "up", "confidence": 0.6}
+        reply = await mw.awrap_tool_call(_Req("adjust_prb_allocation", args, "x1", "near_rt_ric"), handler)
+    finally:
+        RAN_AUDIT.reset(token)
+
+    assert executed == []
+    governance = audit.entries[0]["governance"]
+    assert governance["failed_stage"] == "schema" and "boost" in governance["reason"]
+    assert audit.actions[0].params["boost"] is True       # the trail shows what was sent
+    assert "boost" in json.loads(reply.content)["reason"]
+
+
+@pytest.mark.asyncio
+async def test_rejected_call_leaves_a_governance_span():
+    """A rejected tool never runs: its span is the only trace of the call."""
+    mw = RANAuthorizationMiddleware(RANTrustGovernanceAgent(use_llm=False))
+
+    async def handler(req):
+        raise AssertionError("a rejected tool must not run")
+
+    token = RAN_AUDIT.set(AuditSink())
+    try:
+        args = {"target": "bs2", "slice_id": "eMBB", "prb_percentage": 60, "boost": True,
+                "rationale": "throughput below budget", "expected_effect": "up", "confidence": 0.6}
+        with collect_runs() as cb:
+            await mw.awrap_tool_call(_Req("adjust_prb_allocation", args, "x1", "near_rt_ric"), handler)
+    finally:
+        RAN_AUDIT.reset(token)
+
+    span = next(r for r in cb.traced_runs if r.name == "governance adjust_prb_allocation")
+    assert "governance" in span.tags
+    assert "rejected" in span.outputs["output"].content
 
 
 @pytest.mark.asyncio
@@ -123,7 +200,7 @@ async def test_violation_is_never_reported_as_normal(make_monitoring_agent, fake
     """run-24: the LLM returned situation='normal' (severity high) for a violating record."""
     from src.schema.monitoring import MonitoringDecision
 
-    record = make_record(record_id="rec-v", slice_latency_ns=2000.0)
+    record = make_record(record_id="rec-v", queueing_delay_ms=400.0)
     analysis = MonitoringAgent.analyze_sla(record)
     assert analysis.violations
     fake_llm.queue(MonitoringDecision(
