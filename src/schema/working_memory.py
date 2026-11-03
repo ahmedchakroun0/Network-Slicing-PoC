@@ -62,6 +62,13 @@ class ActionEvent(BaseModel):
     )
 
 
+def _compact_events(events: list[BaseModel], drop: set[str]) -> list[dict[str, Any]]:
+    """Events without empty fields and without fields the list already implies."""
+    return [{key: value for key, value in event.model_dump(mode="json", exclude_none=True).items()
+             if key not in drop and value not in ([], {})}
+            for event in events]
+
+
 class MemoryView(BaseModel):
     """What an agent sees of the working memory for one cell and slice."""
 
@@ -75,3 +82,17 @@ class MemoryView(BaseModel):
     slice_actions: list[ActionEvent] = Field(default_factory=list)
     cell_actions: list[ActionEvent] = Field(default_factory=list)
     persistence: dict[str, int] = Field(default_factory=dict)
+
+    def compact(self, persistence: bool = True) -> dict[str, Any]:
+        """The view as it goes into a prompt: no empty fields or lists, no
+        record ids (`t` places an event in time), no slice name in the lists
+        of this slice, no bookkeeping field of the cell."""
+        view = {
+            "cell": {k: v for k, v in self.cell.items() if k != "updated"},
+            "slice_records": _compact_events(self.slice_records, {"rec", "slice"}),
+            "cell_records": _compact_events(self.cell_records, {"rec"}),
+            "slice_actions": _compact_events(self.slice_actions, {"rec", "slice"}),
+            "cell_actions": _compact_events(self.cell_actions, {"rec"}),
+            "persistence": self.persistence if persistence else {},
+        }
+        return {key: value for key, value in view.items() if value}

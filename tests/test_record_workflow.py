@@ -5,6 +5,7 @@ import pytest
 
 from agents.record_workflow import RecordWorkflow
 from src.memory.working_memory import slice_key
+from src.schema.working_memory import ActionEvent
 
 # eMBB budget is 3.6 Mbps per UE: 1.0 violates it.
 VIOLATION = {"dl_throughput_per_ue_mbps": 1.0}
@@ -61,6 +62,8 @@ async def test_violation_runs_near_rt_with_trusted_context(
     assert context["persistence"] == {"throughput": 1, "queueing_delay": 0}
     assert context["sla_analysis"]["violations"] == ["throughput"]
     assert context["slice_state"]["slice_prb_share_pct"] == 84.0
+    assert context["slice_state"]["dl_cqi"] == 8.5 and context["slice_state"]["dl_mcs"] == 15.0
+    assert context["active_controls"] == {}
 
     doc = mongo.records.find_one({"_id": "run1:rec-1"})
     assert doc["status"] == "done" and doc["seq"] == 7
@@ -94,6 +97,26 @@ async def test_persistent_violation_runs_near_rt_then_non_rt(
     assert state["persistence"]["throughput"] == 3
     assert order == ["near_rt_ric", "near_rt_ric", "near_rt_ric", "non_rt_ric"]
     assert set(state["agent_results"]) == {"near_rt_ric", "non_rt_ric"}
+
+
+@pytest.mark.asyncio
+async def test_non_rt_sees_the_controls_near_rt_just_executed(
+    make_workflow, make_record, make_decision, make_invocation, make_sub_agent, fake_llm, memory
+):
+    async def near(invocation):
+        await memory.record_actions("bs1", [ActionEvent(
+            rec="rec-2", t=62.0, slice="eMBB", agent="near_rt_ric", tool="adjust_prb_allocation",
+            params={"prb_percentage": 80}, approved=True, executed=True)])
+        return {"status": "completed"}
+
+    non = make_sub_agent()
+    workflow = make_workflow({"near_rt_ric": near, "non_rt_ric": non})
+    for i in range(3):
+        fake_llm.queue(make_decision(selected_agents=[make_invocation("near_rt_ric"),
+                                                      make_invocation("non_rt_ric")]))
+        await workflow.run(make_record(record_id=f"rec-{i}", window_start_s=60.0 + i, **VIOLATION))
+
+    assert non.calls[0].context["active_controls"] == {"prb_percentage": 80}
 
 
 @pytest.mark.asyncio

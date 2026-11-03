@@ -9,6 +9,8 @@ Keys are named after network entities (base station = cell, slice):
   wm:slice:{cell}:{slice}:records     LIST  recent records of this slice (KPI trend)
   wm:slice:{cell}:{slice}:actions     LIST  recent tool calls on this slice
   wm:slice:{cell}:{slice}:persistence HASH  consecutive violated records per SLA KPI
+  wm:slice:{cell}:{slice}:controls    HASH  PRB controls in force (last executed):
+                                            prb_percentage, policy_min, policy_max
   wm:cells                            SET   every cell seen (for reset)
 
 Lists hold compact JSON events, newest first, capped at MEMORY_MAX_RECORDS
@@ -52,8 +54,21 @@ def slice_key(cell: str, slice_id: str, kind: str) -> str:
 def _cell_keys(cell: str) -> list[str]:
     """Every key that belongs to one cell."""
     keys = [cell_key(cell, k) for k in ("meta", "records", "actions")]
-    keys += [slice_key(cell, s, k) for s in SLICES for k in ("records", "actions", "persistence")]
+    keys += [slice_key(cell, s, k) for s in SLICES
+             for k in ("records", "actions", "persistence", "controls")]
     return keys
+
+
+def _controls_of(event: ActionEvent) -> dict[str, int]:
+    """The PRB controls an executed tool call put in force."""
+    if not event.executed:
+        return {}
+    if event.tool == "adjust_prb_allocation":
+        return {"prb_percentage": event.params["prb_percentage"]}
+    if event.tool == "update_slice_resource_policy":
+        return {"policy_min": event.params["min_prb_ratio_pct"],
+                "policy_max": event.params["max_prb_ratio_pct"]}
+    return {}
 
 
 class RedisWorkingMemory:
@@ -150,13 +165,26 @@ class RedisWorkingMemory:
             values = [e.model_dump_json() for e in events if e.slice == slice_id]
             self._push(pipe, slice_key(cell, slice_id, "actions"), values)
         self._push(pipe, cell_key(cell, "actions"), [e.model_dump_json() for e in events])
+        for event in events:
+            controls = _controls_of(event)
+            if controls:
+                key = slice_key(cell, event.slice, "controls")
+                pipe.hset(key, mapping=controls)
+                self._expire(pipe, key)
         await pipe.execute()
+
+    async def controls(self, cell: str, slice_id: str) -> dict[str, int]:
+        """PRB controls in force on this slice (last executed values). A
+        hash, not the action lists: those are capped and would lose an old
+        policy that still applies."""
+        stored = await self.redis.hgetall(slice_key(cell, slice_id, "controls"))
+        return {name: int(value) for name, value in stored.items()}
 
     # ------------------------------------------------------------------
     # Reads
     # ------------------------------------------------------------------
 
-    async def view(self, cell: str, slice_id: str, k: int = 10) -> MemoryView:
+    async def view(self, cell: str, slice_id: str, k: int = 5) -> MemoryView:
         """The memory an agent gets for one cell and slice: the last k events
         of the slice, and of the cell's OTHER slices."""
         pipe = self.redis.pipeline(transaction=False)

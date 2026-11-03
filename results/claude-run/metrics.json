@@ -1,0 +1,189 @@
+{
+  "run_ids": [
+    "claude-run"
+  ],
+  "models": [
+    "nvidia-network-slicing-model"
+  ],
+  "models_served": {},
+  "stopped": {},
+  "dataset": {
+    "rows_selected": 10,
+    "records_with_violation": 3,
+    "rows_without_violation": 8,
+    "rows_failed": 0,
+    "records_not_evaluated": 1,
+    "by_slice": {
+      "eMBB": 3
+    },
+    "cells": 1,
+    "max_persistence": 3
+  },
+  "monitoring": {
+    "decision_overridden_by_code": 2,
+    "non_rt_dropped_below_threshold": 0,
+    "near_rt_fallback": 0,
+    "agent_selected": {
+      "near_rt_ric": 3,
+      "non_rt_ric": 1
+    },
+    "situation": {
+      "warning": 2,
+      "critical": 1
+    }
+  },
+  "governance": {
+    "proposals": 11,
+    "approved": {
+      "count": 7,
+      "n": 11,
+      "rate": 0.6363636363636364,
+      "ci95": [
+        0.35379677689163724,
+        0.8483377638586862
+      ]
+    },
+    "rejected_by_stage": {
+      "llm_review": 3,
+      "schema": 1
+    },
+    "review_verdict_false": {
+      "goal_aligned": 2,
+      "reasoning_sound": 3,
+      "behavior_acceptable": 2
+    },
+    "per_tool": {
+      "adjust_prb_allocation": {
+        "proposed": 3,
+        "approved": 3,
+        "rejected": 0
+      },
+      "optimize_scheduler": {
+        "proposed": 5,
+        "approved": 3,
+        "rejected": 2
+      },
+      "adjust_qos_parameters": {
+        "proposed": 2,
+        "approved": 0,
+        "rejected": 2
+      },
+      "update_slice_resource_policy": {
+        "proposed": 1,
+        "approved": 1,
+        "rejected": 0
+      }
+    },
+    "per_agent": {
+      "near_rt_ric": 10,
+      "non_rt_ric": 1
+    }
+  },
+  "behaviour": {
+    "calls_per_record": {
+      "n": 3,
+      "mean": 3.6666666666666665,
+      "median": 4.0,
+      "p95": 4.9,
+      "max": 5.0
+    },
+    "forced_calls": {
+      "count": 4,
+      "n": 11,
+      "rate": 0.36363636363636365,
+      "ci95": [
+        0.15166223614131383,
+        0.6462032231083628
+      ]
+    },
+    "resubmissions": {
+      "rejected_then_same_tool_approved": 2,
+      "review_rejection_overturned_by_rewording": 1,
+      "rejected_never_approved": 2
+    },
+    "mean_confidence": {
+      "approved": 0.7285714285714285,
+      "rejected": 0.6749999999999999
+    }
+  },
+  "invariant_violations": {
+    "rejected_but_executed": 0,
+    "approved_but_not_executed": 0,
+    "non_rt_below_persistence": 0,
+    "wrong_cell_executed": 0,
+    "wrong_slice_executed": 0
+  },
+  "cross_agent_conflicts": [
+    {
+      "run_id": "claude-run",
+      "cell_id": "bs2",
+      "slice_id": "eMBB",
+      "prb_percentage": 80,
+      "prb_seq": 10,
+      "policy_min": 50,
+      "policy_max": 70,
+      "policy_seq": 10
+    }
+  ],
+  "latency_s": {
+    "near_rt_ric": {
+      "n": 3,
+      "mean": 352.4793333333334,
+      "median": 388.533,
+      "p95": 503.74920000000003,
+      "max": 516.551
+    },
+    "non_rt_ric": {
+      "n": 1,
+      "mean": 911.667,
+      "median": 911.667,
+      "p95": 911.667,
+      "max": 911.667
+    },
+    "ric_phase_per_record": {
+      "n": 3,
+      "mean": 656.3806666666667,
+      "median": 388.536,
+      "p95": 1324.2704999999999,
+      "max": 1428.241
+    }
+  },
+  "llm_usage": {
+    "records_measured": 0,
+    "records_without_usage_field": 3,
+    "with_violation": {
+      "calls": {
+        "n": 0
+      },
+      "input_tokens": {
+        "n": 0
+      },
+      "output_tokens": {
+        "n": 0
+      },
+      "total_tokens": {
+        "n": 0
+      }
+    },
+    "with_violation_mean_per_caller": {},
+    "without_violation": {
+      "records": 8,
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    "mean_per_row_all": {
+      "calls": null,
+      "input_tokens": null,
+      "output_tokens": null
+    },
+    "totals": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    "failed_calls": 0,
+    "calls_without_usage": 0
+  },
+  "enough_data": false
+}

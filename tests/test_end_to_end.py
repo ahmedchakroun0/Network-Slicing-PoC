@@ -85,8 +85,8 @@ class ScriptedChatModel(BaseChatModel):
             msg = AIMessage(content="Done.")
         else:
             system = next((m.content for m in messages if m.type == "system"), "")
-            human = [m.content for m in messages if m.type == "human"][-1]
-            inv = json.loads(human[human.index("{"):])
+            # The invocation is sent once, as one JSON line of the system prompt.
+            inv = json.loads(system.split(" invocation:\n", 1)[1].split("\n", 1)[0])
             ctx = inv["context"]
             base = {"target": ctx["target"], "rationale": "Latency exceeds its budget on this slice.",
                     "expected_effect": "Lower latency.", "confidence": 0.8}
@@ -120,7 +120,9 @@ async def test_run_dataset_end_to_end(tmp_path, monkeypatch):
     csv = tmp_path / "telemetry.csv"
     pd.DataFrame(rows).to_csv(csv, index=False)
 
-    fake_model = ScriptedChatModel()
+    from src.core.llm import PROVIDER_GUARD
+
+    fake_model = ScriptedChatModel(callbacks=[PROVIDER_GUARD])
     monkeypatch.setattr(run_dataset, "create_llm", lambda: fake_model)
     monkeypatch.setattr(base_ric, "create_llm", lambda: fake_model)
     monkeypatch.setattr(core_llm, "create_llm", lambda: fake_model)   # governance LLM review (lazy import)
@@ -129,7 +131,8 @@ async def test_run_dataset_end_to_end(tmp_path, monkeypatch):
     monkeypatch.setattr(RedisWorkingMemory, "from_url", classmethod(lambda cls, *a, **k: cls(redis)))
 
     config = run_dataset.RunConfig(dataset_path=csv, run_id="e2e", start_row=1, max_rows=None,
-                                   knowledge_file=run_dataset.DEFAULT_KNOWLEDGE_FILE)
+                                   knowledge_file=run_dataset.DEFAULT_KNOWLEDGE_FILE,
+                                   results_dir=tmp_path / "results")
     store = {}
     original_init = mongo_repo.MongoRepository.__init__
 
@@ -176,9 +179,77 @@ async def test_run_dataset_end_to_end(tmp_path, monkeypatch):
     assert recs["r4"]["persistence"]["queueing_delay"] == 3
     assert recs["r4"]["sla"]["violations"] == ["queueing_delay"]
 
+    # model usage per record: the RIC agents' tool-calling turns (the scripted
+    # structured outputs are not chat-model calls); healthy records make none
+    assert recs["r4"]["llm"]["by_caller"]["near_rt_ric"]["calls"] >= 1
+    assert recs["r4"]["llm"]["by_caller"]["non_rt_ric"]["calls"] >= 1
+
+    # the run's result files, in a directory named after the run
+    out = tmp_path / "results" / "e2e"
+    assert sorted(f.name for f in out.iterdir()) == [
+        "actions.csv", "e4_table.tex", "expert_rating.csv", "metrics.json", "records.csv"]
+    assert json.loads((out / "metrics.json").read_text())["governance"]["proposals"] == 4
+
     # working memory: bounded lists; the healthy MTC records are in their slice history
     from src.memory.working_memory import cell_key, slice_key
     limit = RedisWorkingMemory(redis).max_events
     for key in (cell_key("bs7", "records"), slice_key("bs7", "URLLC", "actions")):
         assert 0 < await redis.llen(key) <= limit
     assert await redis.llen(slice_key("bs7", "MTC", "records")) == 3
+
+
+@pytest.mark.asyncio
+async def test_run_stops_when_every_model_is_rate_limited(tmp_path, monkeypatch):
+    """The 2nd violated record exhausts the fallback chain: it is failed (its
+    calls were absorbed by fail-closed agents), the run stops and the 3rd
+    record is never processed."""
+    from src.core.llm import PROVIDER_GUARD
+    from src.schema.monitoring import MonitoringDecision
+
+    seen = []
+
+    class _Workflow:
+        def __init__(self, **kwargs):
+            pass
+
+        async def run(self, record, seq=0):
+            seen.append(record.record_id)
+            if len(seen) == 2:
+                PROVIDER_GUARD.stopped = "RateLimitError: all deployments in cooldown"
+            decision = MonitoringDecision(situation="critical", severity="high", global_situation="x",
+                                          action_required=False, reason="x")
+            return {"outcome": "done", "decision": decision, "agent_results": {}}
+
+    pd.DataFrame([_row(f"r{i}", "URLLC", 50.0 + i, 40.0) for i in range(3)]).to_csv(
+        tmp_path / "t.csv", index=False)
+    monkeypatch.setattr(run_dataset, "RecordWorkflow", _Workflow)
+    monkeypatch.setattr(run_dataset, "create_llm", lambda: ScriptedChatModel())
+    monkeypatch.setattr(mongo_repo, "MongoClient", mongomock.MongoClient)
+    redis = fakeredis.aioredis.FakeRedis(decode_responses=True)
+    monkeypatch.setattr(RedisWorkingMemory, "from_url", classmethod(lambda cls, *a, **k: cls(redis)))
+    store = {}
+    original_init = mongo_repo.MongoRepository.__init__
+
+    def _capture(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        store["repo"] = self
+
+    monkeypatch.setattr(mongo_repo.MongoRepository, "__init__", _capture)
+
+    try:
+        await run_dataset.run_dataset(run_dataset.RunConfig(
+            dataset_path=tmp_path / "t.csv", run_id="stop", start_row=1, max_rows=None,
+            knowledge_file=run_dataset.DEFAULT_KNOWLEDGE_FILE, results_dir=tmp_path / "results"))
+    finally:
+        PROVIDER_GUARD.reset()
+
+    repo = store["repo"]
+    run = repo.runs.find_one({"_id": "stop"})
+    assert seen == ["r0", "r1"]
+    assert run["status"] == "stopped" and "row 2" in run["stop_reason"]
+    failed = repo.records.find_one({"_id": "stop:r1"})
+    assert failed["status"] == "failed" and failed["error"]["type"] == "ModelProviderStopped"
+    metrics = json.loads((tmp_path / "results" / "stop" / "metrics.json").read_text())
+    assert metrics["stopped"] == {"stop": run["stop_reason"]}
+    assert metrics["dataset"]["records_not_evaluated"] == 1
+

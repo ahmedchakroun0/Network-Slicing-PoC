@@ -26,8 +26,9 @@ logger = logging.getLogger(__name__)
 
 # Invocation-level limits (checked before governance, fail closed):
 # a bounded number of protected calls per invocation (stops retry loops),
-# and at most ONE executed call per tool per invocation (no duplicate or
-# conflicting policies for the same record).
+# at most ONE executed call per tool per invocation (no duplicate or
+# conflicting policies for the same record), and no resubmission of the same
+# parameters after an LLM review rejection.
 MAX_PROTECTED_CALLS = int(os.getenv("MAX_PROTECTED_CALLS_PER_INVOCATION", "20"))
 
 # The RIC agents choose and call the action tools themselves. Each of these
@@ -309,6 +310,19 @@ class RANAuthorizationMiddleware(AgentMiddleware):
                 "slice was already changed in this invocation; a second (duplicate or "
                 "conflicting) change is not allowed."
             )
+        elif any(
+            (entry.get("governance") or {}).get("failed_stage") == "llm_review"
+            and (entry.get("proposal") or {}).get("tool_name") == tool_name
+            and (entry.get("proposal") or {}).get("parameters") == submitted["parameters"]
+            for entry in audit.entries
+        ):
+            # The review judges the reasoning: rewording it must not be enough
+            # to get the same action through.
+            limit_reason = (
+                f"[invocation_limit] {tool_name} with these parameters was already "
+                "rejected by the review in this invocation; rewording the rationale "
+                "does not change the action. Change the parameters or use another tool."
+            )
         if limit_reason is not None:
             decision = GovernanceResult(
                 approved=False, reason=limit_reason, failed_stage="invocation_limit"
@@ -491,8 +505,19 @@ class RANAuthorizationMiddleware(AgentMiddleware):
                 return response
             logger.warning("Model returned no structured tool call; forcing action.")
 
-        # Model ignored tool calling (or already searched): force the action
-        # with schema-constrained output, which this stack supports.
+        # No action yet (the model searched, or answered without a tool
+        # call): one call that offers only the action tools and requires a
+        # tool call. The model still chooses the tool and its arguments.
+        actions = [t for t in request.tools if getattr(t, "name", None) in self.protected_tools]
+        response = await handler(request.override(tools=actions, tool_choice="any"))
+        ai = self._ai_message(response)
+        if ai is not None and any(c.get("name") in self.protected_tools for c in ai.tool_calls):
+            ai.additional_kwargs[FORCED_FLAG] = True
+            return response
+        logger.warning("No action tool call even when required; forcing it with structured output.")
+
+        # Last resort for models that ignore tool calling: choose the tool and
+        # fill its arguments with schema-constrained output (two calls).
         try:
             return await self._force_action(request)
         except Exception:

@@ -1,3 +1,4 @@
+import json
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -218,8 +219,7 @@ Return a MonitoringDecision.
 
         # 2. Read the working memory of this base station and slice.
         working_memory = (
-            (await self.memory.view(record.cell_id, record.slice_id))
-            .model_dump(mode="json", exclude={"persistence"})
+            (await self.memory.view(record.cell_id, record.slice_id)).compact(persistence=False)
             if self.memory is not None
             else {}
         )
@@ -230,7 +230,7 @@ Return a MonitoringDecision.
                 "telemetry": record.model_dump(mode="json"),
                 "slice_id": record.slice_id,
                 "sla_analysis": sla_analysis.model_dump(mode="json"),
-                "working_memory": working_memory,
+                "working_memory": json.dumps(working_memory, separators=(",", ":")),
                 "persistence": persistence if persistence is not None else "not provided",
             }
         )

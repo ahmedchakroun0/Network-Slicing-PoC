@@ -1,0 +1,117 @@
+{
+  "run_ids": [
+    "new-run"
+  ],
+  "models": [
+    "nvidia-network-slicing-model"
+  ],
+  "dataset": {
+    "rows_selected": 2,
+    "records_with_violation": 1,
+    "rows_without_violation": 1,
+    "rows_failed": 0,
+    "by_slice": {
+      "eMBB": 1
+    },
+    "cells": 1,
+    "max_persistence": 1
+  },
+  "monitoring": {
+    "decision_overridden_by_code": 0,
+    "non_rt_dropped_below_threshold": 0,
+    "near_rt_fallback": 0,
+    "agent_selected": {
+      "near_rt_ric": 1
+    },
+    "situation": {
+      "warning": 1
+    }
+  },
+  "governance": {
+    "proposals": 3,
+    "approved": {
+      "count": 2,
+      "n": 3,
+      "rate": 0.6666666666666666,
+      "ci95": [
+        0.2076549551264879,
+        0.9385096847238394
+      ]
+    },
+    "rejected_by_stage": {
+      "llm_review": 1
+    },
+    "review_verdict_false": {
+      "goal_aligned": 0,
+      "reasoning_sound": 1,
+      "behavior_acceptable": 0
+    },
+    "per_tool": {
+      "optimize_scheduler": {
+        "proposed": 2,
+        "approved": 1,
+        "rejected": 1
+      },
+      "adjust_link_adaptation": {
+        "proposed": 1,
+        "approved": 1,
+        "rejected": 0
+      }
+    },
+    "per_agent": {
+      "near_rt_ric": 3
+    }
+  },
+  "behaviour": {
+    "calls_per_record": {
+      "n": 1,
+      "mean": 3.0,
+      "median": 3.0,
+      "p95": 3.0,
+      "max": 3.0
+    },
+    "forced_calls": {
+      "count": 1,
+      "n": 3,
+      "rate": 0.3333333333333333,
+      "ci95": [
+        0.0614903152761605,
+        0.7923450448735121
+      ]
+    },
+    "resubmissions": {
+      "rejected_then_same_tool_approved": 1,
+      "review_rejection_overturned_by_rewording": 1,
+      "rejected_never_approved": 0
+    },
+    "mean_confidence": {
+      "approved": 0.725,
+      "rejected": 0.75
+    }
+  },
+  "invariant_violations": {
+    "rejected_but_executed": 0,
+    "approved_but_not_executed": 0,
+    "non_rt_below_persistence": 0,
+    "wrong_cell_executed": 0,
+    "wrong_slice_executed": 0
+  },
+  "cross_agent_conflicts": [],
+  "latency_s": {
+    "near_rt_ric": {
+      "n": 1,
+      "mean": 360.509,
+      "median": 360.509,
+      "p95": 360.509,
+      "max": 360.509
+    },
+    "ric_phase_per_record": {
+      "n": 1,
+      "mean": 360.545,
+      "median": 360.545,
+      "p95": 360.545,
+      "max": 360.545
+    }
+  },
+  "enough_data": false
+}

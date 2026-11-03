@@ -4,6 +4,8 @@ it records protected calls in the real AuditSink, so the results store
 
 import pytest
 
+from src.schema.working_memory import ActionEvent
+
 from agents.non_rt_ric_agent import NonRTRICAgent
 from middleware.ran_authorisation import RAN_AUDIT
 from src.schema.monitoring import AgentInvocation
@@ -80,8 +82,12 @@ async def test_completed_invocation_is_stored_and_remembered(memory, mongo):
 
 
 @pytest.mark.asyncio
-async def test_rejected_invocation_and_memory_view_in_prompt_state(memory, mongo):
+async def test_rejected_invocation_and_memory_view_in_prompt_state(memory, mongo, make_record):
     mongo.insert_record(run_id="run1", record_id="r1", seq=1, telemetry={}, sla={}, persistence={})
+    await memory.observe(make_record())
+    await memory.record_actions("bs1", [ActionEvent(
+        rec="r0", t=59.0, slice="eMBB", agent="near_rt_ric", tool="adjust_prb_allocation",
+        params={"prb_percentage": 60}, approved=True, executed=True)])
     agent = NonRTRICAgent(trust_governance_agent=object(), memory=memory, mongo_repository=mongo)
     fake = FakeAgent([_call("c0", False, "sla", "[sla] Policy actions require a violation "
                                                  "persisting for at least 3 consecutive records")])
@@ -91,7 +97,12 @@ async def test_rejected_invocation_and_memory_view_in_prompt_state(memory, mongo
 
     assert result.status == "rejected"
     assert result.governance.failed_stage == "sla"
-    assert set(fake.payload["working_memory"]) >= {"cell", "slice_records", "slice_actions"}
+    # compact view: no empty lists, no record ids, no empty fields
+    view = fake.payload["working_memory"]
+    assert set(view) == {"cell", "slice_actions"}
+    assert view["slice_actions"] == [{"t": 59.0, "agent": "near_rt_ric", "tool": "adjust_prb_allocation",
+                                      "params": {"prb_percentage": 60}, "approved": True,
+                                      "executed": True}]
     stored = mongo.records.find_one({"_id": "run1:r1"})["agents"]["non_rt_ric"]
     assert stored["status"] == "rejected"
     why = (await memory.view("bs1", "eMBB")).slice_actions[0].why

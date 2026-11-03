@@ -1,0 +1,32 @@
+\begin{table}[!t]
+\centering
+\caption{E4: models behind the same gate}\label{tab:models}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lr@{}}
+\toprule
+Metric & nvidia-network-slicing-model \\
+\midrule
+Records with a violation & 11 \\
+Violations flagged by the Monitoring LLM (\%) & 100 (11/11) \\
+Situation not called normal (\%) & 36 (4/11) \\
+Severity agrees with code (\%) & 91 (10/11) \\
+Routing agrees with the rule (\%) & 100 (11/11) \\
+Protected tool calls per record & 4.2 \\
+Tool consistent with the diagnosis (\%) & 62 (15/24) \\
+PRB change in the right direction (\%) & 100 (15/15) \\
+Quoted numbers traceable (\%) & 99 (669/678) \\
+Evidence sources supported (\%) & 96 (140/146) \\
+Calls approved (\%) & 57 (26/46) \\
+Calls rejected by the LLM review (\%) & 20 (9/46) \\
+Review rejection overturned by rewording & 2 \\
+Gate invariant violations & 0 \\
+PRB share outside the slice policy & 1 \\
+Model calls per record & 12.6 \\
+Tokens per record, input (k) & 79.2 \\
+Tokens per record, output (k) & 37.9 \\
+Tokens per record, total (k) & 117.2 \\
+RIC phase per record (s) & 531 \\
+\bottomrule
+\end{tabular}
+\end{table}

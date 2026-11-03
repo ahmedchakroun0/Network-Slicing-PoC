@@ -120,3 +120,33 @@ def test_limits_read_env(monkeypatch, redis):
     monkeypatch.setenv("MEMORY_TTL_SECONDS", "120")
     memory = RedisWorkingMemory(redis)
     assert memory.max_events == 7 and memory.ttl_seconds == 120
+
+
+def _control_action(tool, params, executed=True):
+    return ActionEvent(rec="r1", t=1.0, slice="eMBB", agent="near_rt_ric", tool=tool, params=params,
+                       approved=executed, executed=executed)
+
+
+@pytest.mark.asyncio
+async def test_controls_keep_the_last_executed_prb_values(memory, make_record):
+    await memory.observe(make_record())
+    await memory.record_actions("bs1", [
+        _control_action("adjust_prb_allocation", {"prb_percentage": 50}),
+        _control_action("adjust_prb_allocation", {"prb_percentage": 90}, executed=False),
+        _control_action("update_slice_resource_policy", {"min_prb_ratio_pct": 40, "max_prb_ratio_pct": 70}),
+        _control_action("optimize_scheduler", {"scheduler": "waterfilling"}),
+    ])
+
+    assert await memory.controls("bs1", "eMBB") == {
+        "prb_percentage": 50, "policy_min": 40, "policy_max": 70}
+    assert await memory.controls("bs1", "URLLC") == {}
+
+
+@pytest.mark.asyncio
+async def test_controls_are_cleared_with_a_new_configuration(memory, make_record):
+    await memory.observe(make_record())
+    await memory.record_actions("bs1", [_control_action("adjust_prb_allocation", {"prb_percentage": 50})])
+
+    await memory.observe(make_record(run="sched1/tr0/exp1"))
+
+    assert await memory.controls("bs1", "eMBB") == {}

@@ -144,4 +144,46 @@ LangSmith tracing:
 - Every protected tool call is one `governance <tool>` span (tag `governance`) around the whole gate, whatever its outcome: a rejected tool never runs, so it would otherwise leave no span. The LLM review and the executed tool are nested inside it.
 - `langsmith>=0.14.9` and `langchain-core>=1.6.11`: with `LANGSMITH_AGENT_ID` set, older versions send both the agent address and the default project, and the server rejects every trace with a 400.
 - Tests and `scripts/demo_run_scripted.py` force `LANGSMITH_TRACING=false`: scripted data is never sent, whatever `.env` says.
-- 81 tests pass.
+- 81 tests pass at this point.
+
+Evaluation:
+- `scripts/evaluate_run.py RUN_ID [RUN_ID ...]` computes the metrics of one or more live runs from MongoDB (read-only) and writes a snapshot to `results/eval-<run>/`: `metrics.json`, `records.csv`, `actions.csv`, `expert_rating.csv` (empty expert columns) and `e4_table.tex`. It also checks the gate's invariants on the stored results, counts review rejections overturned by rewording, and finds executed PRB shares outside a slice policy.
+- The branch after `ingest` is a named function: the lambda appeared as an `Unnamed` span in LangSmith.
+- New `tests/test_evaluate_run.py`; 88 tests pass.
+
+Governance fixes from the first live runs:
+- The agents and the LLM review now get `active_ues`, `dl_cqi`, `dl_mcs` and `ul_sinr_db` in `slice_state`: a rationale citing them was rejected as ungrounded because the reviewer could not see them.
+- The same tool with the same parameters cannot be resubmitted after an LLM review rejection in the same invocation (`invocation_limit`): rewording the rationale no longer gets an action through.
+- New Redis hash `wm:slice:{cell}:{slice}:controls` keeps the PRB controls in force (last executed `prb_percentage`, `policy_min`, `policy_max`). The workflow passes them to the RIC agents and governance as the trusted `active_controls`, and the resource-safety stage rejects a PRB share outside the slice policy and a policy that excludes the PRB share in force.
+
+Results files:
+- `run_dataset.py` writes the result files to `results/<run_id>/` at the end of every run (`--results-dir` changes the parent). `scripts/evaluate_run.py` uses the same directory, and `results/<run1>+<run2>/` when runs are pooled.
+
+Rate limits and provider fallback:
+- `litellm_config.yaml` `router_settings`: each model is retried twice, then put on a 60 s cooldown, and its calls go to the next model of its chain (`nvidia-network-slicing-model` <-> `gemini-network-slicing-model`). Checked with a mock proxy: a rate-limited primary is answered by the backup.
+- `src/core/llm.py` `PROVIDER_GUARD` (a callback on every model call): a rate limit that reaches the client means the whole chain is exhausted. Every later call then fails at once with `ModelProviderStopped` instead of being sent, and `run_dataset.py` marks the current record `failed` and stops the run (`runs.status = "stopped"`, `runs.stop_reason`). The result files are still written.
+- The client no longer retries by default (`LLM_MAX_RETRIES=1`): the gateway does, and client retries would replay the whole fallback chain.
+- Each record stores the models that actually answered its calls (`records.models`), and `metrics.json` has `models_served`, so a run that switched provider is visible.
+- `scripts/evaluate_run.py` evaluates completed records only; `dataset.records_not_evaluated` counts the others.
+- 102 tests pass.
+
+Model usage per record:
+- `PROVIDER_GUARD` also counts, per record and per caller (`monitoring`, `near_rt_ric`, `non_rt_ric`, `governance_review`), the model calls, failed calls, and the input and output tokens reported by the provider. The caller is the record-graph node (LangGraph namespace) or the governance gate tag.
+- Stored on the record (`records.llm`, with `by_caller`) and added to the run (`runs.summary.llm`). Records without violation make no model call (skipped before the Monitoring Agent), so they count 0.
+- `metrics.json` `llm_usage`: mean, median, p95 and max calls and tokens per record with violation, the mean per caller, the 0 of records without violation, and the mean over all rows. `records.csv` has `llm_calls`, `input_tokens` and `output_tokens`.
+- 104 tests pass.
+
+Evaluation of the agents (E4):
+- `scripts/agent_checks.py`: deterministic checks of every record and call, no model involved. SLA recomputation; the Monitoring LLM's own decision (before the override) against the computed severity, the routing rule and the violated KPIs; the tool against a telemetry diagnosis (PRB-limited, radio-limited, unclear), PRB direction, feasibility, no-ops; quoted numbers traceable to the context (with rounding and simple derivations); evidence sources supported by the context or the retrieved knowledge and tool descriptions. Their columns are in `records.csv` / `actions.csv`, their aggregates in `metrics.json` `agent_quality`, plus `sla_detection` (no violated dataset row skipped).
+- `scripts/stability.py RUN_IDS`: agreement of the decisions (situation, agents, tools, executed parameters, governance outcome) and spread of the cost over repeated runs of the same records. `run_dataset.py --record-ids a,b,c` processes only these records.
+- `scripts/compare_models.py RUN_IDS`: the E4 metrics of each model's runs side by side.
+- The three scripts write a LaTeX table (`--tex PATH`, `--label` / `--labels` for column names). The paper's E4 section `\input`s `tables/e4_live.tex`, and `tables/e4_stability.tex` / `tables/e4_models.tex` when they exist.
+- 117 tests pass.
+
+Token reduction:
+- Forced action in one call: when the RIC agent has not called an action tool yet (after a knowledge search), the middleware makes one model call offering only the action tools with `tool_choice="any"`, so the model still chooses the tool and its arguments. The two-call structured-output forcing is kept only as a fallback for models that ignore tool calling.
+- The invocation is sent once (system prompt), not also in the user message, as compact JSON.
+- Compact working memory in prompts (`MemoryView.compact()`): 5 events per list instead of 10, no empty fields or lists, no record ids, no slice name inside the slice's own lists; compact JSON.
+- Measured on a real record (claude-run4 #31): the fixed part of a Near-RT call goes from 5.0k to 3.5k tokens (invocation 1.0k -> 0.4k, memory 1.4k -> 0.45k). With `MAX_PROTECTED_CALLS_PER_INVOCATION=2` the Near-RT loop is also shorter.
+- Reasoning tokens are recorded apart (`reasoning_tokens`, part of `output_tokens`) when the provider reports them.
+- 119 tests pass.

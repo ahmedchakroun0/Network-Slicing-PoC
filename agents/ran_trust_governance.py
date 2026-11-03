@@ -189,6 +189,29 @@ def _safety_violation(tool_name: str, args: dict[str, Any]) -> str | None:
     )
 
 
+def _control_conflict(
+    tool_name: str, args: dict[str, Any], controls: dict[str, int]
+) -> str | None:
+    """A PRB share and a slice policy must agree, whichever came first. Each
+    call passes its own envelope, so only the controls already executed on
+    this slice (trusted context) can show the conflict."""
+    if tool_name == "adjust_prb_allocation" and "policy_min" in controls:
+        low, high = controls["policy_min"], controls["policy_max"]
+        if not low <= args["prb_percentage"] <= high:
+            return (
+                f"prb_percentage {args['prb_percentage']} is outside the slice policy "
+                f"in force [{low}, {high}]."
+            )
+    if tool_name == "update_slice_resource_policy" and "prb_percentage" in controls:
+        share = controls["prb_percentage"]
+        if not args["min_prb_ratio_pct"] <= share <= args["max_prb_ratio_pct"]:
+            return (
+                f"the executed PRB share of this slice ({share}%) is outside the "
+                f"proposed policy [{args['min_prb_ratio_pct']}, {args['max_prb_ratio_pct']}]."
+            )
+    return None
+
+
 # --------------------------------------------------------------------------
 # Stage 5: LLM review
 # --------------------------------------------------------------------------
@@ -252,7 +275,8 @@ never modify the action.
 
 Judge three things:
 1. reasoning_sound: is the RIC agent's rationale coherent, specific and
-   grounded in the evidence provided (the SLA analysis in the context)?
+   grounded in the evidence provided (the SLA analysis, the slice_state with
+   its radio measurements, and the active_controls in the context)?
    Reject if it is vague or generic, merely repeats the invocation text,
    cites KPI values or facts that are not in the provided context, is
    contradicted by the chosen parameters (for example, it says "increase
@@ -474,7 +498,9 @@ class RANTrustGovernanceAgent:
     def _check_resource_safety(
         self, proposal: RANActionProposal, args: dict[str, Any]
     ) -> str | None:
-        return _safety_violation(proposal.tool_name, args)
+        return _safety_violation(proposal.tool_name, args) or _control_conflict(
+            proposal.tool_name, args, self._context(proposal).get("active_controls") or {}
+        )
 
     # ------------------------------------------------------------------
     # LLM review

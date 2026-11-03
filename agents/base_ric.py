@@ -13,6 +13,7 @@ collection, typed result). A concrete agent only declares its identity:
                    Trust & Governance Agent.
 """
 
+import json
 import logging
 from abc import ABC
 from pathlib import Path
@@ -112,8 +113,8 @@ class BaseRICAgent(ABC):
         def inject_context(request: ModelRequest) -> str:
             state = request.state or {}
 
-            invocation = state.get("agent_invocation") or {}
-            working_memory = state.get("working_memory") or {}
+            invocation = json.dumps(state.get("agent_invocation") or {}, separators=(",", ":"))
+            working_memory = json.dumps(state.get("working_memory") or {}, separators=(",", ":"))
 
             return f"""{base_prompt}
 
@@ -316,7 +317,7 @@ Do not claim an action executed unless its tool result confirms it.
             await self.initialize()
 
             working_memory = (
-                (await self.memory.view(cell, slice_id)).model_dump(mode="json")
+                (await self.memory.view(cell, slice_id)).compact()
                 if self.memory is not None and cell and slice_id
                 else {}
             )
@@ -331,11 +332,13 @@ Do not claim an action executed unless its tool result confirms it.
                         "messages": [
                             {
                                 "role": "user",
+                                # The invocation is in the system prompt
+                                # (sent once, not repeated here).
                                 "content": (
-                                    "Handle this Monitoring Agent invocation. Decide which of your action "
-                                    "tools address the KPI violations named in your objective and call them. "
-                                    "The governance middleware validates each call.\n\n"
-                                    f"{invocation.model_dump_json()}"
+                                    "Handle the Monitoring Agent invocation given in your "
+                                    "instructions. Decide which of your action tools address "
+                                    "the KPI violations named in its objective and call them. "
+                                    "The governance middleware validates each call."
                                 ),
                             }
                         ],

@@ -79,9 +79,13 @@ class MongoRepository:
             self.runs.update_one({"_id": run_id},
                                  {"$inc": {f"summary.{k}": v for k, v in counters.items()}})
 
-    def finish_run(self, *, run_id: str) -> None:
-        self.runs.update_one({"_id": run_id},
-                             {"$set": {"status": "finished", "finished_at": _now()}})
+    def finish_run(self, *, run_id: str, stopped: str | None = None) -> None:
+        """Close the run; `stopped` is why it ended before its last row."""
+        update: dict[str, Any] = {"status": "stopped" if stopped else "finished",
+                                  "finished_at": _now()}
+        if stopped:
+            update["stop_reason"] = stopped
+        self.runs.update_one({"_id": run_id}, {"$set": update})
 
     # ------------------------------------------------------------------
     # Record
@@ -109,6 +113,20 @@ class MongoRepository:
 
     def finish_record(self, *, run_id: str, record_id: str) -> None:
         self._update_record(run_id, record_id, {"$set": {"status": "done"}})
+
+    def set_llm_usage(self, *, run_id: str, record_id: str, usage: dict[str, Any]) -> None:
+        """Model calls and tokens of the record (per caller), and the models
+        that answered them (after gateway fallbacks); added to the run totals."""
+        served = usage.get("models") or {}
+        llm = {key: value for key, value in usage.items() if key != "models"}
+        self._update_record(run_id, record_id, {"$set": {
+            "llm": llm,
+            "models": [{"model": model, "calls": calls} for model, calls in sorted(served.items())],
+        }})
+        self.count(run_id=run_id, counters={
+            f"llm.{key}": llm.get(key, 0)
+            for key in ("calls", "failed_calls", "input_tokens", "output_tokens",
+                        "reasoning_tokens")})
 
     def fail_record(
         self, *, run_id: str, record_id: str, seq: int, error: dict[str, Any],

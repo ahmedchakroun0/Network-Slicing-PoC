@@ -93,6 +93,17 @@ class RecordDocument(BaseModel):
         "llm_output (the model's decision before it, when it was overridden).",
     )
     agents: dict[str, AgentRun] = Field(default_factory=dict)
+    llm: dict[str, Any] | None = Field(
+        default=None,
+        description="Model usage of the record: calls, failed_calls, input_tokens, "
+        "output_tokens, calls_without_usage, and the same per caller in by_caller "
+        "(monitoring, near_rt_ric, non_rt_ric, governance_review).",
+    )
+    models: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="[{model, calls}]: models that answered this record's calls, after "
+        "the gateway's fallbacks.",
+    )
     error: dict[str, Any] | None = None
 
 
@@ -102,7 +113,9 @@ class RunDocument(BaseModel):
     id: str = Field(alias="_id")
     created_at: datetime
     finished_at: datetime | None = None
-    status: Literal["running", "finished"] = "running"
+    status: Literal["running", "finished", "stopped"] = "running"
+    stop_reason: str | None = Field(
+        default=None, description="Why the run ended early (e.g. every model rate-limited).")
     config: dict[str, Any] = Field(default_factory=dict)
     summary: dict[str, Any] = Field(default_factory=dict)
 

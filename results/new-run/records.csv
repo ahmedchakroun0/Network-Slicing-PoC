@@ -1,0 +1,2 @@
+run_id,seq,record_id,status,cell_id,slice_id,experiment,slice_prb,cell_prb,scheduler,throughput_per_ue_mbps,queueing_delay_ms,prb_utilisation,cell_spare_prb,violations,max_persistence,situation,severity,overridden,agents_selected,notes,ric_seconds
+new-run,1,sched0-tr2-exp1-bs2-t0050.0-eMBB,done,bs2,eMBB,sched0/tr2/exp1,18,50,round_robin,1.944052,353.594433,0.711,30.351,"throughput,queueing_delay",1,warning,high,False,near_rt_ric,,360.545

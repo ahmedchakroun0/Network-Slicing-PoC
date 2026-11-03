@@ -61,3 +61,16 @@ bash scripts/run_all.sh                 # PoC (v1) expected at ../network-slicin
   (`evidence_check.json` is a manual check of each cited evidence item against `data/ran_knowledge.txt`).
   E3 on v3.2 is in `data/coloran_v3_2/`.
 * SLA budgets for ColO-RAN are fixed a priori from the traffic classes (see `coloran_adapter.py`).
+
+## E4 (live LLM agents) tables
+Generated from the PoC's MongoDB results by the PoC scripts (run from the PoC root):
+```
+poetry run python scripts/evaluate_run.py claude-run2 claude-run3 claude-run4 \
+  --out results/current-revision --tex <paper>/tables/e4_live.tex --label Nemotron
+poetry run python scripts/stability.py stab-nemotron-1 ... stab-nemotron-10 \
+  --name nemotron --tex <paper>/tables/e4_stability.tex
+poetry run python scripts/compare_models.py <run ids of every model> --name paper \
+  --labels nvidia-network-slicing-model=Nemotron,gemini-network-slicing-model=Gemini \
+  --tex <paper>/tables/e4_models.tex
+```
+`main.tex` includes the stability and model tables only once those files exist.

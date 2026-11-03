@@ -1,0 +1,32 @@
+\begin{table}[!t]
+\centering
+\caption{E4: live LLM agents behind the gate}\label{tab:live}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lr@{}}
+\toprule
+Metric & Nemotron \\
+\midrule
+Records with a violation & 7 \\
+Violations flagged by the Monitoring LLM (\%) & 100 (7/7) \\
+Situation not called normal (\%) & 29 (2/7) \\
+Severity agrees with code (\%) & 86 (6/7) \\
+Routing agrees with the rule (\%) & 100 (7/7) \\
+Protected tool calls per record & 4.6 \\
+Tool consistent with the diagnosis (\%) & 55 (11/20) \\
+PRB change in the right direction (\%) & 100 (11/11) \\
+Quoted numbers traceable (\%) & 98 (483/492) \\
+Evidence sources supported (\%) & 96 (94/98) \\
+Calls approved (\%) & 53 (17/32) \\
+Calls rejected by the LLM review (\%) & 16 (5/32) \\
+Review rejection overturned by rewording & 0 \\
+Gate invariant violations & 0 \\
+PRB share outside the slice policy & 0 \\
+Model calls per record & 12.6 \\
+Tokens per record, input (k) & 79.2 \\
+Tokens per record, output (k) & 37.9 \\
+Tokens per record, total (k) & 117.2 \\
+RIC phase per record (s) & 501 \\
+\bottomrule
+\end{tabular}
+\end{table}

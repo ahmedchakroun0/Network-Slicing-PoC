@@ -24,7 +24,7 @@ from middleware.ran_authorisation import (
     RANAuthorizationMiddleware,
 )
 from src.schema.monitoring import AgentInvocation
-from src.schema.near_rt_ric import RANActionProposal
+from src.schema.near_rt_ric import GovernanceResult, RANActionProposal
 
 CTX = {
     "target": "bs2",
@@ -173,6 +173,73 @@ async def test_undeclared_argument_is_rejected_not_dropped():
     assert "boost" in json.loads(reply.content)["reason"]
 
 
+class _ReviewRejectsFirst:
+    """Governance double: the review rejects the first call, approves the rest."""
+
+    def __init__(self):
+        self.calls = 0
+
+    async def authorize(self, proposal):
+        self.calls += 1
+        approved = self.calls > 1
+        return GovernanceResult(approved=approved, reason="review",
+                                failed_stage=None if approved else "llm_review")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("second,executed", [(60, 0), (70, 1)])
+async def test_rewording_cannot_overturn_a_review_rejection(second, executed):
+    gov = _ReviewRejectsFirst()
+    mw = RANAuthorizationMiddleware(gov)
+    ran = []
+
+    async def handler(req):
+        ran.append(req.tool_call["id"])
+        return ToolMessage(content='{"status": "success"}', tool_call_id=req.tool_call["id"])
+
+    base = {"target": "bs2", "slice_id": "eMBB", "expected_effect": "up", "confidence": 0.6}
+    audit = AuditSink()
+    token = RAN_AUDIT.set(audit)
+    try:
+        await mw.awrap_tool_call(_Req("adjust_prb_allocation",
+                                      {**base, "prb_percentage": 60, "rationale": "first wording"},
+                                      "c1", "near_rt_ric"), handler)
+        await mw.awrap_tool_call(_Req("adjust_prb_allocation",
+                                      {**base, "prb_percentage": second, "rationale": "new wording"},
+                                      "c2", "near_rt_ric"), handler)
+    finally:
+        RAN_AUDIT.reset(token)
+
+    assert len(ran) == executed
+    if not executed:
+        assert gov.calls == 1          # the review was not asked again
+        assert audit.entries[1]["governance"]["failed_stage"] == "invocation_limit"
+        assert "rewording" in audit.entries[1]["governance"]["reason"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tool,params,controls,ok", [
+    ("adjust_prb_allocation", {"slice_id": "eMBB", "prb_percentage": 80},
+     {"policy_min": 50, "policy_max": 70}, False),
+    ("adjust_prb_allocation", {"slice_id": "eMBB", "prb_percentage": 60},
+     {"policy_min": 50, "policy_max": 70}, True),
+    ("update_slice_resource_policy", {"slice_id": "eMBB", "min_prb_ratio_pct": 50, "max_prb_ratio_pct": 70},
+     {"prb_percentage": 80}, False),
+    ("update_slice_resource_policy", {"slice_id": "eMBB", "min_prb_ratio_pct": 50, "max_prb_ratio_pct": 85},
+     {"prb_percentage": 80}, True),
+])
+async def test_prb_share_and_slice_policy_must_agree(tool, params, controls, ok):
+    agent = "non_rt_ric" if tool == "update_slice_resource_policy" else "near_rt_ric"
+    proposal = _proposal(tool, params, agent)
+    proposal.invocation_context["invocation"]["context"] = {**CTX, "active_controls": controls}
+
+    decision = await RANTrustGovernanceAgent(use_llm=False).authorize(proposal)
+
+    assert decision.approved is ok
+    if not ok:
+        assert decision.failed_stage == "resource_safety"
+
+
 @pytest.mark.asyncio
 async def test_rejected_call_leaves_a_governance_span():
     """A rejected tool never runs: its span is the only trace of the call."""
@@ -210,3 +277,54 @@ async def test_violation_is_never_reported_as_normal(make_monitoring_agent, fake
     result = await make_monitoring_agent(sub_agents={}).run(record)
     assert result.situation == "warning"
     assert result.severity != "none"
+
+
+class _ModelRequest:
+    """Just what awrap_model_call reads from a ModelRequest."""
+
+    def __init__(self, messages, tools, tool_choice=None):
+        self.messages, self.tools, self.tool_choice = messages, tools, tool_choice
+
+    def override(self, **changes):
+        return _ModelRequest(changes.get("messages", self.messages), changes.get("tools", self.tools),
+                             changes.get("tool_choice", self.tool_choice))
+
+
+def _tool(name):
+    from types import SimpleNamespace
+    return SimpleNamespace(name=name)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("answers_with_action", [True, False])
+async def test_action_is_forced_with_one_call_offering_only_action_tools(monkeypatch,
+                                                                         answers_with_action):
+    from langchain.agents.middleware import ModelResponse
+    from langchain_core.messages import AIMessage
+    from middleware.ran_authorisation import FORCED_FLAG
+
+    mw = RANAuthorizationMiddleware(RANTrustGovernanceAgent(use_llm=False))
+    searched = AIMessage(content="", tool_calls=[{"name": "search_ran_knowledge", "args": {"query": "q"},
+                                                  "id": "s1"}])
+    request = _ModelRequest([searched], [_tool("search_ran_knowledge"), _tool("adjust_prb_allocation")])
+    seen = []
+
+    async def handler(req):
+        seen.append(req)
+        calls = [{"name": "adjust_prb_allocation", "args": {}, "id": "a1"}] if answers_with_action else []
+        return ModelResponse(result=[AIMessage(content="", tool_calls=calls)])
+
+    async def two_call_fallback(req):
+        return ModelResponse(result=[AIMessage(content="fallback")])
+
+    monkeypatch.setattr(mw, "_force_action", two_call_fallback)
+    response = await mw.awrap_model_call(request, handler)
+
+    assert len(seen) == 1                                   # one model call
+    assert [t.name for t in seen[0].tools] == ["adjust_prb_allocation"]
+    assert seen[0].tool_choice == "any"
+    message = response.result[0]
+    if answers_with_action:
+        assert message.additional_kwargs[FORCED_FLAG] is True
+    else:
+        assert message.content == "fallback"               # models that ignore tools

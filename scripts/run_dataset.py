@@ -4,7 +4,8 @@ The script processes a CSV row by row, converts each record into a
 TelemetryRecord and runs it through the record workflow graph
 (agents/record_workflow.py): SLA analysis, Monitoring Agent, RIC agents,
 governance. The nodes persist the results to MongoDB; Redis remains the
-agents' working memory across records. No result files are written.
+agents' working memory across records. At the end, the run's result files are
+written to results/<run_id>/ (scripts/evaluate_run.py).
 """
 
 from __future__ import annotations
@@ -33,7 +34,8 @@ from agents.non_rt_ric_agent import NonRTRICAgent
 from agents.ran_trust_governance import NON_RT_MIN_PERSISTENCE, RANTrustGovernanceAgent
 from agents.record_workflow import RecordWorkflow
 from middleware.ran_authorisation import MAX_PROTECTED_CALLS
-from src.core.llm import create_llm
+from scripts.evaluate_run import evaluate
+from src.core.llm import PROVIDER_GUARD, ModelProviderStopped, create_llm
 from src.memory.working_memory import RedisWorkingMemory
 from src.repositories.mongo_repository import MongoRepository
 from src.schema.monitoring import TelemetryRecord
@@ -55,6 +57,10 @@ class RunConfig:
     start_row: int
     max_rows: int | None
     knowledge_file: Path
+    results_dir: Path | None = None
+    # Only these records (dataset order), e.g. the same records over repeated
+    # runs for a stability study; start_row / max_rows then do not apply.
+    record_ids: list[str] | None = None
 
 
 # --------------------------------------------------------------------------
@@ -120,13 +126,19 @@ async def run_dataset(config: RunConfig) -> None:
     )
 
     dataframe = pd.read_csv(config.dataset_path)
-    start_index = max(config.start_row - 1, 0)
-    end_index = (
-        len(dataframe)
-        if config.max_rows is None
-        else min(len(dataframe), start_index + config.max_rows)
-    )
-    selected_rows = dataframe.iloc[start_index:end_index]
+    if config.record_ids:
+        selected_rows = dataframe[dataframe["record_id"].isin(config.record_ids)]
+        missing = sorted(set(config.record_ids) - set(selected_rows["record_id"]))
+        if missing:
+            raise ValueError(f"record ids not in {config.dataset_path}: {', '.join(missing)}")
+    else:
+        start_index = max(config.start_row - 1, 0)
+        end_index = (
+            len(dataframe)
+            if config.max_rows is None
+            else min(len(dataframe), start_index + config.max_rows)
+        )
+        selected_rows = dataframe.iloc[start_index:end_index]
 
     summary: dict[str, Any] = {
         "rows_selected": len(selected_rows),
@@ -138,23 +150,32 @@ async def run_dataset(config: RunConfig) -> None:
     }
     mongo_repository.start_run(run_id=config.run_id, config=_run_config(config), summary=summary)
     logger.info("Run %s: processing %d rows", config.run_id, summary["rows_selected"])
+    PROVIDER_GUARD.reset()
+    stopped: str | None = None
 
     try:
-        for offset, (_, row) in enumerate(selected_rows.iterrows(), start=start_index):
-            row_number = offset + 1
+        for index, row in selected_rows.iterrows():
+            row_number = int(index) + 1   # row in the dataset, whatever the selection
             record_key = str(row.get("record_id") or f"row-{row_number}")
             telemetry_dump: dict[str, Any] | None = None
 
             try:
                 telemetry_record = _row_to_telemetry_record(row)
                 telemetry_dump = telemetry_record.model_dump(mode="json")
+                PROVIDER_GUARD.take_usage()
                 state = await workflow.run(telemetry_record, seq=row_number)
+                # The agents and governance absorb model errors (fail closed):
+                # a record that hit the stopped provider is failed, not done.
+                if PROVIDER_GUARD.stopped is not None:
+                    raise ModelProviderStopped(PROVIDER_GUARD.stopped)
 
                 if state["outcome"] == "skipped":
                     summary["rows_without_violation"] += 1
                     continue
                 decision = state["decision"]
                 summary["rows_processed"] += 1
+                mongo_repository.set_llm_usage(run_id=config.run_id, record_id=record_key,
+                                               usage=PROVIDER_GUARD.take_usage())
 
                 logger.info(
                     "Row %d (%s): situation=%s action_required=%s agents=%s",
@@ -177,10 +198,25 @@ async def run_dataset(config: RunConfig) -> None:
                     error={"type": type(exc).__name__, "message": str(exc)},
                 )
                 mongo_repository.count(run_id=config.run_id, counters={"rows_failed": 1})
+                if PROVIDER_GUARD.stopped is not None:
+                    mongo_repository.set_llm_usage(run_id=config.run_id, record_id=record_key,
+                                                   usage=PROVIDER_GUARD.take_usage())
+                    stopped = (f"Every model of the fallback chain is rate-limited "
+                               f"(row {row_number}): {PROVIDER_GUARD.stopped}")
+                    logger.error("Run %s stopped. %s", config.run_id, stopped)
+                    break
     finally:
         # Always close the run, even on Ctrl+C or a crash mid-run.
-        mongo_repository.finish_run(run_id=config.run_id)
+        mongo_repository.finish_run(run_id=config.run_id, stopped=stopped)
         await memory.close()
+        if config.results_dir is not None:
+            # The run is safe in MongoDB: a failure here loses no result.
+            try:
+                out, _ = evaluate(mongo_repository, [config.run_id],
+                                  results_dir=config.results_dir)
+                logger.info("Result files written to %s/", out)
+            except Exception:
+                logger.exception("Could not write the result files of run %s", config.run_id)
         logger.info(
             "Run %s finished: %d processed, %d without violation (skipped), %d failed",
             config.run_id, summary["rows_processed"], summary["rows_without_violation"],
@@ -194,6 +230,7 @@ def _run_config(config: RunConfig) -> dict[str, Any]:
         "dataset": str(config.dataset_path),
         "start_row": config.start_row,
         "max_rows": config.max_rows,
+        "record_ids": config.record_ids,
         "model": os.environ.get("MODEL_NAME"),
         "non_rt_min_persistence": NON_RT_MIN_PERSISTENCE,
         "max_protected_calls": MAX_PROTECTED_CALLS,
@@ -238,10 +275,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="Maximum number of rows to process.",
     )
     parser.add_argument(
+        "--record-ids",
+        default=None,
+        help="Comma-separated record ids to process (instead of --start-row/--max-rows).",
+    )
+    parser.add_argument(
         "--knowledge-file",
         type=Path,
         default=DEFAULT_KNOWLEDGE_FILE,
         help="RAN knowledge file used by the Near-RT knowledge search tool.",
+    )
+    parser.add_argument(
+        "--results-dir",
+        type=Path,
+        default=Path("results"),
+        help="Parent directory of the run's result files (results/<run_id>/).",
     )
     parser.add_argument(
         "--debug",
@@ -261,6 +309,9 @@ def parse_args() -> RunConfig:
         start_row=args.start_row,
         max_rows=args.max_rows,
         knowledge_file=args.knowledge_file,
+        results_dir=args.results_dir,
+        record_ids=[r.strip() for r in args.record_ids.split(",") if r.strip()]
+        if args.record_ids else None,
     )
 
 

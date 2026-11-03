@@ -14,7 +14,8 @@ and the results in MongoDB; each node does its own small writes there.
 - near_rt_ric / non_rt_ric
                 one node per selected RIC agent, Near-RT first: the Non-RT RIC
                 sees the Near-RT calls of this record in its working memory.
-                The trusted context comes from the state, never from the LLM.
+                The trusted context comes from the state and the working
+                memory (active controls), never from the LLM.
 - finalize      closes the record document and counts it on the run.
 
 One graph run per record gives one LangSmith trace per record (when tracing
@@ -60,6 +61,10 @@ def slice_state(record: TelemetryRecord) -> dict[str, Any]:
         "prb_utilisation": record.prb_utilisation,
         "cell_spare_prb": record.cell_spare_prb,
         "scheduler": record.scheduler,
+        "active_ues": record.active_ues,
+        "dl_cqi": record.dl_cqi,
+        "dl_mcs": record.dl_mcs,
+        "ul_sinr_db": record.ul_sinr_db,
     }
 
 
@@ -111,17 +116,19 @@ class RecordWorkflow:
         graph.add_node("finalize", self.finalize)
 
         graph.add_edge(START, "ingest")
-        graph.add_conditional_edges(
-            "ingest",
-            lambda s: "monitoring" if s["sla_analysis"].violations else "skip_healthy",
-            ["monitoring", "skip_healthy"],
-        )
+        graph.add_conditional_edges("ingest", self._route_violation,
+                                    ["monitoring", "skip_healthy"])
         graph.add_edge("skip_healthy", END)
         for position, node in enumerate(("monitoring", *AGENT_ORDER)):
             later = list(AGENT_ORDER[position:])
             graph.add_conditional_edges(node, self._next_agent(later), [*later, "finalize"])
         graph.add_edge("finalize", END)
         return graph.compile(name="record_workflow")
+
+    @staticmethod
+    def _route_violation(state: RecordState) -> str:
+        """A named function: a lambda is an unnamed span in the trace."""
+        return "monitoring" if state["sla_analysis"].violations else "skip_healthy"
 
     @staticmethod
     def _next_agent(candidates: list[str]):
@@ -177,9 +184,15 @@ class RecordWorkflow:
     def _ric_node(self, agent: AgentName):
         async def invoke(state: RecordState) -> dict[str, Any]:
             invocation = next(i for i in state["decision"].selected_agents if i.agent == agent)
-            result = await self.monitoring.invoke_agent(
-                invocation, state["record"].record_id, trusted_context(state)
-            )
+            record = state["record"]
+            context = trusted_context(state)
+            # Read here, not at ingest: the Non-RT RIC must see what the
+            # Near-RT RIC has just executed on this record.
+            if self.memory is not None:
+                context["active_controls"] = await self.memory.controls(
+                    record.cell_id, record.slice_id
+                )
+            result = await self.monitoring.invoke_agent(invocation, record.record_id, context)
             if self.store is not None:
                 self.store.count(run_id=self.run_id,
                                  counters={f"ric_results.{agent}.{_status(result)}": 1})
