@@ -187,3 +187,6 @@ Token reduction:
 - Measured on a real record (claude-run4 #31): the fixed part of a Near-RT call goes from 5.0k to 3.5k tokens (invocation 1.0k -> 0.4k, memory 1.4k -> 0.45k). With `MAX_PROTECTED_CALLS_PER_INVOCATION=2` the Near-RT loop is also shorter.
 - Reasoning tokens are recorded apart (`reasoning_tokens`, part of `output_tokens`) when the provider reports them.
 - 119 tests pass.
+
+Paper tables:
+- `scripts/paper_tables.py --group "LABEL=run1,run2" ... --tex PATH`: one column per named group of runs, with the summary rows of `evaluate_run.py` (now also "Calls rejected by code"); the metrics go to a `.json` next to the table. Reasoning tokens are averaged only over records that recorded them ("--" otherwise). Table captions no longer carry an experiment number.

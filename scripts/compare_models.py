@@ -51,7 +51,7 @@ def compare(repository: MongoRepository, run_ids: list[str], out: Path) -> dict[
     pd.DataFrame({model: dict(summary_rows(m)) for model, m in columns.items()}).to_csv(
         out / "comparison.csv")
     (out / "comparison_table.tex").write_text(latex_table(
-        columns, "E4: models behind the same gate", "tab:models"), encoding="utf-8")
+        columns, "Models behind the same gate", "tab:models"), encoding="utf-8")
     return columns
 
 
@@ -80,7 +80,7 @@ def main() -> None:
         labels = dict(pair.split("=", 1) for pair in args.labels.split(",") if "=" in pair)
         args.tex.parent.mkdir(parents=True, exist_ok=True)
         args.tex.write_text(latex_table({labels.get(m, m): v for m, v in columns.items()},
-                                        "E4: models behind the same gate", "tab:models"),
+                                        "Models behind the same gate", "tab:models"),
                             encoding="utf-8")
     print(f"\nWritten to {out}/")
 

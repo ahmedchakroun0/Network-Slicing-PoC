@@ -1,0 +1,34 @@
+\begin{table}[!t]
+\centering
+\caption{Live LLM agents behind the gate (Nemotron~3.5 Lightning; R1: no call cap, R2: two calls, compact prompts)}\label{tab:live}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Metric & R1 & R2 \\
+\midrule
+Records with a violation & 7 & 4 \\
+Violations flagged by the Monitoring LLM (\%) & 100 (7/7) & 100 (4/4) \\
+Situation not called normal (\%) & 29 (2/7) & 25 (1/4) \\
+Severity agrees with code (\%) & 86 (6/7) & 75 (3/4) \\
+Routing agrees with the rule (\%) & 100 (7/7) & 100 (4/4) \\
+Protected tool calls per record & 4.6 & 5.0 \\
+Tool consistent with the diagnosis (\%) & 55 (11/20) & 83 (10/12) \\
+PRB change in the right direction (\%) & 100 (11/11) & 100 (10/10) \\
+Quoted numbers traceable (\%) & 98 (483/492) & 99 (256/259) \\
+Evidence sources supported (\%) & 96 (94/98) & 85 (29/34) \\
+Calls approved (\%) & 53 (17/32) & 30 (6/20) \\
+Calls rejected by code (\%) & 31 (10/32) & 55 (11/20) \\
+Calls rejected by the LLM review (\%) & 16 (5/32) & 15 (3/20) \\
+Review rejection overturned by rewording & 0 & 0 \\
+Gate invariant violations & 0 & 0 \\
+PRB share outside the slice policy & 0 & 0 \\
+Model calls per record & 12.6 & 11.0 \\
+Tokens per record, input (k) & 79.2 & 63.6 \\
+Tokens per record, output (k) & 37.9 & 22.9 \\
+\quad of which reasoning (k) & -- & 19.0 \\
+Tokens per record, total (k) & 117.2 & 86.5 \\
+RIC phase per record (s) & 501 & 273 \\
+\bottomrule
+\end{tabular}
+\end{table}

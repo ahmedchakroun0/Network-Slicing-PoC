@@ -242,7 +242,9 @@ def llm_usage(records: list[dict[str, Any]], rows_without_violation: int) -> dic
     Records stored before usage was measured (no `llm` field) are left out."""
     measured = [doc["llm"] for doc in records if doc.get("llm")]
     keys = ("calls", "input_tokens", "output_tokens", "reasoning_tokens")
-    with_violation = {key: _distribution([u.get(key, 0) for u in measured]) for key in keys}
+    # A key a record does not have was not measured (e.g. reasoning tokens
+    # before they were recorded): left out, not counted as 0.
+    with_violation = {key: _distribution([u[key] for u in measured if key in u]) for key in keys}
     with_violation["total_tokens"] = _distribution(
         [u.get("input_tokens", 0) + u.get("output_tokens", 0) for u in measured])
     callers = sorted({caller for u in measured for caller in u.get("by_caller", {})})
@@ -480,6 +482,11 @@ def summary_rows(metrics: dict[str, Any]) -> list[tuple[str, str]]:
         ("Quoted numbers traceable (\\%)", _percent(quality["grounding"]["numbers_traceable"])),
         ("Evidence sources supported (\\%)", _percent(quality["grounding"]["evidence_supported"])),
         ("Calls approved (\\%)", _percent(governance["approved"])),
+        ("Calls rejected by code (\\%)",
+         _percent({"count": proposals - governance["approved"]["count"] - review_rejected,
+                   "n": proposals,
+                   "rate": (proposals - governance["approved"]["count"] - review_rejected) / proposals
+                   if proposals else None})),
         ("Calls rejected by the LLM review (\\%)",
          _percent({"count": review_rejected, "n": proposals,
                    "rate": review_rejected / proposals if proposals else None})),
@@ -490,7 +497,7 @@ def summary_rows(metrics: dict[str, Any]) -> list[tuple[str, str]]:
         ("Model calls per record", _mean(usage["calls"])),
         ("Tokens per record, input (k)", _mean(usage["input_tokens"], 1000)),
         ("Tokens per record, output (k)", _mean(usage["output_tokens"], 1000)),
-        ("  of which reasoning (k)", _mean(usage["reasoning_tokens"], 1000)),
+        ("\\quad of which reasoning (k)", _mean(usage["reasoning_tokens"], 1000)),
         ("Tokens per record, total (k)", _mean(usage["total_tokens"], 1000)),
         ("RIC phase per record (s)", _mean(metrics["latency_s"]["ric_phase_per_record"], 1, 0)),
     ]
@@ -526,7 +533,7 @@ def write_outputs(out: Path, metrics: dict[str, Any], records: list[dict[str, An
     rating.to_csv(out / "expert_rating.csv", index=False)
     model = ", ".join(metrics["models"])
     (out / "e4_table.tex").write_text(latex_table(
-        {model: metrics}, "E4: live LLM agents behind the gate", "tab:live"), encoding="utf-8")
+        {model: metrics}, "Live LLM agents behind the gate", "tab:live"), encoding="utf-8")
 
 
 def collect(repository: MongoRepository, run_ids: list[str]) -> dict[str, Any]:
@@ -573,7 +580,7 @@ def main() -> None:
     if args.tex:
         args.tex.parent.mkdir(parents=True, exist_ok=True)
         label = args.label or ", ".join(metrics["models"])
-        args.tex.write_text(latex_table({label: metrics}, "E4: live LLM agents behind the gate",
+        args.tex.write_text(latex_table({label: metrics}, "Live LLM agents behind the gate",
                                         "tab:live"), encoding="utf-8")
 
     print(json.dumps({k: metrics[k] for k in ("dataset", "governance", "invariant_violations",

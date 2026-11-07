@@ -22,7 +22,7 @@
 \node[act, fill=llmfill, draw=ink] at (17mm,-17mm) {LLM picks $u{=}(\tau,\theta,r)$};
 % 3
 \draw[msg] (17mm,-24mm) -- node[above]{tool call $u$} (34mm,-24mm);
-\node[act, fill=white, draw=ink] at (34mm,-31mm) {build proposal $p$; attach $c_t$;\\[-1pt]$p$ invalid $\Rightarrow$ reject};
+\node[act, fill=white, draw=ink] at (34mm,-31mm) {invocation guards; build $p$;\\[-1pt]attach $c_t$; $p$ invalid $\Rightarrow$ reject};
 % 4
 \draw[msg] (34mm,-39mm) -- node[above]{authorize$(p)$} (51mm,-39mm);
 \node[act] at (51mm,-46mm) {S$\to$P$\to$L$\to$R,\\[-1pt]then V: LLM review};

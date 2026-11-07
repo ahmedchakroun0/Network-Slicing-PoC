@@ -147,7 +147,7 @@ def latex(result: dict[str, Any]) -> str:
                      if cv is not None else "Tokens per record, CV & \\multicolumn{3}{r}{--} \\\\")
     body = "\n".join(lines)
     return ("\\begin{table}[!t]\n\\centering\n"
-            f"\\caption{{E4: stability over {runs} runs of {result['records']} records}}"
+            f"\\caption{{Stability over {runs} runs of {result['records']} records}}"
             "\\label{tab:stability}\n\\footnotesize\n\\setlength{\\tabcolsep}{3pt}\n"
             "\\begin{tabular}{@{}lrrr@{}}\n\\toprule\n"
             "Decision & Agreement (\\%) & Distinct & Stable \\\\\n\\midrule\n"

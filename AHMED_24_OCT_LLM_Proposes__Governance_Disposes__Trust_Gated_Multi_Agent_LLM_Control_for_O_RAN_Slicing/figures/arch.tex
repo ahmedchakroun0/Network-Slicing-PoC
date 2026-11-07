@@ -17,8 +17,10 @@
 \node[det, text width=16mm, minimum height=11mm, right=3mm of tel] (sla) {SLA analyzer\\$v_t^q,\ \rho_t^q$\\{\scriptsize deterministic}};
 % ---------- reasoning
 \node[llm, text width=19mm, minimum height=11mm, right=6mm of sla] (mon) {\textbf{Monitoring Agent}\\LLM orchestrator\\$\mathcal{D}_t{=}(s_t,\mathcal{A}_t)$};
-\node[llm, text width=26mm, anchor=west] (near) at ([xshift=8mm, yshift=8.5mm]mon.east) {\textbf{Near-RT RIC Agent}\\{\scriptsize PRB, scheduler, handover, power}};
-\node[llm, text width=26mm, anchor=west] (non) at ([xshift=8mm, yshift=-8.5mm]mon.east) {\textbf{Non-RT RIC Agent}\\{\scriptsize slice resources, steering, admission}};
+\node[llm, text width=26mm, anchor=west] (near) at ([xshift=8mm, yshift=8.5mm]mon.east) {\textbf{Near-RT RIC Agent}\\{\scriptsize PRB, scheduler, QoS, link adapt.,\\handover, power}};
+\node[llm, text width=26mm, anchor=west] (non) at ([xshift=8mm, yshift=-8.5mm]mon.east) {\textbf{Non-RT RIC Agent}\\{\scriptsize slice resource policy}};
+% both RIC agents: shared access to the knowledge base and the working memory
+\node[fit=(near)(non), inner sep=1.2mm, draw=inkmuted, densely dotted, rounded corners=2pt] (ric) {};
 % ---------- governance
 \node[box, text width=7mm, minimum height=27mm, anchor=west, font=\scriptsize] (mw) at ([xshift=7mm]$(near.east)!0.5!(non.east)$) {gate\\[1pt]{\tiny inter-\\cept}};
 \node[det, text width=36mm, minimum height=27mm, anchor=west] (gov) at ([xshift=0.8mm]mw.east) {};
@@ -32,8 +34,8 @@
 % ---------- execution
 \node[box, dashed, text width=13mm, minimum height=11mm, right=8mm of gov] (exe) {Execution\\{\scriptsize stub; E2/A1 in future}};
 % ---------- stores
-\node[store, text width=21mm, anchor=north] (wm) at ([yshift=-7mm]mon.south) {Working memory\\(Redis)};
-\node[store, text width=21mm, anchor=north] (db) at ([yshift=-7mm]gov.south) {Audit trail\\(MongoDB)};
+\node[store, text width=21mm, anchor=north] (wm) at ([yshift=-7mm]mon.south) {Working memory\\(Redis, per cell/slice)};
+\node[store, text width=21mm, anchor=north] (db) at ([yshift=-7mm]gov.south) {Audit trail\\(MongoDB, per record)};
 \node[store, text width=21mm, anchor=south] (kb) at ([yshift=6mm]mon.north) {RAN knowledge\\base (retrieval)};
 
 % ---------- main flows
@@ -49,18 +51,18 @@
 \draw[flow] (gov.east) -- node[above, font=\scriptsize]{$G{=}1$} (exe.west);
 % ---------- trusted context (deterministic, overrides LLM-written context)
 \coordinate (cy) at ([yshift=-3.5mm]wm.south);
-\draw[ctx] (sla.south) |- (cy) -| node[pos=0.25, below, font=\scriptsize, text=detline]{trusted context $c_t$ (cell, slice, $V_t$, $\boldsymbol\rho_t$) injected by code} (mw.south);
-\draw[ctx] ([xshift=3mm]non.south |- cy) -- ([xshift=3mm]non.south);
-% ---------- memory, audit, knowledge
+\draw[ctx] (sla.south) |- (cy) -| node[pos=0.25, below, font=\scriptsize, text=detline]{trusted context $c_t$ (cell, slice, $V_t$, $\boldsymbol\rho_t$, slice state, controls in force) injected by code} (mw.south);
+\draw[ctx] ([xshift=5mm]ric.south |- cy) -- ([xshift=5mm]ric.south);
+% ---------- memory (Monitoring + both RIC agents, not governance), audit, knowledge (both RIC agents)
 \draw[aux] (mon.south) -- (wm.north);
-\draw[aux] (wm.east) -| ([xshift=-3mm]non.south);
+\draw[aux] (wm.east) -| (ric.south);
 \draw[->, line width=0.45pt, draw=inkmuted] (gov.south) -- (db.north);
-\draw[aux] (kb.east) -| ([xshift=-3mm]near.north);
+\draw[aux] (kb.east) -| (ric.north);
 
 % ---------- layer bands
 \begin{scope}[on background layer]
  \node[fit=(tel)(sla), inner sep=2.2mm, fill=bandA, rounded corners=2pt] (L1) {};
- \node[fit=(mon)(near)(non)(kb)(wm), inner sep=2.2mm, fill=bandB, rounded corners=2pt] (L2) {};
+ \node[fit=(mon)(ric)(kb)(wm), inner sep=2.2mm, fill=bandB, rounded corners=2pt] (L2) {};
  \node[fit=(mw)(gov)(db), inner sep=2.2mm, fill=bandA, rounded corners=2pt] (L3) {};
  \node[fit=(exe), inner sep=2.2mm, fill=bandB, rounded corners=2pt] (L4) {};
 \end{scope}
