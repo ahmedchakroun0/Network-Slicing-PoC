@@ -68,7 +68,4 @@ S.~Singh, A.~Bhat, S.~M, S.~K. Singh, M.~Hong, M.~R. K, K.~Sithamparanathan, S.~
 \bibitem{rebedea2023nemo}
 T.~Rebedea, R.~Dinu, M.~N. Sreedhar, C.~Parisien, and J.~Cohen, ``{NeMo} guardrails: A toolkit for controllable and safe {LLM} applications with programmable rails,'' in \emph{Proc. EMNLP}, 2023.
 
-\bibitem{mekrache2024intent}
-A.~Mekrache, A.~Ksentini, and C.~Verikoukis, ``Intent-based management of next-generation networks: an {LLM}-centric approach,'' \emph{IEEE Network}, 2024.
-
 \end{thebibliography}
