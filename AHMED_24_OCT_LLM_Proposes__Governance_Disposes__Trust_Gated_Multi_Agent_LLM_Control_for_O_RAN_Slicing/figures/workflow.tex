@@ -1,4 +1,4 @@
-% Fig. 2 -- governed tool-call workflow (sequence view; TikZ)
+% Fig. 3 -- governed tool-call workflow (sequence view; TikZ), steps 2-6 of Sec. III-B
 \begin{tikzpicture}[
   font=\scriptsize, >=Stealth, yscale=0.8,
   hd/.style={draw=ink, rounded corners=1.5pt, fill=#1, inner sep=2pt, minimum width=11mm, align=center, font=\scriptsize\bfseries},
@@ -40,4 +40,11 @@
 
 % audit on the governance lifeline
 \node[draw=inkmuted, fill=storefill, inner sep=1.5pt, font=\scriptsize, anchor=north] at (51mm,-91mm) {audit record (always)};
+
+% steps of the workflow (Sec. III-B): a bar spanning each step, its number and name
+\foreach \top/\bot/\n/\name in {-4/-12/2/Route, -13.5/-27/3/Propose, -28.5/-56/4/Authorize, -57/-88/5/{Execute\\or reject}, -89.5/-96/6/Audit}{
+  \draw[detline, line width=1.2pt] (-7mm,\top mm) -- (-7mm,\bot mm);
+  \node[anchor=east, align=right, inner sep=1pt, font=\scriptsize\bfseries]
+    at (-8mm,{(\top+\bot)/2*1mm}) {\name~\sn{\n}};
+}
 \end{tikzpicture}

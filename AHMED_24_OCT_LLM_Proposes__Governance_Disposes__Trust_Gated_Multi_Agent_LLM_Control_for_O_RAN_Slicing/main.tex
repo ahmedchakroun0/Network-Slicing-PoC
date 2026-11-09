@@ -68,10 +68,10 @@ Our contributions are thus as follows:\\
 \noindent\textbullet\,\textbf{Architecture:} %(Fig.~\ref{fig:arch}, Sec.~\ref{sec:arch}): 
 A multi-agent RAN control framework separating LLM-generated proposals from deterministic authorization, with actions subject to a separate governance gate.
 
-\noindent\textbullet\,\textbf{Trust-gated execution:} A five-stage authorization pipeline with a formal guarantee that LLM review cannot override a rejection by deterministic checks (Prop.~\ref{prop:mono}).
+\noindent\textbullet\,\textbf{Trust-gated execution:} A five-stage authorization pipeline with a formal guarantee that LLM review cannot override a rejection by deterministic checks (Sec.~\ref{sec:mono}).
 %\noindent\textbullet\, \textbf{Live evaluation with reproducible scoring:} %(Sec.~\ref{sec:eval}).The complete system runs with a live LLM on ColO-RAN records \cite{polese2023coloran}; deterministic checks score SLA detection, interpretation, tool choice, grounding, governance and cost on the stored records.
 
-\noindent\textbullet, \textbf{Live LLM evaluation with reproducible scoring:} Complete framework evaluation using a live LLM on ColO-RAN records \cite{polese2023coloran}. Each record is assessed using deterministic checks that measure SLA detection, interpretation accuracy, tool selection, context grounding, governance compliance, and token cost.
+\noindent\textbullet\,\textbf{Live LLM evaluation with reproducible scoring:} Complete framework evaluation using a live LLM on ColO-RAN records \cite{polese2023coloran}. Each record is assessed using deterministic checks that measure interpretation accuracy, tool selection, context grounding, governance compliance, and token cost.
 
 %, with code and scripts released at \repo.
 
@@ -119,18 +119,19 @@ the violation set $V_t=\{q: v_t^q=1\}$, and the persistence $\rho_t^q=(\rho_{t-1
 % =====================================================================
 \section{The \fw{} Framework}\label{sec:arch}
 
-%\noindent \fw{} (\emph{Trust-gated RIC agents}) rests on three principles.
+\subsection{Overview and agents}\label{sec:agents}
+\noindent \fw{} (\emph{Trust-gated RIC agents}) is a multi-agent architecture that keeps O-RAN network slices within their SLAs. Its key idea is a separation of duties: LLM agents interpret SLA violations and propose control actions, while deterministic code computes the facts these agents rely on and authorizes every action before it reaches the RAN.
 
-\noindent \fw{} (\emph{Trust-gated RIC agents}) is a multi-agent architecture that keeps O-RAN network slices within their SLAs (Fig.~\ref{fig:arch}). It is composed of LLM agents, each with its own responsibility, which interpret SLA violations and propose control actions, and of deterministic components, which compute the facts the agents rely on and authorize every action before it is executed. 
+\noindent Fig.~\ref{fig:arch} shows the architecture as four layers, traversed from left to right by each telemetry record. In the \emph{observation} layer, a deterministic SLA analyzer compares the record with the budgets of its slice and computes which KPIs are violated and for how many consecutive records. In the \emph{reasoning} layer, three LLM agents decide how to react. In the \emph{governance} layer, a trust gate intercepts every action proposed by these agents and authorizes or rejects it. In the \emph{execution} layer, approved actions are applied to the RAN.
 
-\textbf{P1, facts come from code:} SLA verdicts, persistence and the scope of each action are computed deterministically, and the LLM reads them but never writes them. %\textbf{P2, LLMs propose, never execute:} agents only emit typed proposals, there is no Monitoring$\to$Governance path, and RIC agents never read raw telemetry records.
-\\
-\textbf{P2, LLMs propose, the gate decides:} the agents never act on the network directly. Every action they want to take is a tool call, which is intercepted by the \emph{trust gate} before it runs. The gate checks the call against the facts computed by code and executes it only if it is well formed, issued by the right agent for the right cell and slice, justified by an active SLA violation, and within safe limits; otherwise, the call is rejected and the reason is returned to the agent.
-
-\textbf{P3, authorization is fail-closed and monotone:} a call executes only if the invocation guards, the deterministic stages and the final LLM review all accept it, and the review can never override a deterministic rejection.
-
-\subsection{\fw{} Agents}\label{sec:agents}
-\noindent \fw{} is a multi-agent system with a clear division of labor (Table~\ref{tab:agents}): one agent interprets, two agents act at different timescales, and one authorizes. All follow the same pattern: a role-specific system prompt, a fixed tool set, and inputs and outputs typed with Pydantic. None of them computes SLA facts or executes an action by itself.
+\noindent The agents, summarized in Table~\ref{tab:agents}, each have a single responsibility:
+\begin{itemize}
+\item \textbf{Monitoring agent}, the entry point of the reasoning layer. For each violated record, it describes the situation, rates its severity and decides which RIC agents to invoke, giving each one an objective. It has no tool: it can only delegate, never act.
+\item \textbf{Near-RT RIC agent}, which applies fast, local fixes on the violated slice of one cell through six action tools: the PRB share, the scheduler, the QoS parameters, the link adaptation, the handover margin and the power offset.
+\item \textbf{Non-RT RIC agent}, which sets the longer-term slice resource policy (guaranteed and capped PRB share). It is invoked only when a violation has persisted for at least three records, and runs after the Near-RT agent so that the policy and the latest allocation agree.
+\item \textbf{Trust \& Governance agent}, which is not a peer of the others but the authority between the RIC agents and the RAN. Every action call of a RIC agent is intercepted and checked, first by deterministic stages and then by an LLM review; the decision and its reason are returned to the calling agent and recorded.
+\end{itemize}
+The agents thus form a chain: the Monitoring agent delegates, the RIC agents propose, and the gate authorizes. No agent can skip the next one, and none executes an action by itself. Three shared resources support them: a RAN knowledge base on O-RAN, slicing KPIs and control actions, searched by both RIC agents; a working memory (Redis) holding the recent records and actions of each cell and slice, read by the Monitoring and RIC agents but not by the gate; and an audit store (MongoDB) that keeps every decision with its reason, per record.
 
 \begin{table}[!t]
 \centering
@@ -150,84 +151,72 @@ Trust \& Governance (code + LLM review) & authorize each action call & proposal 
 \end{tabular}
 \end{table}
 
-\noindent \textbf{Monitoring agent:} it presents the orchestrator that describes the situation for violated record, rates its severity and decides which RIC agents to invoke, with an objective, a priority and a reason for each. The monitoring agent output is the decision $\mathcal{D}_t$, which code checks against the SLA facts and the routing rules before any agent runs.
-
-\noindent \textbf{Near-RT RIC agent:} it ensures fast, local mitigation on the violated slice of one cell, through the PRB share, the scheduler, the QoS parameters, the link adaptation, the handover margin or the power offset. For this, it diagnoses the cause from the slice state and proposes calls whose reasoning (rationale, expected effect, confidence, evidence) is part of the call.
-
-\noindent \textbf{Non-RT RIC agent:} it is used for longer-term control, through setting the slice resource policy, i.e., the guaranteed and capped PRB share, only for violations that have persisted for at least three records, and after the Near-RT agent, so that the policy and the latest allocation agree.
-
-\noindent \textbf{Trust \& Governance agent} it ensures that decisions follow a deterministic, fact-based process. Its LLM-based reviewer evaluates whether the proposed reasoning is logically sound, consistent with the defined objectives, and appropriate for the agent's assigned role. It then issues a structured verdict with a clear justification. The reviewer can access only the proposal and the trusted context, and its authority is limited to rejecting proposals. Every decision and its corresponding justification are recorded to ensure transparency, traceability, and accountability.
-
-%\noindent \textbf{Shared resources.} The RAN knowledge base is a curated text on O-RAN, slicing KPIs and control actions with their risks (about 700 lines); a keyword search returns the three best-matching passages to either RIC agent. The working memory gives the agents the cell configuration and the recent records and tool outcomes of their slice and cell. The audit store keeps every decision with its stated reasons, per record, for operators and expert review.
-
-\subsection{Architecture and workflow}
-
-\noindent Fig.~\ref{fig:arch} shows the four layers (observation, reasoning, governance, execution) and Fig.~\ref{fig:wf} the message sequence of one tool call. Each record runs once through a LangGraph state graph whose state, shared by the steps of that record only, holds the record, its SLA analysis, the decision and the agents' results; agents exchange Pydantic-validated objects, not free text. One pass, numbered as in Fig.~\ref{fig:arch}, is:
+\subsection{Workflow}
+\noindent Each record runs once through the workflow of Fig.~\ref{fig:wf}, implemented as a LangGraph state graph whose state holds the record, its SLA analysis, the Monitoring decision and the agents' results. The workflow has six steps; steps 2--6 appear from top to bottom in Fig.~\ref{fig:wf}, which follows a single tool call:
 \begin{itemize}
-\item[\sn{1}] \textbf{Ground.} Code turns the record into SLA facts $(v_t^q,V_t,\rho_t^q)$ and builds the trusted context $c_t$. A record with $V_t=\emptyset$ ends here, without any LLM call, and only enters the slice history.
-\item[\sn{2}] \textbf{Route.} The \textbf{Monitoring agent}, an LLM policy $\pi_M(\mathbf{x}_t,V_t,\mathcal{M}_t)\mapsto\mathcal{D}_t=(s_t,\sigma_t,\mathcal{A}_t,\{o_a\})$, reads the record, the SLA analysis and the working memory $\mathcal{M}_t$ (the last records and tool outcomes of this slice and of the cell's other slices), and returns a situation, a severity, the selected agents $\mathcal{A}_t\subseteq\{\textsc{near},\textsc{non}\}$ and an objective for each. Code then overrides the severity with the computed one, never lets a violated record be ``normal'', drops the Non-RT agent unless $\max_{q\in V_t}\rho_t^q\ge3$, and invokes the Near-RT agent if no agent is left.
-\item[\sn{3}] \textbf{Propose.} The selected \textbf{RIC agents} run in a fixed order, Near-RT first, so the Non-RT agent sees the calls just made. Each is a tool-calling loop that reads the working memory of its cell and slice, may consult the shared RAN knowledge base and emits tool calls $u$; if it has not proposed an action after its first turn, one model call that offers only the action tools obtains one. Retrieval passes through; every action tool is intercepted by the gate.
-\item[\sn{4}] \textbf{Authorize.} The middleware applies the invocation guards, builds a typed proposal $p$, attaches $c_t$ from the system and rejects malformed ones. The gate evaluates $g_S,g_P,g_L,g_R,g_V$ in order and returns $\G\in\{0,1\}$, seeing only $p$ and the invocation context (no agent state, messages or raw telemetry).
-\item[\sn{5}] \textbf{Execute or reject.} If $\G{=}1$, the tool runs and its result returns to the agent. If $\G{=}0$, the rejecting stage and reason return to the agent, which may revise its call or stop.
-\item[\sn{6}] \textbf{Audit.} Each call is appended to the record's document in MongoDB as it happens, with the agent's stated rationale, expected effect and evidence, the governance stage and reason, and the outcome. The working memory (Redis, keyed by cell and slice, bounded lists) receives structured facts only, never LLM text; the agents read it, the gate does not.
+\item[\sn{1}] \textbf{Ground.} Code turns the record into SLA facts $(v_t^q,V_t,\rho_t^q)$ and builds the trusted context $c_t$ (Sec.~\ref{sec:ctx}). A record without violation ($V_t=\emptyset$) ends here, without any LLM call.
+\item[\sn{2}] \textbf{Route.} The Monitoring agent reads the record, the SLA facts and the working memory, and returns its decision $\mathcal{D}_t$: a situation, a severity, the RIC agents to invoke and an objective for each. Code then corrects the decision where it contradicts the facts: it sets the computed severity, never lets a violated record be called ``normal'', drops the Non-RT agent unless $\max_{q\in V_t}\rho_t^q\ge3$, and invokes the Near-RT agent if no agent is left.
+\item[\sn{3}] \textbf{Propose.} The selected RIC agents run in a fixed order, Near-RT first, so that the Non-RT agent sees the actions just taken. Each agent reads the working memory of its cell and slice, may search the knowledge base, and emits tool calls $u$ with its reasoning.
+\item[\sn{4}] \textbf{Authorize.} Each action call is intercepted before it runs, turned into a proposal $p$ carrying $c_t$, and checked by the gate (Sec.~\ref{sec:mono}), which returns $\G\in\{0,1\}$.
+\item[\sn{5}] \textbf{Execute or reject.} If $\G{=}1$, the tool runs and its result returns to the agent. If $\G{=}0$, the reason of the rejection returns to the agent, which may revise its call or stop.
+\item[\sn{6}] \textbf{Audit.} Every call is recorded as it happens, with the agent's rationale, expected effect and evidence, the gate's decision and reason, and the outcome. The working memory receives structured facts only, never LLM text.
 \end{itemize}
 
 \begin{figure}[!t]
 \centering
-\resizebox{0.7\columnwidth}{!}{\input{figures/workflow.tex}}
-\caption{Governed tool-call workflow (steps 3--6). Proposals carry system-supplied context; the gate accepts or rejects, and all outcomes are audited.}
+\resizebox{0.95\columnwidth}{!}{\input{figures/workflow.tex}}
+\caption{Workflow of one governed tool call (steps 2--6). The call carries the trusted context supplied by code; the gate approves or rejects it, and every outcome is audited.}
 \label{fig:wf}
 \end{figure}
 
-\subsection{Trusted context and authorization}
-\noindent \textbf{Trusted context.} Code builds $c_t=(\text{cell},\text{slice},V_t,\boldsymbol{\rho}_t,\mathbf{s}_t,\kappa_t)$, where $\mathbf{s}_t$ is the slice state (PRB share, utilization, PRBs left unused by the other slices, scheduler, CQI, MCS, uplink SINR) and $\kappa_t$ the PRB controls in force (last executed PRB share and slice policy). $c_t$ is merged \emph{over} any context the LLM wrote, so an agent can neither widen nor re-target its scope.
-
-\noindent \textbf{Invocation guards.} Before the gate, the middleware rejects a call that exceeds the protected-call budget of the invocation, that changes a resource (PRB share, scheduler, QoS, \dots) already changed in the invocation, or that resubmits a tool with the same parameters after $g_V$ rejected it, since rewording a rationale does not change the action.
-
-\noindent \textbf{Authorization.} For the typed proposal $p$ derived from $u$,
+\subsection{Trusted context}\label{sec:ctx}
+\noindent An LLM agent writes the arguments of its own calls, so it may name a wrong slice or claim a violation that does not exist. To prevent this, code computes the \emph{trusted context} of each record in step~1, before any LLM runs:
 \begin{equation}
-\G(p,c_t)=g_S\,g_P\,g_L\,g_R\cdot g_V \in\{0,1\}
+c_t=(\text{cell},\,\text{slice},\,V_t,\,\boldsymbol{\rho}_t,\,\mathbf{s}_t,\,\kappa_t).
 \end{equation}
-is evaluated left to right with short-circuit. The stages are:
+It contains the cell and slice of the record, the violated KPIs $V_t$ and how long they have lasted ($\boldsymbol{\rho}_t$), the current state of the slice $\mathbf{s}_t$ (e.g., its PRB share and utilization), and the controls in force $\kappa_t$ (the last executed PRB share and slice policy, refreshed before each RIC agent runs). The RIC agents read $c_t$ to know the situation and the scope they act on, and the gate checks every action against it; no LLM can modify it. For example, an action on the URLLC slice is rejected when only eMBB is violated, and a slice policy is rejected if it excludes the PRB share just executed. The working memory complements $c_t$ with the recent history of the cell and slice, but it only informs the agents and is never used by the gate.
+
+\subsection{Authorization}\label{sec:mono}
+\noindent Every action call goes through two levels of checks before it can run. First, \emph{invocation guards} reject a call that exceeds the call budget of the invocation, that changes a resource (PRB share, scheduler, QoS, \dots) already changed in the same invocation, or that resubmits a call with the same parameters after the LLM review rejected it, since rewording a rationale does not change the action. Second, the gate evaluates the proposal $p$ against $c_t$:
+\begin{equation}
+\G(p,c_t)=g_S\,g_P\,g_L\,g_R\cdot g_V \in\{0,1\},
+\end{equation}
+stage by stage, stopping at the first rejection:
 \begin{itemize}
-\item $g_S$: exact argument schema (no extra or missing fields), plus a non-empty rationale and expected effect;
-\item $g_P$: $\tau$ allowed and owned by the calling agent ($\tau\in\mathcal{T}_a$), with cell and slice equal to those in $c_t$;
-\item $g_L$: $V_t\neq\emptyset$, and for a Non-RT policy $\max_{q\in V_t}\rho_t^q\ge3$;
-\item $g_R$: ranges and enumerations, all PoC values rather than standards:
-%each parameter must lie within a safe operating range,
-PRB share $\in[5,90]$\%, scheduler $\in$ \{round robin, waterfilling, proportional fair\}, priority $\in[1,10]$, packet delay budget $\in[5,300]$\,ms, guaranteed bit rate $\in[0,10]$\,Mbps, MCS offset $\in[-5,5]$, target BLER $\in[0.001,0.2]$, handover margin $\in[0,10]$\,dB, power offset $\in[-6,6]$\,dB, policy minimum $\in[5,80]$\% and maximum $\in[20,100]$\% with min$\,\le\,$max; a tool without such an envelope is rejected (default deny); and consistency with $\kappa_t$: a PRB share must lie within the policy in force, and a policy must contain the PRB share in force;
-\item $g_V$: an LLM review of reasoning soundness, goal alignment and role-appropriate behavior, set to $g_V=0$ on any exception, timeout or unparseable output.
+\item $g_S$ (\emph{schema}): the call has exactly the arguments of its tool, and a non-empty rationale and expected effect;
+\item $g_P$ (\emph{policy and trust}): the tool belongs to the calling agent ($\tau\in\mathcal{T}_a$), and its cell and slice are those of $c_t$;
+\item $g_L$ (\emph{SLA justification}): the record is violated ($V_t\neq\emptyset$), and for a Non-RT policy the violation has persisted ($\max_{q\in V_t}\rho_t^q\ge3$);
+\item $g_R$ (\emph{resource safety}): each parameter lies within a safe operating range set by the operator; in our implementation, PRB share $\in[5,90]$\%, scheduler $\in$ \{round robin, waterfilling, proportional fair\}, priority $\in[1,10]$, packet delay budget $\in[5,300]$\,ms, guaranteed bit rate $\in[0,10]$\,Mbps, MCS offset $\in[-5,5]$, target BLER $\in[0.001,0.2]$, handover margin $\in[0,10]$\,dB, power offset $\in[-6,6]$\,dB, policy minimum $\in[5,80]$\% and maximum $\in[20,100]$\% with min$\,\le\,$max, and a tool without such a range is rejected; moreover, a PRB share must lie within the policy in force, and a policy must contain the PRB share in force ($\kappa_t$);
+\item $g_V$ (\emph{LLM review}): an LLM judges whether the agent's reasoning is sound, aligned with its objective and appropriate for its role.
 \end{itemize}
-A tool body executes iff the guards pass and $\G=1$.
-
-%\subsection{Monotone authorization}
-%\noindent \begin{proposition}[Monotone authorization]\label{prop:mono}
-%For any reviewer, including an adversarial one, $\{p:\G(p,c)=1\}\subseteq\{p: g_Sg_Pg_Lg_R=1\}$, and reviewer failure never yields execution.
-%\end{proposition}
-%\noindent\emph{Proof.} $g_V\in\{0,1\}$ multiplies the deterministic product, and errors map to $0$. The invocation guards can only reject. $\square$ The guarantee is only as strong as $g_S,\dots,g_R$; Sec.~\ref{sec:eval} checks it on live calls.
-
-
-\subsection{Monotone authorization}\label{sec:mono}
-\noindent The LLM review $g_V$ runs only after all the code checks have passed. It can reject a call that the code accepted, but never approve a call that the code rejected, and if it fails (error, timeout or invalid answer), the call is rejected. Since the code checks rely only on the trusted context and fixed rules, which no LLM can modify, a hallucinated or injected instruction may change what an agent proposes or what $g_V$ answers, but cannot get an action executed outside what the code allows.
+\noindent The tool runs only if the guards pass and $\G=1$. The LLM review $g_V$ runs only after all the code checks have passed: it can reject a call that the code accepted, but never approve a call that the code rejected, and if it fails (error, timeout or invalid answer), the call is rejected. Since the code checks rely only on $c_t$ and fixed rules, which no LLM can modify, a hallucinated or injected instruction may change what an agent proposes or what $g_V$ answers, but cannot get an action executed outside what the code allows.
 
 
 % =====================================================================
 \section{Performance Evaluation}\label{sec:eval}
-\noindent We run the complete system with a live LLM and score each stored decision with deterministic checks.
+\noindent This section evaluates whether \fw{} keeps LLM-driven slice control both effective and safe when the complete system runs with a live LLM on real RAN traces. Sec.~\ref{sec:setup} describes the data, the implementation and the runs, Sec.~\ref{sec:metrics} defines what we measure, and Sec.~\ref{sec:results} presents the results, following the path of a record through the system.
 
-\subsection{Dataset, implementation and methodology}
-\noindent \textbf{ColO-RAN records.} We use the ColO-RAN dataset \cite{polese2023coloran}, collected on Colosseum with an srsRAN-based stack and SDRs over an emulated urban RF scenario: 7 BSs with 10\,MHz (50 PRBs), 42 static UEs, and three slices per BS (eMBB at 4\,Mbps CBR per UE, MTC at 30 Poisson packets/s, URLLC at 10 Poisson packets/s), two UEs per slice. Each run uses one of three schedulers (round robin, waterfilling, proportional fair) and one of 28 splits of the 17 RBGs among the slices. An adapter aggregates the 250\,ms per-UE reports into one-second slice records, from the moment all slices carry traffic: 724{,}086 records (241{,}362 per slice). Each record carries the slice's PRB allocation and utilization, the PRBs the other slices leave unused, the scheduler, the throughput per UE, the queueing delay (mean backlog$\times8$ over the delivered rate, or the window length when the backlog was not served), CQI, MCS and uplink SINR.
+\subsection{Experimental setup}\label{sec:setup}
+\noindent \textbf{Dataset.} We use the ColO-RAN dataset \cite{polese2023coloran}, collected on the Colosseum emulator with an srsRAN-based stack in an urban scenario: 7 base stations (BSs) with 10\,MHz (50 PRBs) and three slices each (eMBB at 4\,Mbps CBR per UE, MTC at 30 Poisson packets/s, URLLC at 10 Poisson packets/s), with two static UEs per slice. Each run uses one of three schedulers (round robin, waterfilling, proportional fair) and one of 28 splits of the 17 resource block groups among the slices. We aggregate the 250\,ms per-UE reports into one-second slice records, i.e., the records $\mathbf{x}_t$ of Sec.~\ref{sec:model}, which yields 724{,}086 records (241{,}362 per slice). Each record carries the slice's PRB allocation and utilization, the PRBs left unused by the other slices, the scheduler, the throughput per UE, the queueing delay, CQI, MCS and uplink SINR.
 
-\noindent \textbf{SLA budgets.} The budgets follow the traffic classes: at least 90\% of the offered load per UE for eMBB (3.6\,Mbps) and 50\% for MTC and URLLC (0.015 and 0.005\,Mbps), and a queueing delay of at most 100\,ms (eMBB, MTC) or 10\,ms (URLLC). Computed by the SLA analyzer, 31.2\% of the records violate their SLA: 91.2\% of eMBB, 2.1\% of URLLC and 0.4\% of MTC records. Of the violated records, 92.8\% use at least 90\% of their PRBs, and 97.4\% have persisted for at least three consecutive records, so the agents' workload is dominated by persistent, PRB-limited eMBB violations.
+\noindent \textbf{SLA budgets.} To decide which of these records violate their SLA, we derive the budgets from the traffic classes: at least 90\% of the offered load per UE for eMBB (3.6\,Mbps) and 50\% for MTC and URLLC (0.015 and 0.005\,Mbps), and a queueing delay of at most 100\,ms (eMBB, MTC) or 10\,ms (URLLC). With these budgets, 31.2\% of the records are violated: 91.2\% of eMBB, 2.1\% of URLLC and 0.4\% of MTC records. Of the violated records, 92.8\% use at least 90\% of their PRBs and 97.4\% have lasted at least three consecutive records. The agents therefore mostly face persistent eMBB violations caused by a lack of PRBs.
 
-%\noindent \textbf{Implementation and model.} Python~3.12, LangChain~1.4.6, LangGraph~1.2.15, LiteLLM~1.105, Pydantic~2.14, Redis~7.0 and MongoDB~7.0. All LLM roles (Monitoring, both RIC agents, $g_V$) use NVIDIA Nemotron~3.5 Lightning, a mixture-of-experts model with 30B parameters, 3B of them active, served by OpenRouter through a LiteLLM gateway at temperature 0. A run stops when the provider rate-limits every request, and the record in progress is excluded. No RAN is actuated: an approved tool returns a confirmation and the next record comes from the dataset, so the evaluation is open-loop.
+\noindent \textbf{Implementation and model.} We implemented \fw{} in Python~3.12. Each record is processed by a LangGraph workflow, and each agent is a LangChain tool-calling agent whose action tools are intercepted by the gate as a middleware. Exchanged objects are validated with Pydantic, the working memory is kept in Redis, and every decision is stored in MongoDB. All LLM roles (Monitoring, both RIC agents and $g_V$) use NVIDIA Nemotron~3.5 Lightning, a mixture-of-experts model with 30B parameters (3B active), at temperature 0. An approved tool returns a confirmation and the next record is read from the dataset, so the evaluation is open-loop: it measures the decisions of the agents and of the gate.
 
-\noindent \textbf{Implementation and model.} We implemented \fw{} in Python~3.12. Each record is processed by a LangGraph workflow, and each agent is a LangChain tool-calling agent whose protected tools are intercepted by the gate as a middleware. All exchanged objects are validated with Pydantic, the working memory is kept in Redis, and every decision is stored in MongoDB for audit. All LLM roles (Monitoring, both RIC agents and $g_V$) use NVIDIA Nemotron~3.5 Lightning, a mixture-of-experts model with 30B parameters, 3B of them active, accessed through a LiteLLM gateway at temperature 0. An approved tool returns a confirmation and the next record is read from the dataset, so the evaluation is open-loop.
+\noindent \textbf{Runs.} All runs replay the eMBB slice of BS bs2 (round robin, split \texttt{tr2}), which violates both KPIs. We compare two configurations of the same system. In \textbf{R1} (three runs), each RIC agent may make up to 20 action calls per invocation. \textbf{R2} (one run) is an optimized configuration: two action calls per invocation, a more compact working memory and prompt, and a single model call to obtain an action. Two earlier runs, \textbf{R0}, are used only to explain two checks added to the gate.
 
+\subsection{Evaluation metrics}\label{sec:metrics}
+\noindent We evaluate the system at three levels. All metrics are computed from the stored decisions by deterministic rules, so they are reproducible and need no LLM judge.
 
-\noindent \textbf{Runs.} All runs replay cell bs2 (round robin, split \texttt{tr2}), whose eMBB slice violates both KPIs. \textbf{R1} (three runs) gives each RIC invocation up to 20 protected calls. \textbf{R2} (one run) is the token-optimized revision: two protected calls per invocation, a working memory of five events per list without empty fields, the invocation sent once, and a single model call to obtain an action. Two earlier runs of a previous revision, \textbf{R0}, only serve to explain two fixes.
+\noindent \textbf{Agents.} Do the agents understand the situation and act sensibly?
+\begin{itemize}
+\item \emph{Interpretation}: the Monitoring agent's own decision, before code corrects it, is compared with the computed severity, with the routing rule (Near-RT on every violation, Non-RT from $\rho\ge3$), and with the violated KPIs each objective must name.
+\item \emph{Tool choice}: the bottleneck of the record is diagnosed (PRB-limited if the PRB utilization is at least 0.9, radio-limited if CQI $<7$), and each call is classified as matching it, neutral (scheduler, QoS) or off-target; a PRB change must also raise the share and fit within the available PRBs.
+\item \emph{Grounding}: every number quoted in a rationale must match a value of the agent's context, up to rounding or a simple derivation, and every cited evidence source must be supported by the context or the retrieved knowledge.
+\end{itemize}
+\noindent \textbf{Gate.} Does the gate stop unsafe actions without blocking the system? We count the calls approved and rejected per stage, check three safety properties (no rejected call is executed, no executed call acts outside its cell and slice, no executed PRB share contradicts the slice policy in force), and measure the decision latency with and without the LLM review.
 
-\noindent \textbf{Criteria.} Every score is computed from the stored records by deterministic rules, so it is reproducible and needs no LLM judge. (i) \emph{SLA detection}: the stored analysis is recomputed from the telemetry, and no violated row may be skipped. (ii) \emph{Interpretation}: the Monitoring LLM's own decision, before code overrides it, is compared with the computed severity, with the routing rule (Near-RT on every violation, Non-RT from $\rho\ge3$) and with the KPIs each objective must name. (iii) \emph{Tool choice}: the bottleneck is diagnosed from the record (PRB-limited if utilization $\ge0.9$, radio-limited if CQI $<7$), and each call is consistent, neutral (scheduler, QoS) or inconsistent with it; PRB changes must raise the share and fit within the PRBs available. (iv) \emph{Grounding}: each number quoted in a rationale must equal a context value up to rounding or a simple derivation (ratio to budget, share in PRBs), and each evidence source must carry traceable numbers or share 60\% of its words with the retrieved knowledge or the tool descriptions. (v) \emph{Governance}: invariants, rejections per stage, and agreement with (iii). (vi) \emph{Cost}: model calls, input, output and reasoning tokens, and agent time per record.
+\noindent \textbf{Cost.} What does LLM control cost? We report the model calls, the input, output and reasoning tokens, and the agent time per violated record.
 
 \input{tables/live.tex}
 
@@ -238,36 +227,14 @@ A tool body executes iff the guards pass and $\G=1$.
 \label{fig:live}
 \end{figure}
 
-% \begin{figure}[!t]
-% \centering
-% \input{figures/live_timeline.tex}
-% \caption{Timeline of the replayed stream (cell bs2, eMBB). (a) Throughput per UE of each violated record against its SLA budget, with its persistence $\rho$ (restarting with each run). (b) Every protected tool call at its record, by outcome. Open-loop replay: approved actions do not alter the trace.}
-% \label{fig:timeline}
-% \end{figure}
+\subsection{Results}\label{sec:results}
+\noindent Table~\ref{tab:live} summarizes the results of both configurations. We follow the path of a record: the agents' decisions, the gate, and finally latency and cost.
 
-\subsection{Results}
-\noindent \textbf{SLA detection and interpretation.} SLA detection is exact: the recomputation matches all 11 records and none of the 12 violated rows was skipped (one in each configuration belongs to a run stopped by the rate limit). The Monitoring LLM flagged every violation, routed as the rule requires in 11/11 records and named the violated KPIs with traceable values in every objective, but it labelled 8 of the 11 violated records ``normal'' and misjudged 2 severities (Table~\ref{tab:live}). Code overrides both, which is principle P1 at work.
+\noindent \textbf{Interpretation.} We first check that the Monitoring agent understands the violations it receives. It flagged every violation, routed it as the rule requires in 11/11 records, and named the violated KPIs with correct values in every objective. However, it labelled 8 of the 11 violated records ``normal'' and misjudged 2 severities; code corrected both before any action, which shows why the facts must remain with code.
 
-\noindent \textbf{Actions and grounding.} Every PRB change raised the share (21/21) and fitted within the available PRBs (15/15). Of the numbers quoted in rationales, 98.4\% are traceable; the others are wrong derivations, e.g., 2.47/3.6\,Mbps reported as 72.5\% of the budget instead of 68.6\%. Evidence sources are supported in 93\% of cases; the others are bare acronyms such as ``A1'' or general claims absent from the retrieved knowledge. Off-target proposals are where governance pays off (Fig.~\ref{fig:live}b): the LLM proposed 11 link-adaptation changes on PRB-saturated slices, which cannot relieve a PRB bottleneck, and the gate blocked 9 of them before they reached the RAN. The two that $g_V$ approved in R1 can be blocked deterministically by adding the bottleneck diagnosis to $c_t$, at no LLM cost; with compact prompts (R2), the share of proposals matching the diagnosis rose from 55\% to 83\%. Conversely, $g_V$ rejected one well-targeted PRB increase in R2.
+\noindent \textbf{Tool choice and grounding.} Once invoked, the RIC agents must choose an action and justify it. Every PRB change raised the share (21/21) and fitted within the available PRBs (15/15). The reasoning is well grounded: 98.4\% of the quoted numbers are traceable to the context, the others being wrong derivations (e.g., 2.47/3.6\,Mbps reported as 72.5\% of the budget instead of 68.6\%), and 93\% of the evidence sources are supported. The choice of tool is where governance matters most (Fig.~\ref{fig:live}b): the agents proposed 11 link-adaptation changes on PRB-saturated slices, which cannot relieve a PRB bottleneck, and the gate blocked 9 of them before they reached the RAN. The remaining two, approved by $g_V$ in R1, could be blocked deterministically by adding the bottleneck diagnosis to $c_t$. With the optimized configuration, the share of proposals matching the diagnosis rose from 55\% (R1) to 83\% (R2).
 
-%\noindent \textbf{Governance.} Fig.~\ref{fig:timeline} traces the replayed stream: the slice stays below its throughput budget throughout, the Non-RT agent joins only from $\rho=3$, and the gate filters several proposals per record, most visibly at $t=85$\,s in R2, where the two-call budget stops the agent's repeated proposals. No invariant was violated in any run.
-
-\noindent \textbf{Governance.} The gate enforced its safety properties in every run: no rejected call was executed, no executed call acted outside its cell and slice, and no executed PRB share contradicted the slice policy in force. Of the 52 calls, 23 were approved, 21 rejected by code and 8 by $g_V$ (Fig.~\ref{fig:live}a). In R1, code rejected 2 calls at $g_S$, 2 malformed proposals, 5 at the guards (four resubmissions of a call $g_V$ had rejected, with only the rationale reworded, and one second PRB change) and 1 at $g_R$: a Non-RT policy of 50--60\% that excluded the 65\% share the Near-RT agent had just executed. Both checks came from R0, where $g_V$ approved two such reworded resubmissions and an 80\% PRB share was executed against a 50--70\% policy set in the same record. In R2, 10 of the 11 code rejections are calls beyond the two-call budget: the agent kept proposing after it was exhausted.
-
-
-\noindent \textbf{Gate latency.} We replay the 52 live calls through the middleware and gate with $g_V$ disabled, 5{,}000 times each on an Intel Core i7-10870H; the replay reproduces all 52 stored decisions. The deterministic gate decides in 51\,$\mu$s at the median and 74\,$\mu$s at the 99th percentile, each stage $g_S$--$g_R$ taking under 4\,$\mu$s, the rest being proposal construction and auditing (Fig.~\ref{fig:latency}a): over two orders of magnitude below the 10\,ms Near-RT budget. The latency grows only from 52 to 70\,$\mu$s when a call is the 64th of its invocation, as the guards scan the earlier calls (Fig.~\ref{fig:latency}b). With $g_V$, the LangSmith traces of the live runs give the whole gate for the 31 calls that reached the review: 42\,s at the median and 112\,s at the 95th percentile, almost entirely the review itself (1.8\,k input and 3.3\,k output tokens per review). The formal guarantee is thus nearly free, whereas the semantic review costs about $10^6$ times more, and the 21 calls rejected by code never wait for it.
-
-
-\noindent \textbf{Cost.} Records without violation make no model call. For a violated record, compact prompts and the call budget reduced the cost from 117\,k to 86\,k tokens ($-26$\%) and the agent time from 501 to 273\,s. Most of the remaining tokens come from the Near-RT tool loop and the model's hidden reasoning, both of which the configuration can bound further (Sec.~\ref{sec:disc}).
-
-\IfFileExists{tables/stability.tex}{\input{tables/stability.tex}
-\noindent \textbf{Stability.} Table~\ref{tab:stability} reports, per decision level, the share of repetitions that agree with the most frequent outcome. % TODO: interpret after the runs.
-}{}
-
-\IfFileExists{tables/models.tex}{\input{tables/models.tex}
-\noindent \textbf{Models.} Table~\ref{tab:models} compares models on the same records and gate. % TODO: interpret after the runs.
-}{}
-
+\noindent \textbf{Governance.} All these proposals pass through the gate, which enforced the three safety properties in every run. Of the 52 calls, 23 were approved, 21 were rejected by code and 8 by $g_V$ (Fig.~\ref{fig:live}a). The code rejections cover malformed calls ($g_S$), calls blocked by the guards, and one unsafe call ($g_R$): a Non-RT policy of 50--60\% that excluded the 65\% PRB share the Near-RT agent had just executed. The resubmission guard and the policy-consistency check of $g_R$ were added after R0, where $g_V$ approved a resubmitted call whose rationale had only been reworded, and an 80\% PRB share was executed against a 50--70\% policy set in the same record; neither case occurred afterwards. In R2, 10 of the 11 code rejections are calls beyond the two-call budget.
 
 \begin{figure}[!t]
 \centering
@@ -275,6 +242,10 @@ A tool body executes iff the guards pass and $\G=1$.
 \caption{Latency of the Trust \& Governance gate. (a) CDF per deterministic stage and for the whole deterministic gate (guards, proposal, $g_S$--$g_R$, audit; 52 live calls replayed through the unmodified middleware, $g_V$ disabled), and of the whole gate with $g_V$ in the live runs (31 calls, LangSmith traces). (b) Latency of a call as a function of its position $n$ in its invocation (deterministic gate).}
 \label{fig:latency}
 \end{figure}
+
+\noindent \textbf{Gate latency.} Filtering these calls must not slow down control. To measure the deterministic gate precisely, we replay the 52 live calls through it with $g_V$ disabled, 5{,}000 times each on an Intel Core i7-10870H; the replay reproduces all 52 stored decisions. The deterministic gate decides in 51\,$\mu$s at the median and 74\,$\mu$s at the 99th percentile, each stage taking under 4\,$\mu$s (Fig.~\ref{fig:latency}a), i.e., over two orders of magnitude below the 10\,ms Near-RT budget. It grows only from 52 to 70\,$\mu$s when a call is the 64th of its invocation (Fig.~\ref{fig:latency}b). With $g_V$, the traces of the live runs show 42\,s at the median for the 31 calls that reached the review, almost entirely the model call itself. The safety checks are thus nearly free, the LLM review dominates the latency, and the 21 calls rejected by code never wait for it.
+
+\noindent \textbf{Cost.} Finally, records without violation make no model call. For a violated record, the optimized configuration reduced the cost from 117\,k to 86\,k tokens ($-26$\%) and the agent time from 501 to 273\,s; most of the remaining tokens come from the Near-RT tool loop and the model's reasoning.
 
 % =====================================================================
 %\section{Discussion and Limitations}\label{sec:disc}
