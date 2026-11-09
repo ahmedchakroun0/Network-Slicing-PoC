@@ -1,15 +1,15 @@
 # Fdb version 4
-["bibtex main"] 1794176175.07489 "main.aux" "main.bbl" "main" 1794176177.1413 0
+["bibtex main"] 1794251193.53491 "main.aux" "main.bbl" "main" 1794251195.78951 0
   "./IEEEtran.bst" 1792953590 57748 7c8250ecf02814ce6ddc0cdbb63df1dd ""
   "./references.bib" 1792953596 5976 354e78f636e6a10e3f7d8a18e82664b0 ""
-  "main.aux" 1794176176.7892 31395 dc0c2f93721d7af80c5262060ddee5ab "pdflatex"
+  "main.aux" 1794251195.45038 32103 54989553a6cb26ac48e1fdeea81f531c "pdflatex"
   (generated)
   "main.bbl"
   "main.blg"
   (rewritten before read)
-["pdflatex"] 1794176175.19253 "/home/chakroun/Documents/network-slicing-PoC-v3.2/AHMED_24_OCT_LLM_Proposes__Governance_Disposes__Trust_Gated_Multi_Agent_LLM_Control_for_O_RAN_Slicing/main.tex" "main.pdf" "main" 1794176177.14148 0
+["pdflatex"] 1794251193.6522 "/home/chakroun/Documents/network-slicing-PoC-v3.2/AHMED_24_OCT_LLM_Proposes__Governance_Disposes__Trust_Gated_Multi_Agent_LLM_Control_for_O_RAN_Slicing/main.tex" "main.pdf" "main" 1794251195.78969 0
   "/etc/texmf/web2c/texmf.cnf" 1793830927.48555 475 c0e671620eb5563b2130f56340a5fde8 ""
-  "/home/chakroun/Documents/network-slicing-PoC-v3.2/AHMED_24_OCT_LLM_Proposes__Governance_Disposes__Trust_Gated_Multi_Agent_LLM_Control_for_O_RAN_Slicing/main.tex" 1794176172.51655 39818 acc18b5bbde4e82d0bb19ba470e0344e ""
+  "/home/chakroun/Documents/network-slicing-PoC-v3.2/AHMED_24_OCT_LLM_Proposes__Governance_Disposes__Trust_Gated_Multi_Agent_LLM_Control_for_O_RAN_Slicing/main.tex" 1794251191.31339 34113 cf4ba6ff7f47228b5ac2474af89c46cf ""
   "/usr/share/texlive/texmf-dist/fonts/enc/dvips/base/8r.enc" 1165713224 4850 80dc9bab7f31fb78a000ccfed0e27cab ""
   "/usr/share/texlive/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/adobe/courier/pcrr7t.tfm" 1136768653 960 379cc0019370a9e0208a0a3f949f847a ""
@@ -265,12 +265,12 @@
   "figures/gate_latency.tex" 1794060276.79451 14189 7c482b5393cabdfc293a4aae1b735312 ""
   "figures/live_gov.tex" 1793958665.61774 2812 cdc5f7659ee11d44cf806438cff4c306 ""
   "figures/scenario.tex" 1793834640.81393 2353 b38675cd699240fdc0d52c770417961f ""
-  "figures/workflow.tex" 1793896040.3969 2361 3844fe79c4a8e1cfe3561e5be78c4a3d ""
-  "main.aux" 1794176176.7892 31395 dc0c2f93721d7af80c5262060ddee5ab "pdflatex"
-  "main.bbl" 1794176175.18551 4490 e86a02f7cfa14aa1d79d0c6cae8d1db2 "bibtex main"
-  "main.out" 1794176176.79053 1920 43922a6dc9fd3b6141c487018fd917ac "pdflatex"
-  "main.tex" 1794176172.51655 39818 acc18b5bbde4e82d0bb19ba470e0344e ""
-  "tables/live.tex" 1793834542.07616 1469 0fdcf8eb7cf4a2a3cb57378f11c55bf0 ""
+  "figures/workflow.tex" 1794239575.17971 2813 81f13ef2fbc668ea86d272c13170902d ""
+  "main.aux" 1794251195.45038 32103 54989553a6cb26ac48e1fdeea81f531c "pdflatex"
+  "main.bbl" 1794251193.64439 4490 e86a02f7cfa14aa1d79d0c6cae8d1db2 "bibtex main"
+  "main.out" 1794251195.45138 2770 1c8dc8ea043037e57462067853a67a2e "pdflatex"
+  "main.tex" 1794251191.31339 34113 cf4ba6ff7f47228b5ac2474af89c46cf ""
+  "tables/livenewvf.tex" 1794250902.54187 1760 5a9fb4aaa1d1d1fb4fbba04e9277166c ""
   (generated)
   "main.aux"
   "main.log"
