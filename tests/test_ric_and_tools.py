@@ -6,8 +6,7 @@ from src.schema.near_rt_ric import (
     RANActionProposal,
     RANToolResult,
 )
-from tools.near_rt_ric_tools import adjust_prb_allocation, search_ran_knowledge
-from tools.near_rt_ric_tools import optimize_scheduler
+from tools.near_rt_ric_tools import adjust_prb_allocation, optimize_scheduler, search_ran_knowledge
 from tools.non_rt_ric_tools import update_slice_resource_policy
 
 

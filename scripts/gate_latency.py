@@ -43,11 +43,11 @@ _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from langchain_core.messages import ToolMessage  # noqa: E402
+from langchain_core.messages import ToolMessage
 
-import middleware.ran_authorisation as mw  # noqa: E402
-from agents.ran_trust_governance import ARG_MODELS, RANTrustGovernanceAgent  # noqa: E402
-from src.schema.near_rt_ric import GovernanceResult  # noqa: E402
+import middleware.ran_authorisation as mw
+from agents.ran_trust_governance import ARG_MODELS, RANTrustGovernanceAgent
+from src.schema.near_rt_ric import GovernanceResult
 
 RESULTS = _ROOT / "results"
 logging.disable(logging.INFO)
@@ -162,12 +162,12 @@ async def fidelity(groups) -> dict[str, Any]:
     middleware = mw.RANAuthorizationMiddleware(review)
     checked = mismatches = 0
     details = []
-    for label, runs, cap in groups:
+    for _label, runs, cap in groups:
         mw.MAX_PROTECTED_CALLS = cap
         for run in runs:
             for inv in load_invocations(run):
                 got = await replay(inv, middleware, review)
-                for call, outcome in zip(inv["calls"], got):
+                for call, outcome in zip(inv["calls"], got, strict=False):
                     checked += 1
                     if outcome != call["stored"]:
                         mismatches += 1
@@ -187,7 +187,7 @@ async def stage_latency(groups, reps: int) -> dict[str, list[float]]:
     gate = RANTrustGovernanceAgent(use_llm=False)
     middleware = mw.RANAuthorizationMiddleware(gate)
     out: dict[str, list[float]] = {"g_S": [], "g_P": [], "g_L": [], "g_R": [], "gate": []}
-    for label, runs, cap in groups:
+    for _label, runs, cap in groups:
         mw.MAX_PROTECTED_CALLS = cap
         for run in runs:
             for inv in load_invocations(run):
@@ -207,7 +207,9 @@ async def stage_latency(groups, reps: int) -> dict[str, list[float]]:
                                 {**proposal.parameters, "target": proposal.target}).model_dump()
                         except Exception:
                             args = None
-                    def schema_stage():  # g_S as in authorize(): reject = exception
+                    # g_S as in authorize(): reject = exception. Loop values are
+                    # bound as defaults (the closure is timed in this iteration).
+                    def schema_stage(model=model, proposal=proposal):
                         try:
                             model.model_validate({**proposal.parameters, "target": proposal.target})
                         except Exception:
@@ -267,7 +269,7 @@ async def scaling(groups, n_max: int, reps: int) -> dict[str, Any]:
             samples.append((time.perf_counter_ns() - t0) / 1e3)
             mw.RAN_AUDIT.reset(token)
         samples.sort()
-        q = lambda p: samples[min(len(samples) - 1, int(p * len(samples)))]  # noqa: E731
+        q = lambda p: samples[min(len(samples) - 1, int(p * len(samples)))]  # noqa: E731, B023 (used in this iteration)
         rows.append({"n": n, "p5": q(0.05), "p25": q(0.25), "median": statistics.median(samples),
                      "p75": q(0.75), "p95": q(0.95)})
     return {"target_tool": target["tool"], "rows": rows}

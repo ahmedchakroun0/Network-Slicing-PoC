@@ -21,9 +21,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections import Counter
 from pathlib import Path
-import sys
 from typing import Any
 
 _ROOT = Path(__file__).resolve().parents[1]
@@ -90,7 +90,7 @@ def stability(records: list[dict[str, Any]]) -> dict[str, Any]:
     per_record, rows = {}, []
     for record_id, docs in sorted(by_record.items()):
         sigs = [signatures(doc) for doc in docs]
-        for doc, sig in zip(docs, sigs):
+        for doc, sig in zip(docs, sigs, strict=False):
             rows.append({"record_id": record_id, "run_id": doc["run_id"], **sig})
         agreement = {}
         for dimension in DIMENSIONS:
@@ -111,7 +111,7 @@ def stability(records: list[dict[str, Any]]) -> dict[str, Any]:
                                      if u else None for u in llm]),
             "ric_seconds": _spread([
                 _seconds((doc.get("monitoring") or {}).get("decided_at"), max(f, default=None))
-                for doc, f in zip(docs, finished)]),
+                for doc, f in zip(docs, finished, strict=False)]),
             "executed_prb_percentage": _spread(prb),
         }
 

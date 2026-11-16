@@ -29,91 +29,19 @@ NOTE: the limits below are PoC values, not standards. Tune them freely.
 """
 
 import asyncio
-import os
 import json
+import os
 from typing import Any, get_args
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from src.schema.monitoring import Scheduler
 from src.schema.near_rt_ric import GovernanceResult, LLMReview, RANActionProposal
+from tools.registry import ARG_MODELS, TOOL_OWNERS
 
-# --------------------------------------------------------------------------
-# Stage 1: schema (exact argument shape per tool)
-# --------------------------------------------------------------------------
+# Stage 1 (schema) and stage 2 (role binding) use the tool registry:
+# ARG_MODELS and TOOL_OWNERS are defined once, in tools/registry.py.
 
-
-class _BaseArgs(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    target: str = Field(min_length=1)
-
-
-# Every model mirrors the signature of its tool in tools/ (minus the
-# reasoning fields). extra="forbid": an argument the tool does not declare
-# is rejected here, not silently dropped.
-
-
-class _PRBArgs(_BaseArgs):
-    slice_id: str = Field(min_length=1)
-    prb_percentage: int
-
-
-class _SchedulerArgs(_BaseArgs):
-    slice_id: str = Field(min_length=1)
-    scheduler: str = Field(min_length=1)
-
-
-class _HandoverArgs(_BaseArgs):
-    handover_margin_db: float
-
-
-class _PowerArgs(_BaseArgs):
-    power_offset_db: float
-
-
-class _QoSArgs(_BaseArgs):
-    slice_id: str = Field(min_length=1)
-    priority_level: int
-    packet_delay_budget_ms: float
-    guaranteed_bitrate_mbps: float
-
-
-class _LinkAdaptationArgs(_BaseArgs):
-    slice_id: str = Field(min_length=1)
-    mcs_offset: int
-    target_bler: float
-
-
-class _SlicePolicyArgs(_BaseArgs):
-    slice_id: str = Field(min_length=1)
-    min_prb_ratio_pct: int
-    max_prb_ratio_pct: int
-
-
-ARG_MODELS: dict[str, type[BaseModel]] = {
-    "adjust_prb_allocation": _PRBArgs,
-    "optimize_scheduler": _SchedulerArgs,
-    "optimize_handover": _HandoverArgs,
-    "adjust_power_control": _PowerArgs,
-    "adjust_qos_parameters": _QoSArgs,
-    "adjust_link_adaptation": _LinkAdaptationArgs,
-    "update_slice_resource_policy": _SlicePolicyArgs,
-}
-
-TOOL_OWNERS = {
-    "near_rt_ric": frozenset(
-        {
-            "adjust_prb_allocation",
-            "optimize_scheduler",
-            "optimize_handover",
-            "adjust_power_control",
-            "adjust_qos_parameters",
-            "adjust_link_adaptation",
-        }
-    ),
-    "non_rt_ric": frozenset({"update_slice_resource_policy"}),
-}
 NON_RT_MIN_PERSISTENCE = int(os.getenv("NON_RT_MIN_PERSISTENCE", "3"))
 
 
@@ -472,7 +400,9 @@ class RANTrustGovernanceAgent:
 
         return None
 
-    def _check_sla(self, proposal, args):
+    def _check_sla(
+        self, proposal: RANActionProposal, args: dict[str, Any]
+    ) -> str | None:
         sla = self._context(proposal).get("sla_analysis")
         if not isinstance(sla, dict):
             return "SLA analysis missing from context; action cannot be justified."

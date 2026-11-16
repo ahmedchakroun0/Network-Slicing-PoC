@@ -4,12 +4,11 @@ it records protected calls in the real AuditSink, so the results store
 
 import pytest
 
-from src.schema.working_memory import ActionEvent
-
 from agents.non_rt_ric_agent import NonRTRICAgent
 from middleware.ran_authorisation import RAN_AUDIT
 from src.schema.monitoring import AgentInvocation
 from src.schema.near_rt_ric import GovernanceResult, LLMReview, RANActionProposal, RANToolResult
+from src.schema.working_memory import ActionEvent
 
 CONTEXT = {"target": "bs1", "slice_id": "eMBB", "record_id": "r1", "run_id": "run1",
            "window_start_s": 60.0}

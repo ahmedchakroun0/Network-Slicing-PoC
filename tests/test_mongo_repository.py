@@ -1,13 +1,13 @@
 """MongoDB results store (src/repositories/mongo_repository.py) on mongomock."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.schema.mongo_run_document import ActionEntry, AgentMessage, KnowledgeEntry
 
 
 def _action(i, approved):
     return ActionEntry(
-        i=i, tool_call_id=f"call_{i}", at=datetime.now(timezone.utc), tool="adjust_prb_allocation",
+        i=i, tool_call_id=f"call_{i}", at=datetime.now(UTC), tool="adjust_prb_allocation",
         target="bs1", params={"slice_id": "eMBB", "prb_percentage": 60},
         reasoning={"rationale": "throughput 1.8 < 3.6 Mbps", "expected_effect": "throughput up",
                    "confidence": 0.7},
@@ -44,7 +44,7 @@ def test_each_step_adds_to_the_record_document(mongo):
                        decision={"situation": "critical", "reason": "throughput below budget"})
     mongo.start_agent(run_id="run1", record_id="r1", agent="near_rt_ric")
     mongo.push_knowledge(run_id="run1", record_id="r1", agent="near_rt_ric",
-                         entry=KnowledgeEntry(tool_call_id="k1", at=datetime.now(timezone.utc),
+                         entry=KnowledgeEntry(tool_call_id="k1", at=datetime.now(UTC),
                                               tool="search_ran_knowledge", args={"query": "q"},
                                               result="snippet"))
     mongo.push_action(run_id="run1", record_id="r1", agent="near_rt_ric", entry=_action(0, False))

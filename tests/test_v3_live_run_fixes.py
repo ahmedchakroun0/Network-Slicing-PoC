@@ -301,6 +301,7 @@ async def test_action_is_forced_with_one_call_offering_only_action_tools(monkeyp
                                                                          answers_with_action):
     from langchain.agents.middleware import ModelResponse
     from langchain_core.messages import AIMessage
+
     from middleware.ran_authorisation import FORCED_FLAG
 
     mw = RANAuthorizationMiddleware(RANTrustGovernanceAgent(use_llm=False))

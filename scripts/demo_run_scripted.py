@@ -8,15 +8,28 @@ real model.  Usage:
 The scripted LLM always selects both RIC agents: routing quality is NOT
 evaluated here, only that the data flows through every component.
 """
-import asyncio, sys, json
+import asyncio
+import json
+import os
+import sys
 from pathlib import Path
-ROOT = Path(__file__).resolve().parents[1]; sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / "tests"))
-import os; os.chdir(ROOT); os.environ["LANGSMITH_TRACING"] = "false"  # scripted data: no traces
-import fakeredis.aioredis, mongomock
-import agents.base_ric as base_ric, scripts.run_dataset as rd, src.core.llm as core_llm
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "tests"))
+os.chdir(ROOT)
+os.environ["LANGSMITH_TRACING"] = "false"  # scripted data: no traces
+
+import fakeredis.aioredis
+import mongomock
+from test_end_to_end import ScriptedChatModel
+
+import agents.base_ric as base_ric
+import scripts.run_dataset as rd
+import src.core.llm as core_llm
 import src.repositories.mongo_repository as mrepo
 from src.memory.working_memory import RedisWorkingMemory
-from test_end_to_end import ScriptedChatModel
+
 m = ScriptedChatModel()
 rd.create_llm = base_ric.create_llm = core_llm.create_llm = (lambda: m)
 mrepo.MongoClient = mongomock.MongoClient
@@ -24,7 +37,13 @@ redis = fakeredis.aioredis.FakeRedis(decode_responses=True)
 RedisWorkingMemory.from_url = classmethod(lambda cls, *a, **k: cls(redis))
 store = {}
 orig = mrepo.MongoRepository.__init__
-def cap(self, *a, **k): orig(self, *a, **k); store["repo"] = self
+
+
+def cap(self, *a, **k):
+    orig(self, *a, **k)
+    store["repo"] = self
+
+
 mrepo.MongoRepository.__init__ = cap
 cfg = rd.RunConfig(dataset_path=Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT / "data/coloran_prepared_dataset.csv", run_id="coloran-demo",
                    start_row=1, max_rows=int(sys.argv[1]), knowledge_file=rd.DEFAULT_KNOWLEDGE_FILE)

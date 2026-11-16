@@ -14,10 +14,10 @@ import argparse
 import asyncio
 import logging
 import os
+import sys
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-import sys
 from typing import Any
 
 # Allow `python scripts/run_dataset.py` from the project root (no PYTHONPATH needed).
@@ -25,8 +25,8 @@ _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from langchain_core.globals import set_debug
 import pandas as pd
+from langchain_core.globals import set_debug
 
 from agents.monitoring_agent import MonitoringAgent
 from agents.near_rt_ric_agent import NearRTRICAgent

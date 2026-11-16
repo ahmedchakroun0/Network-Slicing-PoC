@@ -21,7 +21,7 @@ nothing is cached in memory, so the cost of a write does not grow with the run.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from pymongo import ASCENDING, MongoClient
@@ -40,7 +40,7 @@ DEFAULT_MONGO_DB = "network_slicing_poc"
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def record_key(run_id: str, record_id: str) -> str:

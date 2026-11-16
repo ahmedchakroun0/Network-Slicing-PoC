@@ -34,10 +34,10 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
-import pandas as pd  # noqa: E402
-from matplotlib.colors import LinearSegmentedColormap  # noqa: E402
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from matplotlib.colors import LinearSegmentedColormap
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RAW = ROOT / "data/raw/coloran/rome_static_medium"
@@ -280,10 +280,10 @@ def by_slice(df: pd.DataFrame, profile: pd.DataFrame, out: Path) -> None:
 
     tele = list(profile.index[profile.role.str.startswith("telemetry")])
     fig, axes = grid(len(tele))
-    for ax, c in zip(axes, tele):
+    for ax, c in zip(axes, tele, strict=False):
         lo, hi = df[c].quantile([.005, .995])
         bins = np.linspace(lo, hi if hi > lo else lo + 1, 40)
-        for i, (sl, name) in enumerate(SLICE_NAME.items()):
+        for i, (sl, _name) in enumerate(SLICE_NAME.items()):
             v = df.loc[df.slice_id == sl, c].clip(lo, hi)
             ax.hist(v, bins=bins, histtype="step", density=True, color=SERIES[i], lw=1.5)
         ax.set_title(f"{c}  (zeros {profile.at[c, 'zero_pct']:.0f}%)")
@@ -429,7 +429,7 @@ def example_run(df: pd.DataFrame, profile: pd.DataFrame, out: Path) -> None:
     tele = list(profile.index[profile.role.str.startswith("telemetry")])
     per_s = d.assign(sec=d.t_s.astype(int)).groupby(["slice_id", "sec"])[tele].mean()
     fig, axes = grid(len(tele), ncols=4, w=3.6)
-    for ax, c in zip(axes, tele):
+    for ax, c in zip(axes, tele, strict=False):
         for i, sl in enumerate(SLICE_NAME):
             if sl in per_s.index.get_level_values(0):
                 s = per_s.loc[sl, c]
@@ -507,7 +507,7 @@ def response(df: pd.DataFrame, profile: pd.DataFrame, out: Path) -> None:
     for sl, name in SLICE_NAME.items():
         fig, axes = grid(len(tele))
         g = run_slice[run_slice.slice_id == sl]
-        for ax, c in zip(axes, tele):
+        for ax, c in zip(axes, tele, strict=False):
             m = g.groupby(["slice_prb", "sched"])[c].median().unstack()
             for i, s in enumerate(m.columns):
                 ax.plot(m.index, m[s], color=SERIES[i], marker="o", ms=3)
@@ -544,7 +544,7 @@ def utilisation(df: pd.DataFrame, out: Path) -> None:
     show(t, out, "10b_utilisation_by_prb_sched")
 
     fig, axes = plt.subplots(1, 3, figsize=(11, 3), sharey=True)
-    for ax, (sl, name) in zip(axes, SLICE_NAME.items()):
+    for ax, (sl, name) in zip(axes, SLICE_NAME.items(), strict=False):
         m = run[run.slice_id == sl].groupby(["slice_prb", "sched"]).util.median().unstack()
         for i, s in enumerate(m.columns):
             ax.plot(m.index, m[s], color=SERIES[i], marker="o", ms=3, label=SCHEDULER[int(s)])
@@ -568,7 +568,7 @@ def per_bs(df: pd.DataFrame, out: Path) -> None:
     show(ue.unstack(0).round(1), out, "11_per_ue_radio")
 
     fig, axes = grid(len(cols), ncols=4, w=3.2)
-    for ax, c in zip(axes, cols):
+    for ax, c in zip(axes, cols, strict=False):
         values = [act.loc[act.bs == b, c].dropna() for b in sorted(act.bs.unique())]
         data = [v.sample(n=min(20000, len(v)), random_state=0) for v in values]
         ax.boxplot(data, showfliers=False, widths=.5,

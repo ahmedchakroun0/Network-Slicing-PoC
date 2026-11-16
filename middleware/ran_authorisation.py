@@ -1,12 +1,10 @@
-# middleware/ran_authorisation.py
-
 import json
 import logging
 import os
 import uuid
 from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from langchain.agents.middleware import AgentMiddleware, ModelResponse
@@ -21,6 +19,7 @@ from src.schema.near_rt_ric import (
     RANActionProposal,
     RANToolResult,
 )
+from tools.registry import PROTECTED_TOOLS, REASONING_FIELDS, RESOURCE_OF
 
 logger = logging.getLogger(__name__)
 
@@ -31,37 +30,11 @@ logger = logging.getLogger(__name__)
 # parameters after an LLM review rejection.
 MAX_PROTECTED_CALLS = int(os.getenv("MAX_PROTECTED_CALLS_PER_INVOCATION", "20"))
 
-# The RIC agents choose and call the action tools themselves. Each of these
-# tools is protected: the call is turned into a RANActionProposal, validated
-# by the Trust & Governance Agent here, and only then executed.
-NEAR_RT_TOOLS = frozenset(
-    [
-        "adjust_prb_allocation",
-        "optimize_scheduler",
-        "optimize_handover",
-        "adjust_power_control",
-        "adjust_qos_parameters",
-        "adjust_link_adaptation",
-    ]
-)
-NON_RT_POLICY_TOOLS = frozenset(["update_slice_resource_policy"])
-PROTECTED_TOOLS = NEAR_RT_TOOLS | NON_RT_POLICY_TOOLS
-
-# The network resource each protected tool controls. At most one call per
-# resource is executed per invocation, so two tools acting on the same
-# resource cannot apply duplicate or conflicting changes for one record.
-RESOURCE_OF = {
-    "adjust_prb_allocation": "prb_allocation",
-    "update_slice_resource_policy": "prb_policy",
-    "optimize_scheduler": "scheduler",
-    "optimize_handover": "handover",
-    "adjust_power_control": "power",
-    "adjust_qos_parameters": "qos",
-    "adjust_link_adaptation": "link_adaptation",
-}
-
-# Arguments every protected tool takes besides its own action parameters.
-REASONING_FIELDS = ("rationale", "expected_effect", "evidence_sources", "confidence")
+# The RIC agents choose and call the action tools themselves. Each tool in
+# PROTECTED_TOOLS (tools/registry.py) is protected: the call is turned into a
+# RANActionProposal, validated by the Trust & Governance Agent here, and
+# only then executed. RESOURCE_OF gives the network resource each tool
+# controls: at most one call per resource is executed per invocation.
 
 # Set on the AIMessage of a tool call the middleware produced itself.
 FORCED_FLAG = "forced_by_middleware"
@@ -100,7 +73,7 @@ class AuditSink:
             logger.exception("Could not persist audit item %s", tool_call_id)
 
     def add_knowledge(self, tool_call_id: str, tool: str, args: dict[str, Any], result: Any) -> None:
-        entry = KnowledgeEntry(tool_call_id=tool_call_id, at=datetime.now(timezone.utc),
+        entry = KnowledgeEntry(tool_call_id=tool_call_id, at=datetime.now(UTC),
                                tool=tool, args=args, result=str(result))
         self.knowledge.append(entry)
         self._emit(self._on_knowledge, entry, tool_call_id)
@@ -130,7 +103,7 @@ class AuditSink:
         action = ActionEntry(
             i=len(self.actions),
             tool_call_id=tool_call_id,
-            at=datetime.now(timezone.utc),
+            at=datetime.now(UTC),
             tool=execution.tool_name,
             target=execution.target,
             params={k: v for k, v in execution.parameters.items() if k != "target"},

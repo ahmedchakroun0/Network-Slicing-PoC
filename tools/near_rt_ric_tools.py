@@ -4,7 +4,6 @@ from langchain_core.tools import tool
 
 from src.schema.monitoring import Scheduler
 
-
 # Resolved from the project root so the tool works from any working directory.
 KNOWLEDGE_FILE = Path(__file__).resolve().parent.parent / "data" / "ran_knowledge.txt"
 

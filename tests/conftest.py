@@ -27,7 +27,6 @@ import pytest
 import src.repositories.mongo_repository as mongo_repository_module
 from src.memory.working_memory import RedisWorkingMemory
 from src.repositories.mongo_repository import MongoRepository
-
 from src.schema.monitoring import (
     AgentInvocation,
     KPIStatus,

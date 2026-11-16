@@ -50,7 +50,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:          # allow `python scripts/prepare_coloran.py`
     sys.path.insert(0, str(ROOT))
 
-from src.schema.monitoring import TelemetryRecord  # noqa: E402
+from src.schema.monitoring import TelemetryRecord
 
 SLICE_NAME = {0: "eMBB", 1: "MTC", 2: "URLLC"}
 SCHEDULER = {0: "round_robin", 1: "waterfilling", 2: "proportional_fair"}
@@ -151,7 +151,7 @@ def build_cell_run(key: tuple, files: list[Path], window_s: float) -> list[dict]
     out["window_start_s"] = start + out.w * window_s
     out["slice_id"] = out.slice.map(SLICE_NAME)
     out["record_id"] = [f"{run.replace('/', '-')}-bs{bs}-t{t:06.1f}-{s}"
-                        for t, s in zip(out.window_start_s, out.slice_id)]
+                        for t, s in zip(out.window_start_s, out.slice_id, strict=False)]
     out = out.assign(cell_id=f"bs{bs}", run=run, window_s=window_s, cell_prb=CELL_PRB,
                      scheduler=SCHEDULER[sched], slice_prb=out.slice_prb.astype(int),
                      active_ues=out.active_ues.astype(int))

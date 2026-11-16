@@ -42,11 +42,11 @@ import math
 import re
 from typing import Any
 
-from agents.monitoring_agent import MonitoringAgent
-from agents.ran_trust_governance import NON_RT_MIN_PERSISTENCE
-import agents.ran_trust_governance as governance
 from langchain_core.tools import BaseTool
 
+import agents.ran_trust_governance as governance
+from agents.monitoring_agent import MonitoringAgent
+from agents.ran_trust_governance import NON_RT_MIN_PERSISTENCE
 from src.schema.monitoring import TelemetryRecord
 from src.schema.sla import SLA_PROFILES
 from tools import near_rt_ric_tools, non_rt_ric_tools

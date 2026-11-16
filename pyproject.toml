@@ -1,10 +1,7 @@
 [project]
 name = "network-slicing-poc"
 version = "0.1.0"
-description = ""
-authors = [
-    {name = "Your Name",email = "you@example.com"}
-]
+description = "Trust-gated multi-agent LLM control for O-RAN network slicing (research PoC)"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "langgraph (>=1.2.15,<2.0.0)",
@@ -17,7 +14,6 @@ dependencies = [
     "langchain-litellm (>=0.11.1,<0.12.0)",
     "langsmith (>=0.14.9,<0.15.0)",
     "fakeredis (>=2.40.0,<3.0.0)",
-    "prisma (>=0.15.0,<0.16.0)",
     "pymongo (>=4.19.0,<5.0.0)",
     "matplotlib (>=3.11.2,<4.0.0)",
     "langchain-core (>=1.6.11,<2.0.0)"
@@ -41,3 +37,16 @@ dev = [
 testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
+
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+# pyflakes, pycodestyle errors, bugbear, import order, pyupgrade, ruff.
+select = ["E4", "E7", "E9", "F", "B", "I", "UP", "RUF100"]
+
+[tool.ruff.lint.per-file-ignores]
+# Scripts put the project root on sys.path before importing it.
+"scripts/*" = ["E402"]

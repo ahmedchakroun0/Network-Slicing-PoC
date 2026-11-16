@@ -1,2 +1,0 @@
-run,record,component,issue,detail
-run-24,coloran_0000000,monitoring,situation inconsistent,"situation='normal' with severity='high' and violations ['latency', 'jitter', 'throughput']"

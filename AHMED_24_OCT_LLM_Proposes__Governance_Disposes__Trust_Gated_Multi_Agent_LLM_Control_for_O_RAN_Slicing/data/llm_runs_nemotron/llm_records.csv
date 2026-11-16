@@ -1,5 +1,0 @@
-run,record,slice,cell,violations,label_ok,action_required,severity,situation,global_situation,selected,duplicate_agent,routing_consistent,objective_names_only_violated,objectives_cover_violations,claims_recent_execution,memory_executions_before,invocations_selected,invocations_logged
-run-23,coloran_0000000,eMBB,bs2,"latency,jitter,throughput",True,True,high,warning,"KPI violations detected: latency, jitter, throughput. Packet loss is within budget.",near_rt_ric:Fine-grained radio resource control for eMBB slice on cell bs2,False,True,True,True,0,0,1,1
-run-23,coloran_0000001,MTC,bs2,,True,False,none,normal,All KPIs within budget per deterministic SLA analysis; no violations detected.,,False,True,True,True,0,2,0,0
-run-24,coloran_0000000,eMBB,bs2,"latency,jitter,throughput",True,True,high,normal,violations_detected,"near_rt_ric:Fine-grained radio resource control (PRB allocation, scheduler, power control) for cell bs2 eMBB slice.",False,True,True,True,0,0,1,1
-run-24,coloran_0000001,MTC,bs2,,True,False,none,normal,normal,,False,True,True,True,0,2,0,0

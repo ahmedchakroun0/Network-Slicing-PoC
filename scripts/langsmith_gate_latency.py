@@ -134,11 +134,11 @@ def main() -> None:
     client = Client(api_key=key, api_url=os.getenv("LANGSMITH_ENDPOINT") or None)
     try:
         calls = collect(client, args.project, {r for r in args.runs.split(",") if r})
-    except Exception as exc:  # noqa: BLE001 - report access problems plainly
+    except Exception as exc:
         projects = []
         try:
             projects = [p.name for p in client.list_projects()]
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
         sys.exit(f"Could not read the traces ({type(exc).__name__}: {exc}). "
                  f"Projects visible with this key: {projects or 'none'}")

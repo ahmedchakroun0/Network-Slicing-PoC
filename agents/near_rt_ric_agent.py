@@ -1,16 +1,8 @@
-# near_rt_ric/agent.py
 from pathlib import Path
 
 from agents.base_ric import BaseRICAgent
-from tools.near_rt_ric_tools import (
-    search_ran_knowledge,
-    adjust_prb_allocation,
-    optimize_scheduler,
-    optimize_handover,
-    adjust_power_control,
-    adjust_qos_parameters,
-    adjust_link_adaptation,
-)
+from tools.near_rt_ric_tools import search_ran_knowledge
+from tools.registry import tools_of
 
 
 class NearRTRICAgent(BaseRICAgent):
@@ -18,13 +10,5 @@ class NearRTRICAgent(BaseRICAgent):
 
     agent_name = "near_rt_ric"
     prompt_path = Path("prompts/near_rt_ric.txt")
-    tools = [
-        search_ran_knowledge,
-        adjust_prb_allocation,
-        optimize_scheduler,
-        optimize_handover,
-        adjust_power_control,
-        adjust_qos_parameters,
-        adjust_link_adaptation,
-
-    ]
+    # Knowledge search plus every action tool the registry gives this role.
+    tools = [search_ran_knowledge, *tools_of("near_rt_ric")]

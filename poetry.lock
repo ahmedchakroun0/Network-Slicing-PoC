@@ -3293,21 +3293,6 @@ files = [
 ]
 
 [[package]]
-name = "nodeenv"
-version = "1.11.0"
-description = "Node.js virtual environment builder"
-optional = false
-python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*,>=2.7"
-groups = ["main"]
-files = [
-    {file = "nodeenv-1.11.0-py2.py3-none-any.whl", hash = "sha256:edaa16e6c14d7cf395d75d4bbd5a26390f4dc06501a33b4e76282b02cc688a25"},
-    {file = "nodeenv-1.11.0.tar.gz", hash = "sha256:3ce8fe5b71d16e8af7039ca65257354100bc772965d6bc549070649e53b1b146"},
-]
-
-[package.extras]
-certifi = ["certifi"]
-
-[[package]]
 name = "numpy"
 version = "2.5.4"
 description = "Fundamental package for array computing in Python"
@@ -3878,32 +3863,6 @@ files = [
     {file = "polars_runtime_32-1.44.2-cp310-abi3-win_arm64.whl", hash = "sha256:d51040d3ab40157f6db3c62be59cab5b80fb3c8d158924769c4982a1c8eef730"},
     {file = "polars_runtime_32-1.44.2.tar.gz", hash = "sha256:b84842f7d621aaca7a52e165e19a24f89db45f8aa13744941430218419a14a67"},
 ]
-
-[[package]]
-name = "prisma"
-version = "0.15.0"
-description = "Prisma Client Python is an auto-generated and fully type-safe database client"
-optional = false
-python-versions = ">=3.8.0"
-groups = ["main"]
-files = [
-    {file = "prisma-0.15.0-py3-none-any.whl", hash = "sha256:de949cc94d3d91243615f22ff64490aa6e2d7cb81aabffce53d92bd3977c09a4"},
-    {file = "prisma-0.15.0.tar.gz", hash = "sha256:5cd6402aa8322625db3fc1152040404e7fc471fe7f8fa3a314fa8a99529ca107"},
-]
-
-[package.dependencies]
-click = ">=7.1.2"
-httpx = ">=0.19.0"
-jinja2 = ">=2.11.2"
-nodeenv = "*"
-pydantic = ">=1.10.0,<3"
-python-dotenv = ">=0.12.0"
-tomlkit = "*"
-typing-extensions = ">=4.5.0"
-
-[package.extras]
-all = ["nodejs-bin"]
-node = ["nodejs-bin"]
 
 [[package]]
 name = "prompt-toolkit"
@@ -6452,4 +6411,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.13"
-content-hash = "2f258f76549ef91e2fcf5b4b7d971cec3f45b7ce7e268e9015f580389e337690"
+content-hash = "1b35dedc8e1a9461808931e4b463e558e0569291409e7d2936d658a294ec2df3"

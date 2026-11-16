@@ -166,7 +166,7 @@ def timeline_data(groups: list[tuple[str, list[str]]], results: Path = RESULTS):
         if not rows:
             continue
         t0 = min(t for t, *_ in rows)
-        pos = lambda t: x0 + t - t0  # noqa: E731
+        pos = lambda t: x0 + t - t0  # noqa: E731, B023 (used in this iteration)
         records += [(pos(t), t, thr, rho, run) for t, thr, rho, run in sorted(rows)]
         calls += [(pos(t), tool, outcome) for t, tool, outcome in acts]
         spans.append((label, x0, pos(max(t for t, *_ in rows))))
@@ -270,7 +270,7 @@ def latency_figure(data: dict, live: dict | None = None) -> str:
            "\\begin{tikzpicture}",
            f"\\begin{{axis}}[{common}, width=0.5\\columnwidth, name=cdf, xmode=log, xmin=0.3, xmax={xmax:g}, ymin=0, ymax=1.02,",
            "  xtick={1,100,10000,1000000,100000000}, xlabel={Decision latency ($\\mu$s)}, ylabel={CDF},",
-           f"  title={{(a) Latency per call}},",
+           "  title={(a) Latency per call},",
            "  legend to name=legLatency, legend columns=3, legend cell align=left,",
            "  legend style={font=\\tiny, draw=none, /tikz/every even column/.append style={column sep=5pt}},",
            "  xminorticks=false]"]
@@ -283,7 +283,7 @@ def latency_figure(data: dict, live: dict | None = None) -> str:
         pts = " ".join(f"({x:.1f},{y:.4f})" for x, y in _cdf(reviewed, len(reviewed)))
         out.append(f"\\addplot[llmfill!40!ink, line width=1.1pt, const plot, no marks] "
                    f"coordinates {{({reviewed and min(reviewed):.1f},0) {pts}}};")
-        out.append(f"\\addlegendentry{{Gate + $g_V$ (live)}}")
+        out.append("\\addlegendentry{Gate + $g_V$ (live)}")
     out += ["\\draw[detline, densely dashed, line width=0.5pt] (axis cs:1e4,0) -- (axis cs:1e4,1.02);",
             "\\node[font=\\tiny, text=detline, rotate=90, anchor=south east, xshift=-0.5pt] at (axis cs:1e4,1.0)"
             " {Near-RT 10\\,ms};",

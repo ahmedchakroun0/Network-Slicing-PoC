@@ -1,4 +1,3 @@
-# base_ric/agent.py
 """Shared base for the RIC agents (Near-RT and Non-RT).
 
 The two RIC agents are siblings: neither inherits from the other. All the
@@ -9,7 +8,7 @@ collection, typed result). A concrete agent only declares its identity:
     prompt_path  - its system prompt file
     tools        - tools given to the LLM (knowledge search + its action
                    tools). The agent picks the tool itself; every tool
-                   listed in middleware PROTECTED_TOOLS is gated by the
+                   in PROTECTED_TOOLS (tools/registry.py) is gated by the
                    Trust & Governance Agent.
 """
 
@@ -21,9 +20,17 @@ from typing import Any, ClassVar
 
 from langchain.agents import AgentState, create_agent
 from langchain.agents.middleware import ModelRequest, dynamic_prompt
+from langchain_core.messages import AIMessage
 
+from middleware.ran_authorisation import (
+    RAN_AUDIT,
+    AuditSink,
+    RANAuthorizationMiddleware,
+)
 from src.core.llm import create_llm, message_text
 from src.memory.working_memory import RedisWorkingMemory
+from src.repositories.mongo_repository import MongoRepository
+from src.schema.mongo_run_document import ActionEntry, AgentMessage, KnowledgeEntry
 from src.schema.monitoring import AgentInvocation
 from src.schema.near_rt_ric import (
     GovernanceResult,
@@ -31,19 +38,8 @@ from src.schema.near_rt_ric import (
     RANToolResult,
 )
 from src.schema.near_rt_ric import NearRTRICResult as RICResult  # shared result
-from src.repositories.mongo_repository import MongoRepository
-
-from langchain_core.messages import AIMessage
-
-from src.schema.mongo_run_document import ActionEntry, AgentMessage, KnowledgeEntry
 from src.schema.working_memory import ActionEvent
-
-from middleware.ran_authorisation import (
-    PROTECTED_TOOLS,
-    RAN_AUDIT,
-    AuditSink,
-    RANAuthorizationMiddleware,
-)
+from tools.registry import PROTECTED_TOOLS
 
 logger = logging.getLogger(__name__)
 

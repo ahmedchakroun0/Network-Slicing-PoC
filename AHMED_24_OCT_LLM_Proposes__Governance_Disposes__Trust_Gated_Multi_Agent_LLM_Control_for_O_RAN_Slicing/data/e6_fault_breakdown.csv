@@ -1,4 +1,0 @@
-arm,n_inverted_policy,x_inverted_policy,n_out_of_range,x_out_of_range,n_wrong_direction,x_wrong_direction,n_hallucinated_ids,x_hallucinated_ids,n_spurious_healthy,x_spurious_healthy
-gov,84.0,0.0,97.0,0.0,95.0,95.0,85.0,0.0,77.0,0.0
-nogov,99.0,99.0,106.0,106.0,109.0,109.0,94.0,94.0,91.0,91.0
-static,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0

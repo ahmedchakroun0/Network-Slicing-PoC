@@ -11,11 +11,11 @@ import pandas as pd
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-import prepare_coloran as prep  # noqa: E402
+import prepare_coloran as prep
 
-from agents.monitoring_agent import MonitoringAgent  # noqa: E402
-from scripts.run_dataset import _row_to_telemetry_record  # noqa: E402
-from src.schema.monitoring import TelemetryRecord  # noqa: E402
+from agents.monitoring_agent import MonitoringAgent
+from scripts.run_dataset import _row_to_telemetry_record
+from src.schema.monitoring import TelemetryRecord
 
 # The real 36-column header, unnamed separator columns included.
 HEADER = ("Timestamp,num_ues,IMSI,RNTI,,slicing_enabled,slice_id,slice_prb,power_multiplier,"
