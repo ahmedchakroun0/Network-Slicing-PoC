@@ -1,0 +1,50 @@
+% Fig. 3 -- governed tool-call workflow (sequence view; TikZ), steps 2-6 of Sec. III-B
+\begin{tikzpicture}[
+  font=\scriptsize, >=Stealth, yscale=0.8,
+  hd/.style={draw=ink, rounded corners=1.5pt, fill=#1, inner sep=2pt, minimum width=11mm, align=center, font=\scriptsize\bfseries},
+  life/.style={draw=inkmuted, densely dotted, line width=0.4pt},
+  msg/.style={->, line width=0.55pt, draw=ink},
+  rej/.style={->, line width=0.55pt, draw=rejline},
+  ok/.style={->, line width=0.55pt, draw=okline},
+  frame/.style={draw=inkmuted, densely dashed, line width=0.4pt},
+  tag/.style={font=\scriptsize, anchor=north west, fill=white, inner sep=1pt},
+  act/.style={draw=detline, fill=detfill, inner sep=1.5pt, align=center, rounded corners=1pt, font=\scriptsize},
+]
+\def\H{-94mm}
+\foreach \x/\n/\t/\c in {0/M/Monitoring/llmfill, 17/A/RIC agent/llmfill, 34/W/Middleware/white, 51/G/Governance/detfill, 68/T/RAN tool/white}{
+  \node[hd=\c] (\n) at (\x mm,0) {\t};
+  \draw[life] (\n.south) -- ++(0,\H);
+}
+% 1
+\draw[msg] (0,-9mm) -- node[above]{invoke$(a$, objective$)$} (17mm,-9mm);
+\node[font=\scriptsize, text=detline, anchor=north] at (8.5mm,-9.6mm) {$c_t$ merged by code};
+% 2
+\node[act, fill=llmfill, draw=ink] at (17mm,-17mm) {LLM picks $u{=}(\tau,\theta,r)$};
+% 3
+\draw[msg] (17mm,-24mm) -- node[above]{tool call $u$} (34mm,-24mm);
+\node[act, fill=white, draw=ink] at (34mm,-31mm) {invocation guards; build $p$;\\[-1pt]attach $c_t$; $p$ invalid $\Rightarrow$ reject};
+% 4
+\draw[msg] (34mm,-39mm) -- node[above]{authorize$(p)$} (51mm,-39mm);
+\node[act] at (51mm,-46mm) {S$\to$P$\to$L$\to$R,\\[-1pt]then V: LLM review};
+\draw[msg] (51mm,-54mm) -- node[above]{$G(p,c_t)$} (34mm,-54mm);
+% 5 alt: approved
+\draw[frame] (11mm,-57mm) rectangle (74mm,-75mm);
+\node[tag] at (11mm,-57mm) {alt\ [$G{=}1$]};
+\draw[ok] (34mm,-62mm) -- node[above, text=okline]{execute} (68mm,-62mm);
+\draw[ok] (68mm,-66.5mm) -- node[above, text=okline]{result} (34mm,-66.5mm);
+\draw[ok] (34mm,-71mm) -- node[above, text=okline]{result} (17mm,-71mm);
+% 6 else: rejected
+\draw[frame] (11mm,-75mm) rectangle (74mm,-88mm);
+\node[tag] at (11mm,-75mm) {else\ [$G{=}0$]};
+\draw[rej] (34mm,-84mm) -- node[above, text=rejline]{reason} (17mm,-84mm);
+
+% audit on the governance lifeline
+\node[draw=inkmuted, fill=storefill, inner sep=1.5pt, font=\scriptsize, anchor=north] at (51mm,-91mm) {audit record (always)};
+
+% steps of the workflow (Sec. III-B): a bar spanning each step, its number and name
+\foreach \top/\bot/\n/\name in {-4/-12/2/Route, -13.5/-27/3/Propose, -28.5/-56/4/Authorize, -57/-88/5/{Execute\\or reject}, -89.5/-96/6/Audit}{
+  \draw[detline, line width=1.2pt] (-7mm,\top mm) -- (-7mm,\bot mm);
+  \node[anchor=east, align=right, inner sep=1pt, font=\scriptsize\bfseries]
+    at (-8mm,{(\top+\bot)/2*1mm}) {\name~\sn{\n}};
+}
+\end{tikzpicture}

@@ -1,0 +1,42 @@
+\begin{table}[!t]
+\centering
+\caption{Live LLM agents behind the gate (Nemotron~3.5 Lightning). R1: up to 20 calls per invocation (3 runs); R2: two calls, compact prompt (1 run). Values in \%, with counts; key results in bold}
+\label{tab:live}
+\footnotesize
+\setlength{\tabcolsep}{2pt}
+\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}}lccc@{}}
+\toprule
+\textbf{Metric} & \textbf{R1} & \textbf{R2} & \textbf{All}\\
+\midrule
+Violated records & 7 & 4 & 11\\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Interpretation (before code correction)}}\\
+Violations flagged & 100 (7/7) & 100 (4/4) & 100\\
+Routing per rule & 100 (7/7) & 100 (4/4) & 100\\
+Severity correct & 86 (6/7) & 75 (3/4) & 82\\
+Situation not ``normal'' & 29 (2/7) & 25 (1/4) & \textbf{27}\\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Proposed actions}}\\
+Tool calls per record & 4.6 & 5.0 & 4.7\\
+Tool fits diagnosis & 55 (11/20) & \textbf{83} (10/12) & 66\\
+PRB change upward & 100 (11/11) & 100 (10/10) & 100\\
+Numbers traceable & 98 (483/492) & 99 (256/259) & \textbf{98.4}\\
+Evidence supported & 96 (94/98) & 85 (29/34) & 93\\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Gate decisions}}\\
+Approved & 53 (17/32) & 30 (6/20) & 44\\
+Rejected by code & 31 (10/32) & 55 (11/20) & \textbf{40}\\
+Rejected by $g_V$ & 16 (5/32) & 15 (3/20) & \textbf{15}\\
+$g_V$ rejection overturned & 0 & 0 & \textbf{0}\\
+Invariant violations & 0 & 0 & \textbf{0}\\
+PRB share outside policy & 0 & 0 & \textbf{0}\\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Cost per violated record}}\\
+Model calls & 12.6 & 11.0 & --\\
+Tokens in / out (k) & 79.2 / 37.9 & 63.6 / 22.9 & --\\
+\quad reasoning (k) & -- & 19.0 & --\\
+Tokens total (k) & 117.2 & \textbf{86.5} & --\\
+RIC phase (s) & 501 & \textbf{273} & --\\
+\bottomrule
+\end{tabular*}
+\end{table}

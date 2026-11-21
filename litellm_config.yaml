@@ -1,0 +1,63 @@
+model_list:
+  - model_name: hf-network-slicing-model
+    litellm_params:
+      model: huggingface/meta-llama/Llama-3.1-8B-Instruct
+      api_key: os.environ/HF_TOKEN
+
+  - model_name: grok-network-slicing-model
+    litellm_params:
+      model: xai/grok-4.5
+      api_key: os.environ/GROK_API_KEY
+
+  - model_name: gemini-network-slicing-model
+    litellm_params:
+      model: gemini/gemini-3.8-flash
+      api_key: os.environ/GEMINI_API_KEY
+
+  # 8B (llama3.2:3b is below 7B). Needs: ollama pull llama3.1:8b
+  - model_name: ollama-network-slicing-model
+    litellm_params:
+      model: ollama_chat/llama3.1:8b
+      api_base: http://localhost:11434
+
+  - model_name: nvidia-network-slicing-model
+    litellm_params:
+      model: openrouter/nvidia/nemotron-3.5-lightning:free
+      api_key: os.environ/OPEN_ROUTER_API_KEY
+  # open-mistral-7b is no longer offered; Ministral 8B supports tool calling.
+  - model_name: mistral-network-slicing-model
+    litellm_params:
+      model: mistral/ministral-8b-latest
+      api_key: os.environ/MISTRAL_API_KEY
+  - model_name: mistral-network-slicing-model-2
+    litellm_params:
+      model: mistral/ministral-8b-latest
+      api_key: os.environ/MISTRAL_API_KEY_2
+  # Mistral Small 3.1 24B: listed with tool calling, clean tool calls in a test.
+  # Workers AI through its OpenAI-compatible endpoint: LiteLLM's cloudflare/
+  # provider does not pass tools. CLOUDFLARE_API_BASE =
+  # https://api.cloudflare.com/client/v4/accounts/<CLOUDFLARE_ACCOUNT_ID>/ai/v1
+  - model_name: cloudflare-network-slicing-model
+    litellm_params:
+      model: openai/@cf/mistralai/mistral-small-3.1-24b-instruct
+      api_base: os.environ/CLOUDFLARE_API_BASE
+      api_key: os.environ/CLOUDFLARE_API_KEY
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/DATABASE_URL
+
+# Provider switching: a model that keeps failing (rate limit, timeout, API
+# error) is put on cooldown and its calls go to the next model of its chain.
+# When the whole chain is rate-limited, the client gets a 429 and the dataset
+# run stops (src/core/llm.py, PROVIDER_GUARD). The model that answered each
+# record is stored with it (records.models in MongoDB).
+router_settings:
+  num_retries: 2 # per model, with backoff, before falling back
+  allowed_fails: 1 # failures per minute before a model is cooled down
+  cooldown_time: 60 # seconds a failing model is skipped
+  fallbacks:
+    - nvidia-network-slicing-model: ["gemini-network-slicing-model"]
+    - mistral-network-slicing-model: ["mistral-network-slicing-model"]
+    - mistral-network-slicing-model-2: ["mistral-network-slicing-model-2"]
+    - cloudflare-network-slicing-model: ["nvidia-network-slicing-model"]
+    - gemini-network-slicing-model: ["nvidia-network-slicing-model"]

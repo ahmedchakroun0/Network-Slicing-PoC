@@ -1,0 +1,138 @@
+[
+  {
+    _id: 'run-44',
+    run_id: 'run-44',
+    summary: {
+      rows_selected: 2,
+      rows_processed: 2,
+      rows_failed: 0,
+      monitoring_action_required: 1,
+      agent_invocations: { near_rt_ric: 0, non_rt_ric: 0 }
+    },
+    records: {
+      coloran_0000015: {
+        record_id: 'coloran_0000015',
+        telemetry_record: {
+          use_case_type: 'eMBB video (CBR 4 Mbps/UE)',
+          packet_loss_budget: 0.01,
+          latency_budget_ns: 100000000,
+          jitter_budget_ns: 50000000,
+          data_rate_budget_gbps: 0.0072,
+          required_mobility: 'no',
+          required_connectivity: 'yes',
+          slice_available_transfer_rate_gbps: 0.004938534,
+          slice_latency_ns: 878580151.4346044,
+          slice_packet_loss: 0,
+          slice_jitter_ns: 742448753.4174732,
+          slice_type: 'eMBB',
+          slice_handover: 'no',
+          cell_id: 'bs2',
+          record_id: 'coloran_0000015'
+        },
+        ground_truth: {
+          record_id: 'coloran_0000015',
+          metric_flags: { latency: true, jitter: true, packet_loss: false, throughput: true },
+          sla_violations_raw: "['latency', 'jitter', 'throughput']",
+          sla_violations: [ 'latency', 'jitter', 'throughput' ],
+          sla_evaluation_status: 'violation'
+        },
+        comparison: {
+          metric_matches: { latency: true, jitter: true, packet_loss: true, throughput: true },
+          sla_violations_match: true,
+          evaluation_status_match: true
+        },
+        computed_analysis: {
+          latency: { measured: 878580151.4346044, budget: 100000000, status: 'violation' },
+          jitter: { measured: 742448753.4174732, budget: 50000000, status: 'violation' },
+          packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+          throughput: { measured: 0.004938534, budget: 0.0072, status: 'violation' },
+          violations: [ 'latency', 'jitter', 'throughput' ],
+          unavailable_metrics: []
+        },
+        monitoring_decision: {
+          situation: 'warning',
+          severity: 'high',
+          global_situation: 'violations_detected',
+          action_required: true,
+          sla_analysis: {
+            latency: { measured: 878580151.4346044, budget: 100000000, status: 'violation' },
+            jitter: { measured: 742448753.4174732, budget: 50000000, status: 'violation' },
+            packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+            throughput: { measured: 0.004938534, budget: 0.0072, status: 'violation' },
+            violations: [ 'latency', 'jitter', 'throughput' ],
+            unavailable_metrics: []
+          },
+          selected_agents: [],
+          reason: 'Violations detected for latency (measured 878.58M ns vs budget 100M ns, ~8.79x over), jitter (measured 742.45M ns vs budget 50M ns, ~14.85x over), and throughput (measured 0.00494 Gbps vs budget 0.0072 Gbps, under budget). Consecutive violation count is 1 for each violated KPI, below the 3-record threshold required for Non-RT RIC governance. No prior tool executions to repeat. Selecting near-RT RIC for fast local actions on cell bs2 eMBB slice.',
+          record_id: 'coloran_0000015'
+        },
+        agent_executions: {},
+        error: null
+      },
+      coloran_0000016: {
+        record_id: 'coloran_0000016',
+        telemetry_record: {
+          use_case_type: 'MTC sensing (Poisson 30 pkt/s)',
+          packet_loss_budget: 0.01,
+          latency_budget_ns: 100000000,
+          jitter_budget_ns: 50000000,
+          data_rate_budget_gbps: 0.00003,
+          required_mobility: 'no',
+          required_connectivity: 'yes',
+          slice_available_transfer_rate_gbps: 0.00009944,
+          slice_latency_ns: 0,
+          slice_packet_loss: 0,
+          slice_jitter_ns: 0,
+          slice_type: 'MTC',
+          slice_handover: 'no',
+          cell_id: 'bs2',
+          record_id: 'coloran_0000016'
+        },
+        ground_truth: {
+          record_id: 'coloran_0000016',
+          metric_flags: {
+            latency: false,
+            jitter: false,
+            packet_loss: false,
+            throughput: false
+          },
+          sla_violations_raw: '[]',
+          sla_violations: [],
+          sla_evaluation_status: 'ok'
+        },
+        comparison: {
+          metric_matches: { latency: true, jitter: true, packet_loss: true, throughput: true },
+          sla_violations_match: true,
+          evaluation_status_match: true
+        },
+        computed_analysis: {
+          latency: { measured: 0, budget: 100000000, status: 'ok' },
+          jitter: { measured: 0, budget: 50000000, status: 'ok' },
+          packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+          throughput: { measured: 0.00009944, budget: 0.00003, status: 'ok' },
+          violations: [],
+          unavailable_metrics: []
+        },
+        monitoring_decision: {
+          situation: 'normal',
+          severity: 'none',
+          global_situation: 'violations_detected',
+          action_required: false,
+          sla_analysis: {
+            latency: { measured: 0, budget: 100000000, status: 'ok' },
+            jitter: { measured: 0, budget: 50000000, status: 'ok' },
+            packet_loss: { measured: 0, budget: 0.01, status: 'ok' },
+            throughput: { measured: 0.00009944, budget: 0.00003, status: 'ok' },
+            violations: [],
+            unavailable_metrics: []
+          },
+          selected_agents: [],
+          reason: 'All monitored KPIs were evaluated and no SLA violations were detected.',
+          record_id: 'coloran_0000016'
+        },
+        agent_executions: {},
+        error: null
+      }
+    }
+  }
+]

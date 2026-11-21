@@ -1,0 +1,375 @@
+{
+  "run_ids": [
+    "claude-run2",
+    "claude-run3",
+    "claude-run4"
+  ],
+  "models": [
+    "nvidia-network-slicing-model"
+  ],
+  "models_served": {
+    "litellm_proxy/nvidia-network-slicing-model": 88
+  },
+  "stopped": {
+    "claude-run3": "Every model of the fallback chain is rate-limited (row 22): RateLimitError: litellm.RateLimitError: RateLimitError: Litellm_proxyException - No deployments available for selected model, Try again in 60 seconds. All deployments for selected model are in cooldown. Passed model=nvidia-network-slicing-model. pre-call-checks=False, cooldown_list=['f9c6e5ac99b3283ea3dcd7dda3b1e40"
+  },
+  "dataset": {
+    "rows_selected": 30,
+    "records_with_violation": 7,
+    "rows_without_violation": 20,
+    "rows_failed": 1,
+    "records_not_evaluated": 1,
+    "by_slice": {
+      "eMBB": 7
+    },
+    "cells": 1,
+    "max_persistence": 4
+  },
+  "monitoring": {
+    "decision_overridden_by_code": 5,
+    "non_rt_dropped_below_threshold": 0,
+    "near_rt_fallback": 0,
+    "agent_selected": {
+      "near_rt_ric": 7,
+      "non_rt_ric": 3
+    },
+    "situation": {
+      "warning": 5,
+      "critical": 2
+    }
+  },
+  "governance": {
+    "proposals": 32,
+    "approved": {
+      "count": 17,
+      "n": 32,
+      "rate": 0.53125,
+      "ci95": [
+        0.3644923793257382,
+        0.6913087009831766
+      ]
+    },
+    "rejected_by_stage": {
+      "schema": 2,
+      "llm_review": 5,
+      "invocation_limit": 5,
+      "invalid_proposal": 2,
+      "resource_safety": 1
+    },
+    "review_verdict_false": {
+      "goal_aligned": 3,
+      "reasoning_sound": 5,
+      "behavior_acceptable": 2
+    },
+    "per_tool": {
+      "adjust_prb_allocation": {
+        "proposed": 7,
+        "approved": 6,
+        "rejected": 1
+      },
+      "optimize_scheduler": {
+        "proposed": 6,
+        "approved": 4,
+        "rejected": 2
+      },
+      "adjust_qos_parameters": {
+        "proposed": 6,
+        "approved": 2,
+        "rejected": 4
+      },
+      "adjust_link_adaptation": {
+        "proposed": 9,
+        "approved": 2,
+        "rejected": 7
+      },
+      "update_slice_resource_policy": {
+        "proposed": 4,
+        "approved": 3,
+        "rejected": 1
+      }
+    },
+    "per_agent": {
+      "near_rt_ric": 28,
+      "non_rt_ric": 4
+    }
+  },
+  "behaviour": {
+    "calls_per_record": {
+      "n": 7,
+      "mean": 4.571428571428571,
+      "median": 4.0,
+      "p95": 8.0,
+      "max": 8.0
+    },
+    "forced_calls": {
+      "count": 8,
+      "n": 32,
+      "rate": 0.25,
+      "ci95": [
+        0.1325224398262155,
+        0.42106891770246624
+      ]
+    },
+    "resubmissions": {
+      "rejected_then_same_tool_approved": 3,
+      "review_rejection_overturned_by_rewording": 0,
+      "rejected_never_approved": 12
+    },
+    "mean_confidence": {
+      "approved": 0.7547058823529413,
+      "rejected": 0.6686666666666666
+    }
+  },
+  "invariant_violations": {
+    "rejected_but_executed": 0,
+    "approved_but_not_executed": 0,
+    "non_rt_below_persistence": 0,
+    "wrong_cell_executed": 0,
+    "wrong_slice_executed": 0
+  },
+  "cross_agent_conflicts": [],
+  "latency_s": {
+    "near_rt_ric": {
+      "n": 7,
+      "mean": 389.8377142857143,
+      "median": 402.206,
+      "p95": 629.2787000000001,
+      "max": 638.945
+    },
+    "non_rt_ric": {
+      "n": 3,
+      "mean": 259.2513333333333,
+      "median": 270.045,
+      "p95": 410.2038,
+      "max": 425.777
+    },
+    "ric_phase_per_record": {
+      "n": 7,
+      "mean": 500.9615714285714,
+      "median": 489.919,
+      "p95": 951.9258999999997,
+      "max": 1064.74
+    }
+  },
+  "llm_usage": {
+    "records_measured": 7,
+    "records_without_usage_field": 0,
+    "with_violation": {
+      "calls": {
+        "n": 7,
+        "mean": 12.571428571428571,
+        "median": 12.0,
+        "p95": 18.7,
+        "max": 19.0
+      },
+      "input_tokens": {
+        "n": 7,
+        "mean": 79226.85714285714,
+        "median": 76361.0,
+        "p95": 145683.89999999997,
+        "max": 159969.0
+      },
+      "output_tokens": {
+        "n": 7,
+        "mean": 37944.42857142857,
+        "median": 37498.0,
+        "p95": 68288.79999999999,
+        "max": 73495.0
+      },
+      "total_tokens": {
+        "n": 7,
+        "mean": 117171.28571428571,
+        "median": 113859.0,
+        "p95": 213972.69999999995,
+        "max": 233464.0
+      }
+    },
+    "with_violation_mean_per_caller": {
+      "governance_review": {
+        "calls": 3.142857142857143,
+        "input_tokens": 5885.0,
+        "output_tokens": 10806.42857142857
+      },
+      "monitoring": {
+        "calls": 1.0,
+        "input_tokens": 2218.285714285714,
+        "output_tokens": 5169.571428571428
+      },
+      "near_rt_ric": {
+        "calls": 7.142857142857143,
+        "input_tokens": 61458.0,
+        "output_tokens": 15946.285714285714
+      },
+      "non_rt_ric": {
+        "calls": 1.2857142857142858,
+        "input_tokens": 9665.57142857143,
+        "output_tokens": 6022.142857142857
+      }
+    },
+    "without_violation": {
+      "records": 20,
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    "mean_per_row_all": {
+      "calls": 3.259259259259259,
+      "input_tokens": 20540.296296296296,
+      "output_tokens": 9837.444444444445
+    },
+    "totals": {
+      "calls": 88,
+      "input_tokens": 554588,
+      "output_tokens": 265611
+    },
+    "failed_calls": 0,
+    "calls_without_usage": 0
+  },
+  "agent_quality": {
+    "monitoring": {
+      "sla_recomputed_agrees": {
+        "count": 7,
+        "n": 7,
+        "rate": 1.0,
+        "ci95": [
+          0.6456611570247934,
+          1.0
+        ]
+      },
+      "llm_flags_violation": {
+        "count": 7,
+        "n": 7,
+        "rate": 1.0,
+        "ci95": [
+          0.6456611570247934,
+          1.0
+        ]
+      },
+      "llm_situation_ok": {
+        "count": 2,
+        "n": 7,
+        "rate": 0.2857142857142857,
+        "ci95": [
+          0.0822171657090155,
+          0.6410709098517873
+        ]
+      },
+      "llm_severity_agrees": {
+        "count": 6,
+        "n": 7,
+        "rate": 0.8571428571428571,
+        "ci95": [
+          0.48686549668097007,
+          0.9743210440510253
+        ]
+      },
+      "llm_routing_agrees": {
+        "count": 7,
+        "n": 7,
+        "rate": 1.0,
+        "ci95": [
+          0.6456611570247934,
+          1.0
+        ]
+      },
+      "objective_names_kpis": {
+        "count": 7,
+        "n": 7,
+        "rate": 1.0,
+        "ci95": [
+          0.6456611570247934,
+          1.0
+        ]
+      },
+      "numbers_traceable": {
+        "count": 118,
+        "n": 118,
+        "rate": 1.0,
+        "ci95": [
+          0.9684705387979147,
+          1.0
+        ]
+      }
+    },
+    "tool_choice": {
+      "diagnosis": {
+        "prb_limited": 32
+      },
+      "tool_cause": {
+        "consistent": 11,
+        "neutral": 12,
+        "inconsistent": 9
+      },
+      "consistent_among_judged": {
+        "count": 11,
+        "n": 20,
+        "rate": 0.55,
+        "ci95": [
+          0.3420820083075997,
+          0.7418049791429071
+        ]
+      },
+      "direction_ok": {
+        "count": 11,
+        "n": 11,
+        "rate": 1.0,
+        "ci95": [
+          0.7411599827511859,
+          1.0
+        ]
+      },
+      "feasible": {
+        "count": 7,
+        "n": 7,
+        "rate": 1.0,
+        "ci95": [
+          0.6456611570247934,
+          1.0
+        ]
+      },
+      "no_op": 0
+    },
+    "grounding": {
+      "numbers_traceable": {
+        "count": 483,
+        "n": 492,
+        "rate": 0.9817073170731707,
+        "ci95": [
+          0.9656034409182491,
+          0.9903470077734297
+        ]
+      },
+      "actions_all_numbers_traceable": {
+        "count": 23,
+        "n": 32,
+        "rate": 0.71875,
+        "ci95": [
+          0.546251630618882,
+          0.8443559315435214
+        ]
+      },
+      "evidence_supported": {
+        "count": 94,
+        "n": 98,
+        "rate": 0.9591836734693877,
+        "ci95": [
+          0.899710305133373,
+          0.984015009472839
+        ]
+      },
+      "actions_without_evidence": 7,
+      "knowledge_cited_without_retrieval": 0
+    },
+    "governance_vs_rules": {
+      "approved_but_rule_inconsistent": 2,
+      "review_rejected_but_rule_consistent": 0
+    }
+  },
+  "enough_data": true,
+  "sla_detection": {
+    "rows_checked": 21,
+    "violated_rows": 8,
+    "missed": 0,
+    "runs_without_dataset": []
+  }
+}

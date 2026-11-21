@@ -1,0 +1,16 @@
+\begin{table}[!t]
+\centering
+\caption{E4: live LLM agents behind the gate}\label{tab:live}
+\begin{tabular}{lr}
+\hline
+Records with a violation & 3 \\
+Protected tool calls & 14 \\
+Approved (95\% Wilson CI) & 57.1\% [32.6, 78.6] \\
+Rejections by stage & \texttt{invalid\_proposal} 1; \texttt{invocation\_limit} 2; \texttt{llm\_review} 2; \texttt{schema} 1 \\
+Forced tool calls & 3 \\
+Review rejection overturned by rewording & 0 \\
+Executed PRB share outside slice policy & 0 \\
+Gate invariant violations & 0 \\
+\hline
+\end{tabular}
+\end{table}

@@ -1,0 +1,8 @@
+{
+  "name": "urllc_link_degradation",
+  "description": "Healthy cell; the URLLC UEs' link degrades from step 30 for 90 s and the link adaptation lags behind.",
+  "seed": 1,
+  "steps": 300,
+  "cells": {"bs2": {"scheduler": "round_robin", "tr": 12, "start_offset": 0}},
+  "events": [{"type": "link_degradation", "cell": "bs2", "slice": "URLLC", "db": 8, "start_step": 30, "duration": 90}]
+}

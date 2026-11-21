@@ -1,0 +1,4 @@
+run_id,seq,record_id,status,cell_id,slice_id,experiment,slice_prb,cell_prb,scheduler,throughput_per_ue_mbps,queueing_delay_ms,prb_utilisation,cell_spare_prb,violations,max_persistence,situation,severity,overridden,agents_selected,notes,ric_seconds,llm_calls,input_tokens,output_tokens
+claude-run2,13,sched0-tr2-exp1-bs2-t0054.0-eMBB,done,bs2,eMBB,sched0/tr2/exp1,18,50,round_robin,2.597259,566.382559,0.999667,30.329,"throughput,queueing_delay",1,warning,high,True,near_rt_ric,,177.54,8,31670,19374
+claude-run2,16,sched0-tr2-exp1-bs2-t0055.0-eMBB,done,bs2,eMBB,sched0/tr2/exp1,18,50,round_robin,2.469267,577.655706,0.999333,29.989,"throughput,queueing_delay",2,warning,high,True,near_rt_ric,,489.919,12,76361,37498
+claude-run2,19,sched0-tr2-exp1-bs2-t0056.0-eMBB,done,bs2,eMBB,sched0/tr2/exp1,18,50,round_robin,2.586976,585.868661,0.999667,29.713,"throughput,queueing_delay",3,critical,high,False,"near_rt_ric,non_rt_ric",,688.693,18,110171,46230

@@ -1,0 +1,224 @@
+{
+  "run_ids": [
+    "claude-run2"
+  ],
+  "models": [
+    "nvidia-network-slicing-model"
+  ],
+  "models_served": {
+    "litellm_proxy/nvidia-network-slicing-model": 38
+  },
+  "stopped": {},
+  "dataset": {
+    "rows_selected": 10,
+    "records_with_violation": 3,
+    "rows_without_violation": 14,
+    "rows_failed": 0,
+    "records_not_evaluated": 0,
+    "by_slice": {
+      "eMBB": 3
+    },
+    "cells": 1,
+    "max_persistence": 3
+  },
+  "monitoring": {
+    "decision_overridden_by_code": 2,
+    "non_rt_dropped_below_threshold": 0,
+    "near_rt_fallback": 0,
+    "agent_selected": {
+      "near_rt_ric": 3,
+      "non_rt_ric": 1
+    },
+    "situation": {
+      "warning": 2,
+      "critical": 1
+    }
+  },
+  "governance": {
+    "proposals": 14,
+    "approved": {
+      "count": 8,
+      "n": 14,
+      "rate": 0.5714285714285714,
+      "ci95": [
+        0.3259026690286936,
+        0.7861949006959948
+      ]
+    },
+    "rejected_by_stage": {
+      "schema": 1,
+      "llm_review": 2,
+      "invocation_limit": 2,
+      "invalid_proposal": 1
+    },
+    "review_verdict_false": {
+      "goal_aligned": 1,
+      "reasoning_sound": 2,
+      "behavior_acceptable": 1
+    },
+    "per_tool": {
+      "adjust_prb_allocation": {
+        "proposed": 2,
+        "approved": 2,
+        "rejected": 0
+      },
+      "optimize_scheduler": {
+        "proposed": 4,
+        "approved": 2,
+        "rejected": 2
+      },
+      "adjust_qos_parameters": {
+        "proposed": 2,
+        "approved": 2,
+        "rejected": 0
+      },
+      "adjust_link_adaptation": {
+        "proposed": 5,
+        "approved": 1,
+        "rejected": 4
+      },
+      "update_slice_resource_policy": {
+        "proposed": 1,
+        "approved": 1,
+        "rejected": 0
+      }
+    },
+    "per_agent": {
+      "near_rt_ric": 13,
+      "non_rt_ric": 1
+    }
+  },
+  "behaviour": {
+    "calls_per_record": {
+      "n": 3,
+      "mean": 4.666666666666667,
+      "median": 4.0,
+      "p95": 7.6,
+      "max": 8.0
+    },
+    "forced_calls": {
+      "count": 3,
+      "n": 14,
+      "rate": 0.21428571428571427,
+      "ci95": [
+        0.0757124833691637,
+        0.4758972377320828
+      ]
+    },
+    "resubmissions": {
+      "rejected_then_same_tool_approved": 1,
+      "review_rejection_overturned_by_rewording": 0,
+      "rejected_never_approved": 5
+    },
+    "mean_confidence": {
+      "approved": 0.75,
+      "rejected": 0.6666666666666666
+    }
+  },
+  "invariant_violations": {
+    "rejected_but_executed": 0,
+    "approved_but_not_executed": 0,
+    "non_rt_below_persistence": 0,
+    "wrong_cell_executed": 0,
+    "wrong_slice_executed": 0
+  },
+  "cross_agent_conflicts": [],
+  "latency_s": {
+    "near_rt_ric": {
+      "n": 3,
+      "mean": 424.7223333333333,
+      "median": 489.912,
+      "p95": 595.0428,
+      "max": 606.724
+    },
+    "non_rt_ric": {
+      "n": 1,
+      "mean": 81.932,
+      "median": 81.932,
+      "p95": 81.932,
+      "max": 81.932
+    },
+    "ric_phase_per_record": {
+      "n": 3,
+      "mean": 452.0506666666667,
+      "median": 489.919,
+      "p95": 668.8156,
+      "max": 688.693
+    }
+  },
+  "llm_usage": {
+    "records_measured": 3,
+    "records_without_usage_field": 0,
+    "with_violation": {
+      "calls": {
+        "n": 3,
+        "mean": 12.666666666666666,
+        "median": 12.0,
+        "p95": 17.4,
+        "max": 18.0
+      },
+      "input_tokens": {
+        "n": 3,
+        "mean": 72734.0,
+        "median": 76361.0,
+        "p95": 106790.0,
+        "max": 110171.0
+      },
+      "output_tokens": {
+        "n": 3,
+        "mean": 34367.333333333336,
+        "median": 37498.0,
+        "p95": 45356.8,
+        "max": 46230.0
+      },
+      "total_tokens": {
+        "n": 3,
+        "mean": 107101.33333333333,
+        "median": 113859.0,
+        "p95": 152146.8,
+        "max": 156401.0
+      }
+    },
+    "with_violation_mean_per_caller": {
+      "governance_review": {
+        "calls": 3.3333333333333335,
+        "input_tokens": 6244.0,
+        "output_tokens": 11572.0
+      },
+      "monitoring": {
+        "calls": 1.0,
+        "input_tokens": 2081.0,
+        "output_tokens": 5314.666666666667
+      },
+      "near_rt_ric": {
+        "calls": 7.666666666666667,
+        "input_tokens": 60909.333333333336,
+        "output_tokens": 16724.0
+      },
+      "non_rt_ric": {
+        "calls": 0.6666666666666666,
+        "input_tokens": 3499.6666666666665,
+        "output_tokens": 756.6666666666666
+      }
+    },
+    "without_violation": {
+      "records": 14,
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    "mean_per_row_all": {
+      "calls": 2.235294117647059,
+      "input_tokens": 12835.411764705883,
+      "output_tokens": 6064.823529411765
+    },
+    "totals": {
+      "calls": 38,
+      "input_tokens": 218202,
+      "output_tokens": 103102
+    },
+    "failed_calls": 0,
+    "calls_without_usage": 0
+  },
+  "enough_data": false
+}

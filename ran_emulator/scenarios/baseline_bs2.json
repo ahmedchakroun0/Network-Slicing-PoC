@@ -1,0 +1,7 @@
+{
+  "name": "baseline_bs2",
+  "description": "Healthy cell, no event: eMBB 36, MTC 3, URLLC 11 PRBs, round robin. The agents should not act.",
+  "seed": 1,
+  "steps": 300,
+  "cells": {"bs2": {"scheduler": "round_robin", "tr": 12, "start_offset": 0}}
+}

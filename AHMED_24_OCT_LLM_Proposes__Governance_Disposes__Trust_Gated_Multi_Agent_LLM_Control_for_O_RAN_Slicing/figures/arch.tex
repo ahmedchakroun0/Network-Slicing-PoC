@@ -1,0 +1,73 @@
+% Fig. 1 -- system architecture (TikZ; editable in Overleaf).
+% Requires: tikz libraries positioning, arrows.meta, fit, backgrounds, calc
+% and the colours/macros defined in the preamble of main.tex.
+\begin{tikzpicture}[
+  font=\footnotesize, >=Stealth,
+  box/.style={draw=ink, rounded corners=2pt, align=center, inner sep=2.5pt, line width=0.5pt, fill=white},
+  llm/.style={box, fill=llmfill},
+  det/.style={box, fill=detfill},
+  store/.style={box, fill=storefill, rounded corners=0pt, inner sep=2pt},
+  ctx/.style={->, densely dashed, line width=0.6pt, draw=detline},
+  flow/.style={->, line width=0.6pt, draw=ink},
+  aux/.style={<->, line width=0.45pt, draw=inkmuted},
+  lay/.style={font=\scriptsize\bfseries, text=inkmuted, inner sep=1pt},
+]
+% ---------- observation
+\node[box, text width=12mm, minimum height=11mm] (tel) at (0,0) {Telemetry\\record $\mathbf{x}_t$};
+\node[det, text width=16mm, minimum height=11mm, right=3mm of tel] (sla) {SLA analyzer\\$v_t^q,\ \rho_t^q$\\{\scriptsize deterministic}};
+% ---------- reasoning
+\node[llm, text width=19mm, minimum height=11mm, right=6mm of sla] (mon) {\textbf{Monitoring Agent}\\LLM orchestrator\\$\mathcal{D}_t{=}(s_t,\mathcal{A}_t)$};
+\node[llm, text width=26mm, anchor=west] (near) at ([xshift=8mm, yshift=8.5mm]mon.east) {\textbf{Near-RT RIC Agent}\\{\scriptsize PRB, scheduler, QoS, link adapt.,\\handover, power}};
+\node[llm, text width=26mm, anchor=west] (non) at ([xshift=8mm, yshift=-8.5mm]mon.east) {\textbf{Non-RT RIC Agent}\\{\scriptsize slice resource policy}};
+% both RIC agents: shared access to the knowledge base and the working memory
+\node[fit=(near)(non), inner sep=1.2mm, draw=inkmuted, densely dotted, rounded corners=2pt] (ric) {};
+% ---------- governance
+\node[box, text width=7mm, minimum height=27mm, anchor=west, font=\scriptsize] (mw) at ([xshift=7mm]$(near.east)!0.5!(non.east)$) {gate\\[1pt]{\tiny inter-\\cept}};
+\node[det, text width=36mm, minimum height=27mm, anchor=west] (gov) at ([xshift=0.8mm]mw.east) {};
+\node[anchor=north, font=\footnotesize\bfseries, align=center, yshift=-0.5mm] at (gov.north) {Trust \& Governance};
+\node[anchor=center, font=\scriptsize] at ([yshift=1mm]gov.center)
+ {\setlength{\tabcolsep}{1pt}\begin{tabular}{@{}ccccc@{}}
+   \stg{S}&\stg{P}&\stg{L}&\stg{R}&\stgl{V}\\
+   {\tiny schema}&{\tiny trust}&{\tiny SLA}&{\tiny safety}&{\tiny review}
+  \end{tabular}};
+
+% ---------- execution
+\node[box, dashed, text width=13mm, minimum height=11mm, right=8mm of gov] (exe) {Execution\\{\scriptsize stub; E2/A1 in future}};
+% ---------- stores
+\node[store, text width=21mm, anchor=north] (wm) at ([yshift=-7mm]mon.south) {Working memory\\(Redis, per cell/slice)};
+\node[store, text width=21mm, anchor=north] (db) at ([yshift=-7mm]gov.south) {Audit trail\\(MongoDB, per record)};
+\node[store, text width=21mm, anchor=south] (kb) at ([yshift=6mm]mon.north) {RAN knowledge\\base (retrieval)};
+
+% ---------- main flows
+\draw[flow] (tel) -- (sla);
+\draw[flow] (sla) -- node[above, font=\scriptsize]{facts} (mon);
+\draw[flow] (mon.east) -- ++(3.5mm,0) |- (near.west);
+\draw[flow] (mon.east) -- ++(3.5mm,0) |- (non.west);
+\node[font=\scriptsize, fill=bandB, inner sep=0.5pt] at ([xshift=3.5mm]mon.east) {$\mathcal{A}_t$};
+\draw[flow] ([yshift=1.3mm]near.east) -- node[above, font=\scriptsize]{call $u$} ([yshift=1.3mm]near.east -| mw.west);
+\draw[flow] ([yshift=1.3mm]non.east) -- node[above, font=\scriptsize]{call $u$} ([yshift=1.3mm]non.east -| mw.west);
+\draw[->, line width=0.5pt, draw=ink] ([yshift=-1.3mm]near.east -| mw.west) -- node[below, font=\scriptsize]{reply} ([yshift=-1.3mm]near.east);
+\draw[->, line width=0.5pt, draw=ink] ([yshift=-1.3mm]non.east -| mw.west) -- node[below, font=\scriptsize]{reply} ([yshift=-1.3mm]non.east);
+\draw[flow] (gov.east) -- node[above, font=\scriptsize]{$G{=}1$} (exe.west);
+% ---------- trusted context (deterministic, overrides LLM-written context)
+\coordinate (cy) at ([yshift=-3.5mm]wm.south);
+\draw[ctx] (sla.south) |- (cy) -| node[pos=0.25, below, font=\scriptsize, text=detline]{trusted context $c_t$ (cell, slice, $V_t$, $\boldsymbol\rho_t$, slice state, controls in force) injected by code} (mw.south);
+\draw[ctx] ([xshift=5mm]ric.south |- cy) -- ([xshift=5mm]ric.south);
+% ---------- memory (Monitoring + both RIC agents, not governance), audit, knowledge (both RIC agents)
+\draw[aux] (mon.south) -- (wm.north);
+\draw[aux] (wm.east) -| (ric.south);
+\draw[->, line width=0.45pt, draw=inkmuted] (gov.south) -- (db.north);
+\draw[aux] (kb.east) -| (ric.north);
+
+% ---------- layer bands
+\begin{scope}[on background layer]
+ \node[fit=(tel)(sla), inner sep=2.2mm, fill=bandA, rounded corners=2pt] (L1) {};
+ \node[fit=(mon)(ric)(kb)(wm), inner sep=2.2mm, fill=bandB, rounded corners=2pt] (L2) {};
+ \node[fit=(mw)(gov)(db), inner sep=2.2mm, fill=bandA, rounded corners=2pt] (L3) {};
+ \node[fit=(exe), inner sep=2.2mm, fill=bandB, rounded corners=2pt] (L4) {};
+\end{scope}
+\node[lay, anchor=south west] at (L1.north west) {Observation};
+\node[lay, anchor=south west] at (L2.north west) {Reasoning (LLM agents)};
+\node[lay, anchor=south west] at (L3.north west) {Governance};
+\node[lay, anchor=south west] at (L4.north west) {Execution};
+\end{tikzpicture}

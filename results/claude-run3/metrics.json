@@ -1,0 +1,149 @@
+{
+  "run_ids": [
+    "claude-run3"
+  ],
+  "models": [
+    "nvidia-network-slicing-model"
+  ],
+  "models_served": {},
+  "stopped": {
+    "claude-run3": "Every model of the fallback chain is rate-limited (row 22): RateLimitError: litellm.RateLimitError: RateLimitError: Litellm_proxyException - No deployments available for selected model, Try again in 60 seconds. All deployments for selected model are in cooldown. Passed model=nvidia-network-slicing-model. pre-call-checks=False, cooldown_list=['f9c6e5ac99b3283ea3dcd7dda3b1e40"
+  },
+  "dataset": {
+    "rows_selected": 10,
+    "records_with_violation": 0,
+    "rows_without_violation": 0,
+    "rows_failed": 1,
+    "records_not_evaluated": 1,
+    "by_slice": {},
+    "cells": 0,
+    "max_persistence": 0
+  },
+  "monitoring": {
+    "decision_overridden_by_code": 0,
+    "non_rt_dropped_below_threshold": 0,
+    "near_rt_fallback": 0,
+    "agent_selected": {},
+    "situation": {}
+  },
+  "governance": {
+    "proposals": 6,
+    "approved": {
+      "count": 1,
+      "n": 6,
+      "rate": 0.16666666666666666,
+      "ci95": [
+        0.03005258587173032,
+        0.563509436563646
+      ]
+    },
+    "rejected_by_stage": {
+      "llm_review": 3,
+      "invalid_proposal": 1,
+      "invocation_limit": 1
+    },
+    "review_verdict_false": {
+      "goal_aligned": 3,
+      "reasoning_sound": 3,
+      "behavior_acceptable": 3
+    },
+    "per_tool": {
+      "adjust_prb_allocation": {
+        "proposed": 1,
+        "approved": 1,
+        "rejected": 0
+      },
+      "optimize_scheduler": {
+        "proposed": 4,
+        "approved": 0,
+        "rejected": 4
+      },
+      "adjust_qos_parameters": {
+        "proposed": 1,
+        "approved": 0,
+        "rejected": 1
+      }
+    },
+    "per_agent": {
+      "near_rt_ric": 6
+    }
+  },
+  "behaviour": {
+    "calls_per_record": {
+      "n": 1,
+      "mean": 6.0,
+      "median": 6.0,
+      "p95": 6.0,
+      "max": 6.0
+    },
+    "forced_calls": {
+      "count": 1,
+      "n": 6,
+      "rate": 0.16666666666666666,
+      "ci95": [
+        0.03005258587173032,
+        0.563509436563646
+      ]
+    },
+    "resubmissions": {
+      "rejected_then_same_tool_approved": 0,
+      "review_rejection_overturned_by_rewording": 0,
+      "rejected_never_approved": 5
+    },
+    "mean_confidence": {
+      "approved": 0.88,
+      "rejected": 0.7939999999999999
+    }
+  },
+  "invariant_violations": {
+    "rejected_but_executed": 0,
+    "approved_but_not_executed": 0,
+    "non_rt_below_persistence": 0,
+    "wrong_cell_executed": 0,
+    "wrong_slice_executed": 0
+  },
+  "cross_agent_conflicts": [],
+  "latency_s": {
+    "ric_phase_per_record": {
+      "n": 0
+    }
+  },
+  "llm_usage": {
+    "records_measured": 0,
+    "records_without_usage_field": 0,
+    "with_violation": {
+      "calls": {
+        "n": 0
+      },
+      "input_tokens": {
+        "n": 0
+      },
+      "output_tokens": {
+        "n": 0
+      },
+      "total_tokens": {
+        "n": 0
+      }
+    },
+    "with_violation_mean_per_caller": {},
+    "without_violation": {
+      "records": 0,
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    "mean_per_row_all": {
+      "calls": null,
+      "input_tokens": null,
+      "output_tokens": null
+    },
+    "totals": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    "failed_calls": 0,
+    "calls_without_usage": 0
+  },
+  "enough_data": false
+}

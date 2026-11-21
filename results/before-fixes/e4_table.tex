@@ -1,0 +1,32 @@
+\begin{table}[!t]
+\centering
+\caption{E4: live LLM agents behind the gate}\label{tab:live}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lr@{}}
+\toprule
+Metric & nvidia-network-slicing-model \\
+\midrule
+Records with a violation & 4 \\
+Violations flagged by the Monitoring LLM (\%) & 100 (4/4) \\
+Situation not called normal (\%) & 50 (2/4) \\
+Severity agrees with code (\%) & 100 (4/4) \\
+Routing agrees with the rule (\%) & 100 (4/4) \\
+Protected tool calls per record & 3.5 \\
+Tool consistent with the diagnosis (\%) & 100 (4/4) \\
+PRB change in the right direction (\%) & 100 (4/4) \\
+Quoted numbers traceable (\%) & 100 (186/186) \\
+Evidence sources supported (\%) & 96 (46/48) \\
+Calls approved (\%) & 64 (9/14) \\
+Calls rejected by the LLM review (\%) & 29 (4/14) \\
+Review rejection overturned by rewording & 2 \\
+Gate invariant violations & 0 \\
+PRB share outside the slice policy & 1 \\
+Model calls per record & -- \\
+Tokens per record, input (k) & -- \\
+Tokens per record, output (k) & -- \\
+Tokens per record, total (k) & -- \\
+RIC phase per record (s) & 582 \\
+\bottomrule
+\end{tabular}
+\end{table}
