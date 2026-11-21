@@ -1,0 +1,8 @@
+{
+  "name": "cell_interference",
+  "description": "Healthy cell; external interference lowers the SINR of the whole cell from step 30 for 90 s.",
+  "seed": 1,
+  "steps": 300,
+  "cells": {"bs2": {"scheduler": "round_robin", "tr": 12, "start_offset": 0}},
+  "events": [{"type": "interference", "cell": "bs2", "db": 6, "start_step": 30, "duration": 90}]
+}

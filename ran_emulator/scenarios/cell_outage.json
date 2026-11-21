@@ -1,0 +1,8 @@
+{
+  "name": "cell_outage",
+  "description": "Healthy cell; the cell is down from step 30 for 20 s, then serves the accumulated backlog.",
+  "seed": 1,
+  "steps": 300,
+  "cells": {"bs2": {"scheduler": "round_robin", "tr": 12, "start_offset": 0}},
+  "events": [{"type": "cell_outage", "cell": "bs2", "start_step": 30, "duration": 20}]
+}

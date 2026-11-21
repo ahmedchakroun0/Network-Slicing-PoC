@@ -1,0 +1,7 @@
+{
+  "name": "embb_prb_starvation",
+  "description": "eMBB starts with 18 of 50 PRBs and misses its throughput SLA on real traces; raising its PRB share (about 72%) switches to a recorded split that meets it.",
+  "seed": 1,
+  "steps": 300,
+  "cells": {"bs2": {"scheduler": "round_robin", "tr": 9, "start_offset": 0}}
+}

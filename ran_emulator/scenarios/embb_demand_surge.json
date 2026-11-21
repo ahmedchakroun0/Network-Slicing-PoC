@@ -1,0 +1,8 @@
+{
+  "name": "embb_demand_surge",
+  "description": "Healthy cell; eMBB demand rises at step 30 for 120 s.",
+  "seed": 1,
+  "steps": 300,
+  "cells": {"bs2": {"scheduler": "round_robin", "tr": 12, "start_offset": 0}},
+  "events": [{"type": "demand_surge", "cell": "bs2", "slice": "eMBB", "factor": 1.2, "start_step": 30, "duration": 120}]
+}
