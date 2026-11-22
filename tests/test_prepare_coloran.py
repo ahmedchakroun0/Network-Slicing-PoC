@@ -14,7 +14,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import prepare_coloran as prep
 
 from agents.monitoring_agent import MonitoringAgent
-from scripts.run_dataset import _row_to_telemetry_record
 from src.schema.monitoring import TelemetryRecord
 
 # The real 36-column header, unnamed separator columns included.
@@ -101,7 +100,7 @@ def test_csv_round_trips_through_the_runner(raw_tree, tmp_path, monkeypatch):
 
     analyses = {}
     for _, row in df.iterrows():
-        rec = _row_to_telemetry_record(row)
+        rec = prep.row_to_record(row)
         analyses[rec.slice_id] = MonitoringAgent.analyze_sla(rec).violations
     assert analyses == {"eMBB": ["throughput", "queueing_delay"],   # 3.0 < 3.6 Mbps, 133 ms > 100 ms
                         "MTC": [],

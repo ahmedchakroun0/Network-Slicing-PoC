@@ -11,7 +11,8 @@ Output: a CSV whose columns are exactly the fields of
 
     poetry run python scripts/prepare_coloran.py                  # all cell runs
     poetry run python scripts/prepare_coloran.py --runs 21        # 21 random cell runs
-    poetry run python scripts/run_dataset.py data/coloran_prepared_dataset.csv --max-rows 30
+
+The RAN emulator (ran_emulator/) replays the prepared dataset as its traces.
 
 Dataset (Polese et al., IEEE TMC 2023): srsRAN stack on the Colosseum
 emulator; 7 BSs (10 MHz, 50 PRBs), 3 slices per BS (0 eMBB, 1 MTC, 2 URLLC),
@@ -61,11 +62,19 @@ TTI_PER_S = 1000
 ACTIVE_FRACTION, ACTIVE_HOLD_S = 0.2, 5
 FILE_RE = re.compile(r"sched(\d)/tr(\d+)/(exp\d+)/bs(\d+)/slices_bs\d+/(\d+)_metrics\.csv$")
 COLUMNS = list(TelemetryRecord.model_fields)
+TELEMETRY_FIELDS = frozenset(COLUMNS)
 
 RAW = {"Timestamp": "ts_ms", "slice_id": "slice", "slice_prb": "slice_prb",
        "scheduling_policy": "sched", "tx_brate downlink [Mbps]": "rate",
        "dl_buffer [bytes]": "buf", "sum_granted_prbs": "granted", "dl_cqi": "cqi",
        "dl_mcs": "mcs", "dl_n_samples": "dl_n", "ul_sinr": "sinr", "ul_n_samples": "ul_n"}
+
+
+def row_to_record(row: pd.Series) -> TelemetryRecord:
+    """A prepared CSV row as a TelemetryRecord (the columns are its fields;
+    empty -> None)."""
+    return TelemetryRecord.model_validate(
+        {k: (None if pd.isna(v) else v) for k, v in row.items() if k in TELEMETRY_FIELDS})
 
 
 def discover(root: Path, experiments: list[str] | None) -> dict[tuple, list[Path]]:

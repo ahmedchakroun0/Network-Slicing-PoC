@@ -1,6 +1,6 @@
 """HTTP interface of the RAN emulator (FastAPI).
 
-Control endpoints mirror the agents' action tools (tools/registry.py); the
+Control endpoints mirror the agents' action tools (ric_tools/registry.py); the
 MCP tool servers will call them through ran_emulator.client.EmulatorClient.
 
 Clock modes:
@@ -36,7 +36,6 @@ class PRBBody(_Body):
 
 class SchedulerBody(_Body):
     scheduler: str
-    slice_id: SliceType | None = None
 
 
 class HandoverBody(_Body):
@@ -49,8 +48,6 @@ class PowerBody(_Body):
 
 class QoSBody(_Body):
     priority_level: int
-    packet_delay_budget_ms: float
-    guaranteed_bitrate_mbps: float
 
 
 class LinkAdaptationBody(_Body):
@@ -137,7 +134,7 @@ def create_app(bank: TraceBank, scenario: Scenario, *,
 
     @app.put("/cells/{cell}/scheduler")
     async def scheduler(cell: str, body: SchedulerBody) -> dict[str, Any]:
-        return await svc.control(svc.emu.set_scheduler, cell, body.scheduler, body.slice_id)
+        return await svc.control(svc.emu.set_scheduler, cell, body.scheduler)
 
     @app.put("/cells/{cell}/handover")
     async def handover(cell: str, body: HandoverBody) -> dict[str, Any]:
@@ -149,8 +146,7 @@ def create_app(bank: TraceBank, scenario: Scenario, *,
 
     @app.put("/cells/{cell}/slices/{slice_id}/qos")
     async def qos(cell: str, slice_id: SliceType, body: QoSBody) -> dict[str, Any]:
-        return await svc.control(svc.emu.set_qos, cell, slice_id, body.priority_level,
-                                 body.packet_delay_budget_ms, body.guaranteed_bitrate_mbps)
+        return await svc.control(svc.emu.set_qos, cell, slice_id, body.priority_level)
 
     @app.put("/cells/{cell}/slices/{slice_id}/link-adaptation")
     async def link_adaptation(cell: str, slice_id: SliceType,

@@ -26,8 +26,7 @@ def test_run_returns_valid_records_and_meta(client):
     ("/cells/bs2/scheduler", {"scheduler": "proportional_fair"}),
     ("/cells/bs2/handover", {"handover_margin_db": 2}),
     ("/cells/bs2/power", {"power_offset_db": 3}),
-    ("/cells/bs2/slices/URLLC/qos", {"priority_level": 2, "packet_delay_budget_ms": 10,
-                                     "guaranteed_bitrate_mbps": 0.2}),
+    ("/cells/bs2/slices/URLLC/qos", {"priority_level": 2}),
     ("/cells/bs2/slices/URLLC/link-adaptation", {"mcs_offset": -2, "target_bler": 0.01}),
     ("/cells/bs2/slices/eMBB/policy", {"min_prb_ratio_pct": 20, "max_prb_ratio_pct": 90}),
 ])

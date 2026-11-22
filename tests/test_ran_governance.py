@@ -11,7 +11,7 @@ async def test_authorize_approves_valid_near_rt_action():
     proposal = RANActionProposal(
         tool_name="adjust_prb_allocation",
         target="cell-1",
-        parameters={"slice_id": "slice-1", "prb_percentage": 55},
+        parameters={"slice_id": "eMBB", "prb_percentage": 55},
         rationale="Latency is exceeding budget, so a targeted PRB increase is justified.",
         expected_effect="Reduce latency for the affected slice.",
         evidence_sources=["latency_budget", "slice_latency"],
@@ -21,7 +21,7 @@ async def test_authorize_approves_valid_near_rt_action():
                 "agent": "near_rt_ric",
                 "context": {
                     "target": "cell-1",
-                    "slice_id": "slice-1",
+                    "slice_id": "eMBB",
                     "sla_analysis": {"violations": ["latency"]},
                 },
             }
@@ -45,7 +45,7 @@ async def test_authorize_rejects_target_mismatch():
     proposal = RANActionProposal(
         tool_name="adjust_prb_allocation",
         target="cell-2",
-        parameters={"slice_id": "slice-1", "prb_percentage": 55},
+        parameters={"slice_id": "eMBB", "prb_percentage": 55},
         rationale="Targeted increase is required.",
         expected_effect="Reduce latency.",
         evidence_sources=["latency"],
@@ -55,7 +55,7 @@ async def test_authorize_rejects_target_mismatch():
                 "agent": "near_rt_ric",
                 "context": {
                     "target": "cell-1",
-                    "slice_id": "slice-1",
+                    "slice_id": "eMBB",
                     "sla_analysis": {"violations": ["latency"]},
                 },
             }
@@ -86,7 +86,7 @@ async def test_authorize_rejects_out_of_range_resource_change():
                 "agent": "near_rt_ric",
                 "context": {
                     "target": "cell-1",
-                    "slice_id": "slice-1",
+                    "slice_id": "eMBB",
                     "sla_analysis": {"violations": ["latency"]},
                 },
             }

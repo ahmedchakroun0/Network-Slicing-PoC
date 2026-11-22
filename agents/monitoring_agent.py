@@ -17,7 +17,7 @@ from src.schema.monitoring import (
     SLAAnalysis,
     TelemetryRecord,
 )
-from src.schema.sla import SLA_PROFILES, KPIBudget
+from src.schema.sla import SLA_PROFILES, KPIBudget, budget_ratio
 from src.schema.working_memory import RecordEvent
 
 logger = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ SubAgent = Callable[[AgentInvocation], Awaitable[Any]]
 # agent context is injected by trusted code.
 _STORED_EXCLUDE = {"sla_analysis": True, "record_id": True,
                    "selected_agents": {"__all__": {"context"}}}
-_PROMPT_PATH = Path("prompts/monitoring.txt")
+_PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "monitoring.txt"
 
 
 class MonitoringAgent:
@@ -68,8 +68,9 @@ Deterministic SLA analysis against the {slice_id} SLA profile:
 
 Working memory of this base station and slice (deterministic facts, most
 recent first): the base-station configuration, the last records of this
-slice and of the cell's other slices, and the last tool calls executed or
-rejected on them:
+slice and of the cell's other slices, the last tool calls executed or
+rejected on them, and whether the executed ones fixed the violation
+(slice_outcomes):
 {working_memory}
 
 Consecutive-violation persistence for this cell and slice (per KPI,
@@ -116,11 +117,7 @@ Return a MonitoringDecision.
             s = analysis.kpis[name]
             if not s.budget:
                 continue
-            if s.bound == "min":
-                ratio = s.budget / s.measured if s.measured else float("inf")
-            else:
-                ratio = s.measured / s.budget
-            worst = max(worst, ratio)
+            worst = max(worst, budget_ratio(s.measured, s.budget, s.bound))
         return "high" if worst >= 3 else "medium" if worst >= 1.5 else "low"
 
     @staticmethod

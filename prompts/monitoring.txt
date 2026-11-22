@@ -17,7 +17,14 @@ memory holds facts only, most recent first:
   cell's other slices (KPIs, violations, severity, agents selected);
 - slice_actions / cell_actions: the last tool calls on this slice and on the
   other slices, with approved / executed and, for rejections, the
-  governance stage and reason.
+  governance stage and reason; for executed calls, `applied` is what the
+  network reports as now in force;
+- slice_outcomes: for the last executed actions on this slice, whether the
+  next record showed the violation fixed: resolved, improved, unchanged,
+  worse or unknown, with each KPI before and after.
+
+Actions act on a live (emulated) network: they apply from the next record,
+so the records after an action show its effect.
 
 The SLA analysis is authoritative. Never recompute or contradict it. A KPI is
 violated only when its status is "violation". KPIs with status "unavailable"
@@ -57,7 +64,10 @@ Decide as follows.
   analysis and the slice state from trusted code.
 - Use the working memory: a violation that keeps coming back after executed
   actions on this slice calls for a different approach, and an action that
-  was just rejected with the same parameters should not be repeated. Mention
+  was just rejected with the same parameters should not be repeated. An
+  action whose outcome was "unchanged" or "worse" did not work: ask for a
+  different one. After an "improved" outcome, the same direction may need a
+  further step. Mention
   it in the objective and reason when it matters. An empty memory means no
   history yet, not a healthy history.
 - Do not invent telemetry or KPI values. Keep the reason short, specific and

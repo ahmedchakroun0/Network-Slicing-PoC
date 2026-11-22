@@ -15,8 +15,6 @@ POWER_OFFSET_RANGE_DB = (-6.0, 6.0)
 # The schedulers of the ColO-RAN testbed (same list as the telemetry).
 ALLOWED_SCHEDULERS = frozenset(get_args(Scheduler))
 QOS_PRIORITY_RANGE = (1, 10)                 # 1 = highest priority
-QOS_DELAY_BUDGET_RANGE_MS = (5.0, 300.0)     # 3GPP 5QI packet delay budgets
-QOS_GBR_RANGE_MBPS = (0.0, 10.0)             # per UE, 10 MHz carrier
 MCS_OFFSET_RANGE = (-5, 5)
 TARGET_BLER_RANGE = (0.001, 0.2)
 SLICE_POLICY_MIN_RANGE_PCT = (5, 80)

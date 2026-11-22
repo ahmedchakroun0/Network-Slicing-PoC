@@ -47,7 +47,7 @@ def test_records_are_valid_telemetry_with_emulator_ids(bank, make_scenario):
     res = Emulator(bank, make_scenario()).step()
     assert [r.slice_id for r in res.records] == ["eMBB", "MTC", "URLLC"]
     assert res.records[0].record_id == "emu-t-bs2-s00000-eMBB"
-    assert res.records[0].run == "emu/t/sched0/tr9/exp1"
+    assert res.records[0].run == "emu/t/seed0"
 
 
 def test_prb_change_switches_trace_at_next_step(bank, make_scenario):
@@ -70,7 +70,7 @@ def test_prb_request_is_snapped_and_reported(bank, make_scenario):
 def test_scheduler_change_applies_to_the_cell(bank, make_scenario):
     emu = Emulator(bank, make_scenario(tr=9))
     base = _by_slice(emu.step())["eMBB"].dl_throughput_mbps
-    out = emu.set_scheduler("bs2", "proportional_fair", "URLLC")
+    out = emu.set_scheduler("bs2", "proportional_fair")
     assert "one scheduler per cell" in out["note"]
     rec = _by_slice(emu.step())["eMBB"]
     assert rec.scheduler == "proportional_fair" and rec.dl_throughput_mbps > base
@@ -89,7 +89,7 @@ def test_missing_trace_falls_back_to_nearest_and_says_so(bank, make_scenario):
     lambda e: e.set_handover("bs2", -1),
     lambda e: e.set_scheduler("bs2", "fifo"),
     lambda e: e.set_link_adaptation("bs2", "URLLC", -8, 0.1),
-    lambda e: e.set_qos("bs2", "eMBB", 0, 50, 1),
+    lambda e: e.set_qos("bs2", "eMBB", 0),
     lambda e: e.set_policy("bs2", "eMBB", 60, 40),
 ])
 def test_out_of_envelope_controls_are_refused_and_logged(bank, make_scenario, call):

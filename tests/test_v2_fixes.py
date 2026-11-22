@@ -5,8 +5,8 @@ input)."""
 import pytest
 
 from agents.ran_trust_governance import NON_RT_MIN_PERSISTENCE, RANTrustGovernanceAgent
+from ric_tools import knowledge
 from src.schema.near_rt_ric import RANActionProposal
-from tools import near_rt_ric_tools
 
 
 def _proposal(tool_name, parameters, agent, context):
@@ -24,11 +24,11 @@ def _proposal(tool_name, parameters, agent, context):
 
 CTX = {
     "target": "cell-1",
-    "slice_id": "slice-1",
+    "slice_id": "eMBB",
     "sla_analysis": {"violations": ["latency"]},
 }
 POLICY = {
-    "slice_id": "slice-1",
+    "slice_id": "eMBB",
     "min_prb_ratio_pct": 20,
     "max_prb_ratio_pct": 60,
 }
@@ -47,7 +47,7 @@ async def test_role_binding_rejects_cross_role_tool():
 @pytest.mark.asyncio
 async def test_role_binding_rejects_unknown_agent():
     gov = RANTrustGovernanceAgent(use_llm=False)
-    p = _proposal("adjust_prb_allocation", {"slice_id": "slice-1", "prb_percentage": 50}, None, CTX)
+    p = _proposal("adjust_prb_allocation", {"slice_id": "eMBB", "prb_percentage": 50}, None, CTX)
     d = await gov.authorize(p)
     assert d.approved is False and d.failed_stage == "policy_trust"
 
@@ -73,12 +73,12 @@ async def test_non_rt_persistence_gate(persistence, approved):
 @pytest.mark.asyncio
 async def test_near_rt_actions_do_not_need_persistence():
     gov = RANTrustGovernanceAgent(use_llm=False)
-    p = _proposal("adjust_prb_allocation", {"slice_id": "slice-1", "prb_percentage": 50}, "near_rt_ric", CTX)
+    p = _proposal("adjust_prb_allocation", {"slice_id": "eMBB", "prb_percentage": 50}, "near_rt_ric", CTX)
     assert (await gov.authorize(p)).approved is True
 
 
 def test_knowledge_file_resolves_from_project_root():
-    assert near_rt_ric_tools.KNOWLEDGE_FILE.is_file()
+    assert knowledge.KNOWLEDGE_FILE.is_file()
 
 
 @pytest.mark.asyncio

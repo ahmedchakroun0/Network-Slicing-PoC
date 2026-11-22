@@ -58,8 +58,7 @@ async def test_slice_policy_has_safety_envelope(lo, hi, ok):
         assert d.failed_stage == "resource_safety"
 
 
-QOS = {"slice_id": "eMBB", "priority_level": 2, "packet_delay_budget_ms": 100,
-       "guaranteed_bitrate_mbps": 3.6}
+QOS = {"slice_id": "eMBB", "priority_level": 2}
 LINK = {"slice_id": "eMBB", "mcs_offset": 2, "target_bler": 0.1}
 
 
@@ -67,13 +66,10 @@ LINK = {"slice_id": "eMBB", "mcs_offset": 2, "target_bler": 0.1}
 @pytest.mark.parametrize("tool,params,ok,field", [
     ("adjust_qos_parameters", QOS, True, None),
     ("adjust_qos_parameters", {**QOS, "priority_level": 0}, False, "priority_level"),
-    ("adjust_qos_parameters", {**QOS, "packet_delay_budget_ms": 1}, False, "packet_delay_budget_ms"),
-    ("adjust_qos_parameters", {**QOS, "guaranteed_bitrate_mbps": 50}, False, "guaranteed_bitrate_mbps"),
     ("adjust_link_adaptation", LINK, True, None),
     ("adjust_link_adaptation", {**LINK, "mcs_offset": 9}, False, "mcs_offset"),
     ("adjust_link_adaptation", {**LINK, "target_bler": 0.5}, False, "target_bler"),
-    ("optimize_scheduler", {"slice_id": "eMBB", "scheduler": "waterfilling"}, True, None),
-    ("optimize_scheduler", {"slice_id": "eMBB", "scheduler": "max_cqi"}, False, "scheduler"),
+    ("optimize_scheduler", {"scheduler": "waterfilling"}, True, None),
 ])
 async def test_typed_tools_have_envelopes(tool, params, ok, field):
     gov = RANTrustGovernanceAgent(use_llm=False)
@@ -81,6 +77,27 @@ async def test_typed_tools_have_envelopes(tool, params, ok, field):
     assert d.approved is ok
     if not ok:
         assert d.failed_stage == "resource_safety" and field in d.reason
+
+
+@pytest.mark.asyncio
+async def test_unknown_scheduler_is_rejected_at_schema():
+    """The scheduler argument is typed: only the testbed's schedulers pass."""
+    gov = RANTrustGovernanceAgent(use_llm=False)
+    d = await gov.authorize(_proposal("optimize_scheduler", {"scheduler": "max_cqi"},
+                                      "near_rt_ric"))
+    assert d.failed_stage == "schema" and "scheduler" in d.reason
+
+
+@pytest.mark.asyncio
+async def test_removed_arguments_are_rejected_at_schema():
+    """Arguments the tools no longer take are refused, not silently dropped."""
+    gov = RANTrustGovernanceAgent(use_llm=False)
+    for tool, params in (
+        ("optimize_scheduler", {"slice_id": "eMBB", "scheduler": "waterfilling"}),
+        ("adjust_qos_parameters", {**QOS, "packet_delay_budget_ms": 100}),
+    ):
+        d = await gov.authorize(_proposal(tool, params, "near_rt_ric"))
+        assert d.failed_stage == "schema" and "Extra inputs" in d.reason, tool
 
 
 @pytest.mark.asyncio

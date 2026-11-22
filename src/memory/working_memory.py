@@ -9,8 +9,10 @@ Keys are named after network entities (base station = cell, slice):
   wm:slice:{cell}:{slice}:records     LIST  recent records of this slice (KPI trend)
   wm:slice:{cell}:{slice}:actions     LIST  recent tool calls on this slice
   wm:slice:{cell}:{slice}:persistence HASH  consecutive violated records per SLA KPI
-  wm:slice:{cell}:{slice}:controls    HASH  PRB controls in force (last executed):
-                                            prb_percentage, policy_min, policy_max
+  wm:slice:{cell}:{slice}:controls    HASH  PRB controls in force, as the RAN applied
+                                            them: prb_percentage, policy_min, policy_max
+  wm:slice:{cell}:{slice}:pending     LIST  executed actions awaiting verification
+  wm:slice:{cell}:{slice}:outcomes    LIST  verified outcomes of those actions
   wm:cells                            SET   every cell seen (for reset)
 
 Lists hold compact JSON events, newest first, capped at MEMORY_MAX_RECORDS
@@ -23,12 +25,19 @@ was reconfigured: that cell's memory is cleared before the record is stored.
 """
 
 import os
+from typing import Any
 
 from redis.asyncio import Redis
 
 from src.schema.monitoring import TelemetryRecord
 from src.schema.sla import KPI_NAMES, SLA_PROFILES
-from src.schema.working_memory import ActionEvent, MemoryView, RecordEvent
+from src.schema.working_memory import (
+    ActionEvent,
+    ActionOutcome,
+    MemoryView,
+    PendingCheck,
+    RecordEvent,
+)
 
 DEFAULT_REDIS_URL = "redis://localhost:6379/0"
 DEFAULT_MAX_EVENTS = 30
@@ -55,19 +64,37 @@ def _cell_keys(cell: str) -> list[str]:
     """Every key that belongs to one cell."""
     keys = [cell_key(cell, k) for k in ("meta", "records", "actions")]
     keys += [slice_key(cell, s, k) for s in SLICES
-             for k in ("records", "actions", "persistence", "controls")]
+             for k in ("records", "actions", "persistence", "controls", "pending", "outcomes")]
     return keys
 
 
-def _controls_of(event: ActionEvent) -> dict[str, int]:
-    """The PRB controls an executed tool call put in force."""
+def _shares(split: dict[str, Any]) -> dict[str, dict[str, float]]:
+    """PRB share (%) of every slice, from a cell's PRB split {slice: PRBs}."""
+    total = sum(split.values())
+    return {s: {"prb_percentage": round(100 * n / total, 1)} for s, n in split.items()} \
+        if total else {}
+
+
+def _controls_of(event: ActionEvent) -> dict[str, dict[str, float]]:
+    """The PRB controls an executed tool call put in force, per slice, as the
+    RAN applied them: a PRB request is snapped to a recorded split, and both a
+    PRB change and a policy can move the other slices' shares too. Without a
+    RAN report, the requested values are used."""
     if not event.executed:
         return {}
+    applied = event.applied or {}
     if event.tool == "adjust_prb_allocation":
-        return {"prb_percentage": event.params["prb_percentage"]}
+        if isinstance(applied.get("current"), dict):
+            return _shares(applied["current"])
+        return {event.slice: {"prb_percentage": event.params["prb_percentage"]}}
     if event.tool == "update_slice_resource_policy":
-        return {"policy_min": event.params["min_prb_ratio_pct"],
-                "policy_max": event.params["max_prb_ratio_pct"]}
+        policy = applied.get("current") or {
+            "min_prb_ratio_pct": event.params["min_prb_ratio_pct"],
+            "max_prb_ratio_pct": event.params["max_prb_ratio_pct"]}
+        controls = _shares(applied["prb"]) if isinstance(applied.get("prb"), dict) else {}
+        controls.setdefault(event.slice, {}).update(
+            policy_min=policy["min_prb_ratio_pct"], policy_max=policy["max_prb_ratio_pct"])
+        return controls
     return {}
 
 
@@ -166,19 +193,60 @@ class RedisWorkingMemory:
             self._push(pipe, slice_key(cell, slice_id, "actions"), values)
         self._push(pipe, cell_key(cell, "actions"), [e.model_dump_json() for e in events])
         for event in events:
-            controls = _controls_of(event)
-            if controls:
-                key = slice_key(cell, event.slice, "controls")
+            for slice_id, controls in _controls_of(event).items():
+                key = slice_key(cell, slice_id, "controls")
                 pipe.hset(key, mapping=controls)
                 self._expire(pipe, key)
         await pipe.execute()
 
-    async def controls(self, cell: str, slice_id: str) -> dict[str, int]:
-        """PRB controls in force on this slice (last executed values). A
+    async def controls(self, cell: str, slice_id: str) -> dict[str, float]:
+        """PRB controls in force on this slice (last applied values). A
         hash, not the action lists: those are capped and would lose an old
         policy that still applies."""
         stored = await self.redis.hgetall(slice_key(cell, slice_id, "controls"))
-        return {name: int(value) for name, value in stored.items()}
+        return {name: float(value) for name, value in stored.items()}
+
+    # ------------------------------------------------------------------
+    # Action verification (closed loop)
+    # ------------------------------------------------------------------
+
+    async def add_pending(self, cell: str, checks: list[PendingCheck]) -> None:
+        """Executed actions to verify on a later record of their slice."""
+        if not checks:
+            return
+        pipe = self.redis.pipeline(transaction=False)
+        for check in checks:
+            key = slice_key(cell, check.slice, "pending")
+            pipe.rpush(key, check.model_dump_json())
+            self._expire(pipe, key)
+        await pipe.execute()
+
+    async def pop_due(self, cell: str, slice_id: str, step: int) -> list[PendingCheck]:
+        """Remove and return the slice's checks due at `step` or before."""
+        key = slice_key(cell, slice_id, "pending")
+        raw = await self.redis.lrange(key, 0, -1)
+        if not raw:
+            return []
+        checks = [PendingCheck.model_validate_json(v) for v in raw]
+        due = [c for c in checks if c.due_step <= step]
+        if due:
+            later = [c.model_dump_json() for c in checks if c.due_step > step]
+            pipe = self.redis.pipeline(transaction=True)
+            pipe.delete(key)
+            if later:
+                pipe.rpush(key, *later)
+                self._expire(pipe, key)
+            await pipe.execute()
+        return due
+
+    async def record_outcomes(self, cell: str, outcomes: list[ActionOutcome]) -> None:
+        if not outcomes:
+            return
+        pipe = self.redis.pipeline(transaction=False)
+        for slice_id in dict.fromkeys(o.slice for o in outcomes):
+            self._push(pipe, slice_key(cell, slice_id, "outcomes"),
+                       [o.model_dump_json() for o in outcomes if o.slice == slice_id])
+        await pipe.execute()
 
     # ------------------------------------------------------------------
     # Reads
@@ -194,7 +262,8 @@ class RedisWorkingMemory:
         pipe.lrange(slice_key(cell, slice_id, "actions"), 0, k - 1)
         pipe.lrange(cell_key(cell, "actions"), 0, 3 * k - 1)
         pipe.hgetall(slice_key(cell, slice_id, "persistence"))
-        meta, s_rec, c_rec, s_act, c_act, persistence = await pipe.execute()
+        pipe.lrange(slice_key(cell, slice_id, "outcomes"), 0, k - 1)
+        meta, s_rec, c_rec, s_act, c_act, persistence, s_out = await pipe.execute()
 
         def others(raw: list[str], model):
             events = [model.model_validate_json(v) for v in raw]
@@ -206,6 +275,7 @@ class RedisWorkingMemory:
             cell_records=others(c_rec, RecordEvent),
             slice_actions=[ActionEvent.model_validate_json(v) for v in s_act],
             cell_actions=others(c_act, ActionEvent),
+            slice_outcomes=[ActionOutcome.model_validate_json(v) for v in s_out],
             persistence={kpi: int(v) for kpi, v in persistence.items()},
         )
 

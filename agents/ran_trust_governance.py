@@ -35,14 +35,13 @@ from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
 
+from ric_tools.registry import ARG_MODELS, TOOL_OWNERS
 from src.schema.limits import (
     ALLOWED_SCHEDULERS,
     HANDOVER_MARGIN_RANGE_DB,
     MCS_OFFSET_RANGE,
     POWER_OFFSET_RANGE_DB,
     PRB_PERCENTAGE_RANGE,
-    QOS_DELAY_BUDGET_RANGE_MS,
-    QOS_GBR_RANGE_MBPS,
     QOS_PRIORITY_RANGE,
     SLICE_POLICY_MAX_RANGE_PCT,
     SLICE_POLICY_MIN_RANGE_PCT,
@@ -50,10 +49,9 @@ from src.schema.limits import (
 )
 from src.schema.limits import outside as _outside
 from src.schema.near_rt_ric import GovernanceResult, LLMReview, RANActionProposal
-from tools.registry import ARG_MODELS, TOOL_OWNERS
 
 # Stage 1 (schema) and stage 2 (role binding) use the tool registry:
-# ARG_MODELS and TOOL_OWNERS are defined once, in tools/registry.py.
+# ARG_MODELS and TOOL_OWNERS are defined once, in ric_tools/registry.py.
 
 NON_RT_MIN_PERSISTENCE = int(os.getenv("NON_RT_MIN_PERSISTENCE", "3"))
 
@@ -84,13 +82,7 @@ def _safety_violation(tool_name: str, args: dict[str, Any]) -> str | None:
         return _outside(args["power_offset_db"], POWER_OFFSET_RANGE_DB, "power_offset_db")
 
     if tool_name == "adjust_qos_parameters":
-        return (
-            _outside(args["priority_level"], QOS_PRIORITY_RANGE, "priority_level")
-            or _outside(args["packet_delay_budget_ms"], QOS_DELAY_BUDGET_RANGE_MS,
-                        "packet_delay_budget_ms")
-            or _outside(args["guaranteed_bitrate_mbps"], QOS_GBR_RANGE_MBPS,
-                        "guaranteed_bitrate_mbps")
-        )
+        return _outside(args["priority_level"], QOS_PRIORITY_RANGE, "priority_level")
 
     if tool_name == "adjust_link_adaptation":
         return (

@@ -19,7 +19,8 @@ Your tools:
 - adjust_prb_allocation: change the PRB share of the slice (5-90). More PRBs
   generally raise throughput and cut queueing delay.
 - optimize_scheduler: round_robin, waterfilling or proportional_fair (the
-  schedulers of this testbed; slice_state shows the current one).
+  schedulers of this testbed; slice_state shows the current one). The cell
+  has one scheduler: the change applies to every slice.
   round_robin shares transmission opportunities equally, waterfilling gives
   more resources to UEs with better channels, proportional_fair balances
   throughput and fairness.
@@ -27,10 +28,9 @@ Your tools:
   degradation.
 - adjust_power_control: power offset in dB (-6 to 6), for coverage or
   interference-related degradation.
-- adjust_qos_parameters: QoS profile of the slice: priority_level 1-10
-  (1 = highest), packet_delay_budget_ms 5-300, guaranteed_bitrate_mbps 0-10
-  per UE (0 = non-GBR). A higher priority or a GBR protects the slice's
-  throughput and delay against the other slices.
+- adjust_qos_parameters: scheduling priority of the slice, priority_level
+  1-10 (1 = highest). Below 5 the slice may borrow the PRBs the other slices
+  leave idle, which protects its throughput and delay.
 - adjust_link_adaptation: mcs_offset -5 to 5 (negative = more robust,
   positive = more aggressive) and target_bler 0.001-0.2. A positive offset
   can raise throughput when the channel (dl_cqi) is good; a negative one
@@ -60,3 +60,11 @@ claim an action executed unless its tool result says so. If a call is
 rejected, read the reason and correct it only if the reason is fixable: an
 action rejected by the review cannot be resubmitted with the same parameters
 in this invocation, so change the parameters or move on.
+
+Your tools act on a live (emulated) RAN through its control interface. A
+change applies from the next record; the tool result reports the previous and
+the current value (for a PRB change, the requested and the applied share,
+which can differ). The working memory's slice_outcomes say whether your
+earlier actions fixed the violation: do not repeat an action whose outcome was
+"unchanged" or "worse", and after "improved" consider a further step in the
+same direction.

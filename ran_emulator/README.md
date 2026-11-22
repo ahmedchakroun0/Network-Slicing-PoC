@@ -45,10 +45,10 @@ curl -XPOST localhost:8100/sim/run -H 'content-type: application/json' -d '{"ste
 | Endpoint | Body | Agent tool |
 |---|---|---|
 | `PUT /cells/{cell}/slices/{slice}/prb` | `prb_percentage` | `adjust_prb_allocation` |
-| `PUT /cells/{cell}/scheduler` | `scheduler`, optional `slice_id` | `optimize_scheduler` |
+| `PUT /cells/{cell}/scheduler` | `scheduler` | `optimize_scheduler` |
 | `PUT /cells/{cell}/handover` | `handover_margin_db` | `optimize_handover` |
 | `PUT /cells/{cell}/power` | `power_offset_db` | `adjust_power_control` |
-| `PUT /cells/{cell}/slices/{slice}/qos` | `priority_level`, `packet_delay_budget_ms`, `guaranteed_bitrate_mbps` | `adjust_qos_parameters` |
+| `PUT /cells/{cell}/slices/{slice}/qos` | `priority_level` | `adjust_qos_parameters` |
 | `PUT /cells/{cell}/slices/{slice}/link-adaptation` | `mcs_offset`, `target_bler` | `adjust_link_adaptation` |
 | `PUT /cells/{cell}/slices/{slice}/policy` | `min_prb_ratio_pct`, `max_prb_ratio_pct` | `update_slice_resource_policy` |
 | `POST /sim/reset` | `scenario`, `seed` | |

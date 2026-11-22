@@ -51,3 +51,12 @@ SLA_PROFILES: dict[str, dict[str, KPIBudget]] = {
 
 # Every KPI name used by any profile (persistence counters, prompts).
 KPI_NAMES: tuple[str, ...] = tuple(dict.fromkeys(k for p in SLA_PROFILES.values() for k in p))
+
+
+def budget_ratio(measured: float, budget: float, bound: Literal["min", "max"]) -> float:
+    """How far a KPI is beyond its budget, in multiples of the budget: above 1
+    is a violation, and lower is better. A zero measurement of a `min` KPI is
+    infinitely far."""
+    if bound == "min":
+        return budget / measured if measured else float("inf")
+    return measured / budget if budget else float("inf")

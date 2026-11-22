@@ -76,7 +76,7 @@ def test_priority_borrows_idle_prbs(bank, make_scenario):
                    start_step=0, duration=50)
     emu = Emulator(bank, make_scenario(tr=12, events=[ev]))
     before = _embb(emu, 3)[-1]
-    emu.set_qos("bs2", "eMBB", 1, 50, 4)
+    emu.set_qos("bs2", "eMBB", 1)
     after = _embb(emu, 5)[-1]
     assert after.dl_throughput_mbps > before.dl_throughput_mbps
 
