@@ -19,3 +19,6 @@ data/exploration/
 *.log
 *.out
 *.synctex.gz
+
+# Service logs of scripts/start_stack.sh
+logs/

@@ -4,7 +4,7 @@ Only structured facts are stored: no LLM rationale or reason text, so the
 model's own words are never fed back into later prompts.
 """
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -60,6 +60,50 @@ class ActionEvent(BaseModel):
         description="LLM review verdicts (goal_aligned, reasoning_sound, "
         "behavior_acceptable), without the reviewer's text.",
     )
+    applied: dict[str, Any] | None = Field(
+        default=None,
+        description="What the RAN reports as now in force after an executed call: "
+        "`current`, and for PRB changes `applied_pct` and the cell's PRB split.",
+    )
+
+
+class KPIAtAction(BaseModel):
+    measured: float
+    budget: float
+    bound: Literal["min", "max"]
+
+
+class PendingCheck(BaseModel):
+    """An executed action waiting for the first record of its slice at or
+    after `due_step`, which shows whether it fixed the violation."""
+
+    rec: str
+    t: float
+    slice: str
+    agent: str
+    i: int = Field(description="Index of the action in its agent's audit (MongoDB).")
+    tool: str
+    due_step: int
+    kpis: dict[str, KPIAtAction] = Field(description="The violated KPIs when it was taken.")
+
+
+Outcome = Literal["resolved", "improved", "unchanged", "worse", "unknown"]
+
+
+class ActionOutcome(BaseModel):
+    """Deterministic verification of one executed action."""
+
+    rec: str = Field(description="Record on which the action was taken.")
+    t: float
+    slice: str
+    agent: str
+    i: int
+    tool: str
+    outcome: Outcome
+    checked_rec: str = Field(description="Record that verified it.")
+    checked_t: float
+    kpis: dict[str, dict[str, float | None]] = Field(
+        default_factory=dict, description="Per KPI: before, after, budget.")
 
 
 def _compact_events(events: list[BaseModel], drop: set[str]) -> list[dict[str, Any]]:
@@ -81,6 +125,9 @@ class MemoryView(BaseModel):
     cell_records: list[RecordEvent] = Field(default_factory=list)
     slice_actions: list[ActionEvent] = Field(default_factory=list)
     cell_actions: list[ActionEvent] = Field(default_factory=list)
+    slice_outcomes: list[ActionOutcome] = Field(
+        default_factory=list,
+        description="Whether the last executed actions on this slice fixed its violation.")
     persistence: dict[str, int] = Field(default_factory=dict)
 
     def compact(self, persistence: bool = True) -> dict[str, Any]:
@@ -93,6 +140,8 @@ class MemoryView(BaseModel):
             "cell_records": _compact_events(self.cell_records, {"rec"}),
             "slice_actions": _compact_events(self.slice_actions, {"rec", "slice"}),
             "cell_actions": _compact_events(self.cell_actions, {"rec"}),
+            "slice_outcomes": _compact_events(self.slice_outcomes,
+                                              {"rec", "slice", "i", "checked_rec"}),
             "persistence": self.persistence if persistence else {},
         }
         return {key: value for key, value in view.items() if value}

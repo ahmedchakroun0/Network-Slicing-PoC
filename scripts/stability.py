@@ -1,6 +1,6 @@
 """Stability of the agentic system over repeated runs of the same records.
 
-    poetry run python -m scripts.run_dataset --record-ids A,B,C --run-id stab-1   (x N)
+    poetry run python scripts/run_loop.py --scenario S --seed 0 --steps N --run-id stab-1   (x N)
     poetry run python scripts/stability.py stab-1 stab-2 ... [--name NAME]
 
 For each record and each run, the decision is reduced to signatures; a
@@ -10,8 +10,10 @@ most frequent outcome, 1 = always the same) and the mean number of distinct
 outcomes. Cost (calls, tokens, time) gets its mean, standard deviation and
 coefficient of variation per record; executed PRB shares get their spread.
 
-Each run starts from an empty working memory (run_dataset resets it), so the
-runs are independent repetitions.
+Each run resets the emulator to the same scenario and seed and starts from
+an empty working memory (run_loop resets both), so the runs are independent
+repetitions. The records stay the same while the agents act the same; once
+an action differs, the next records differ too (closed loop).
 
 Writes results/stability-<name>/: stability.json, signatures.csv,
 stability_table.tex.

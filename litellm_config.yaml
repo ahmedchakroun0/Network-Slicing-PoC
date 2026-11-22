@@ -42,6 +42,30 @@ model_list:
       model: openai/@cf/mistralai/mistral-small-3.1-24b-instruct
       api_base: os.environ/CLOUDFLARE_API_BASE
       api_key: os.environ/CLOUDFLARE_API_KEY
+# MCP gateway: the RIC action tools (ric_tools/server.py, one server per role).
+# The agents connect to {LITELLM_API_BASE}/<server>/mcp with the LiteLLM key,
+# list the tools and call them only after governance approved the call
+# (ric_tools/client.py). allowed_tools pins each server to the tools its role
+# owns (ric_tools/registry.py; tests/test_mcp_servers.py checks they agree).
+mcp_servers:
+  near_rt:
+    url: http://127.0.0.1:8201/mcp
+    transport: http
+    description: Near-RT RIC controls (E2-style) of the emulated RAN
+    allowed_tools:
+      - adjust_prb_allocation
+      - optimize_scheduler
+      - optimize_handover
+      - adjust_power_control
+      - adjust_qos_parameters
+      - adjust_link_adaptation
+  non_rt:
+    url: http://127.0.0.1:8202/mcp
+    transport: http
+    description: Non-RT RIC slice policies (A1-style) of the emulated RAN
+    allowed_tools:
+      - update_slice_resource_policy
+
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
   database_url: os.environ/DATABASE_URL

@@ -15,6 +15,8 @@ nothing is cached in memory, so the cost of a write does not grow with the run.
   each tool call    push_action     $push agents.<agent>.actions (with the governance review)
   knowledge lookup  push_knowledge  $push agents.<agent>.knowledge
   agent ends        finish_agent    $set agents.<agent>.status / finished_at / selected_action
+  action verified   set_action_outcome  $set agents.<agent>.actions.<i>.outcome (on the
+                                    record that took the action, from a later record)
   record ends       finish_record   $set status="done"; runs: $inc summary counters
 """
 
@@ -178,6 +180,14 @@ class MongoRepository:
         if error is not None:
             fields[f"{prefix}.error"] = error
         self._update_record(run_id, record_id, {"$set": fields})
+
+    def set_action_outcome(
+        self, *, run_id: str, record_id: str, agent: str, index: int, outcome: dict[str, Any]
+    ) -> None:
+        """Verification of an executed action, set on the action itself."""
+        self._update_record(run_id, record_id, {"$set": {
+            f"agents.{agent}.actions.{index}.outcome": outcome}})
+        self.count(run_id=run_id, counters={f"action_outcomes.{outcome['outcome']}": 1})
 
 
 __all__ = ["MongoRepository", "record_key"]

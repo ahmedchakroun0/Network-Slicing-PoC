@@ -12,6 +12,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from langchain_core.runnables import RunnableLambda
 from pydantic import BaseModel, Field, ValidationError, create_model
 
+from ric_tools.registry import PROTECTED_TOOLS, REASONING_FIELDS, RESOURCE_OF
 from src.core.llm import message_text
 from src.schema.mongo_run_document import ActionEntry, AgentMessage, KnowledgeEntry
 from src.schema.near_rt_ric import (
@@ -19,7 +20,6 @@ from src.schema.near_rt_ric import (
     RANActionProposal,
     RANToolResult,
 )
-from tools.registry import PROTECTED_TOOLS, REASONING_FIELDS, RESOURCE_OF
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 MAX_PROTECTED_CALLS = int(os.getenv("MAX_PROTECTED_CALLS_PER_INVOCATION", "20"))
 
 # The RIC agents choose and call the action tools themselves. Each tool in
-# PROTECTED_TOOLS (tools/registry.py) is protected: the call is turned into a
+# PROTECTED_TOOLS (ric_tools/registry.py) is protected: the call is turned into a
 # RANActionProposal, validated by the Trust & Governance Agent here, and
 # only then executed. RESOURCE_OF gives the network resource each tool
 # controls: at most one call per resource is executed per invocation.
@@ -422,12 +422,19 @@ class RANAuthorizationMiddleware(AgentMiddleware):
                 except (json.JSONDecodeError, TypeError):
                     pass
 
-            execution = self._tool_result(
-                tool_name,
-                arguments,
-                "executed",
-                result=raw_result,
-            )
+            # A tool failure the tool node turned into a message (e.g. the RAN
+            # refused the control) did not change the network.
+            if isinstance(tool_response, ToolMessage) and tool_response.status == "error":
+                execution = self._tool_result(
+                    tool_name, arguments, "error", message=str(tool_response.content)
+                )
+            else:
+                execution = self._tool_result(
+                    tool_name,
+                    arguments,
+                    "executed",
+                    result=raw_result,
+                )
             audit.add(tool_call_id, submitted, proposal, decision, execution, agent_message)
 
             return tool_response

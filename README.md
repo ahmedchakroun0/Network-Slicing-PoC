@@ -1176,19 +1176,17 @@ LLM calls should be mocked during unit and integration tests whenever possible.
 
 This ensures that tests validate the agentic system rather than network availability or model-provider availability.
 
-19. Run the Dataset
+19. Run the Closed Loop
 
-After Redis and MongoDB are available and the tests pass, the dataset can be used as the telemetry source.
+After Redis and MongoDB are available and the tests pass, start the stack and run a few emulator steps
+(see "Closed loop on the RAN emulator" below):
 
-A small number of records should be tested first:
-
-poetry run python scripts/run_dataset.py --max-rows 10
-
-The exact argument can depend on the implementation.
+./scripts/start_stack.sh
+poetry run python scripts/run_loop.py --scenario embb_prb_starvation --steps 10
 
 The execution should:
 
-Load the telemetry dataset.
+Read each step's telemetry from the RAN emulator.
 
 Process records sequentially.
 
@@ -1244,24 +1242,21 @@ sudo systemctl status mongod
 
 poetry run pytest
 
-poetry run python scripts/run_dataset.py --max-rows 10
-
-After validating the first records:
-
-poetry run python scripts/run_dataset.py
+./scripts/start_stack.sh
+poetry run python scripts/run_loop.py --scenario embb_prb_starvation --steps 10
 
 
 # v2 corrections
 
-See `CHANGES.md` for the list of fixes (role binding, Non-RT persistence gate, per-(cell, slice) persistence, optional `Cell ID`, bounded working memory, audit fix, prompt/test/path fixes) and the new end-to-end test; section v3 lists the fixes from the live-LLM runs (default-deny safety stage, schema alignment of the new tools, invocation limits, merged duplicate agent selections). Run `poetry run pytest` (40 tests) before `scripts/run_dataset.py`; add `--debug` for verbose LangChain tracing.
+See `CHANGES.md` for the list of fixes (role binding, Non-RT persistence gate, per-(cell, slice) persistence, optional `Cell ID`, bounded working memory, audit fix, prompt/test/path fixes) and the new end-to-end test; section v3 lists the fixes from the live-LLM runs (default-deny safety stage, schema alignment of the new tools, invocation limits, merged duplicate agent selections). Run `poetry run pytest` before `scripts/run_loop.py`; add `--debug` for verbose LangChain tracing.
 
 
 # Using the ColO-RAN dataset (real-stack wireless traces)
 
-The original `data/prepared_network_slicing_dataset.csv` is synthetic (Botez et al., Electronics 2025).
-The PoC can also run on **ColO-RAN** (Polese et al., IEEE TMC 2023): per-UE traces collected with an
-srsRAN-based stack on the Colosseum emulator — 7 base stations, 3 slices (eMBB, MTC, URLLC),
-3 schedulers x 28 RBG splits. No agent code changes: the preprocessing writes the same CSV columns.
+The RAN emulator (`ran_emulator/`) replays **ColO-RAN** traces (Polese et al., IEEE TMC 2023): per-UE
+traces collected with an srsRAN-based stack on the Colosseum emulator — 7 base stations, 3 slices
+(eMBB, MTC, URLLC), 3 schedulers x 28 RBG splits. The preprocessing below builds the trace bank it
+loads (without it, the emulator uses the tracked sample).
 
 ```bash
 # 1. download (sparse clone, ~750 MB for one experiment run; GPL-3.0 data)
@@ -1271,11 +1266,12 @@ bash scripts/download_coloran.sh                       # -> data/raw/coloran (gi
 poetry run python scripts/prepare_coloran.py           # -> data/coloran_prepared_dataset.csv (+ .summary.json)
 #    options: --runs 50 (random subset of cell runs), --window 1.0 (s per record), --experiments exp1 exp2
 
-# 3a. dry run without model / Redis / MongoDB (scripted LLM)
-poetry run python scripts/demo_run_scripted.py 60
+# 3a. dry run without model / Redis / MongoDB / LiteLLM (scripted LLM, in-process emulator)
+poetry run python scripts/demo_run_scripted.py 10 embb_prb_starvation
 
-# 3b. real run (LLM via LiteLLM, Redis and MongoDB running)
-poetry run python scripts/run_dataset.py data/coloran_prepared_dataset.csv --max-rows 300
+# 3b. real run (LLM and MCP via LiteLLM, Redis and MongoDB running)
+./scripts/start_stack.sh
+poetry run python scripts/run_loop.py --scenario embb_prb_starvation --steps 30
 ```
 
 What one record is: one slice of one base station over a 1-s window.
@@ -1311,3 +1307,70 @@ Extra columns (`Scheduler`, `RBG Split`, `Run`, `Window Start (s)`) are ignored 
 Only facts are stored, never LLM rationales. A record from a new configuration of a base station clears that base station's memory.
 
 **MongoDB is the results store** (`src/repositories/mongo_repository.py`): `runs` has one small document per run (configuration and counters), and `records` has one document per telemetry record (telemetry, SLA analysis, persistence, the Monitoring decision, and each RIC agent's tool calls with their governance outcome). Each agent step adds to the record with a targeted `$set` / `$push`; documents are never re-written whole.
+
+
+# Closed loop on the RAN emulator (MCP tools through LiteLLM)
+
+The telemetry source is the RAN emulator (`ran_emulator/`, see its README): there is no CSV replay.
+Each emulator step emits one record per cell and slice, the agents act on it, and an approved action
+changes the emulator from the next step, so the following records show its effect.
+
+```text
+scripts/run_loop.py  ── each step: EmulatorClient.step_records() → record workflow
+   ingest (SLA, persistence, verification) → Monitoring → Near-RT RIC → Non-RT RIC → finalize
+                              │ tool call
+              RANAuthorizationMiddleware (governance: schema, policy/trust, SLA, safety, LLM review)
+                              │ approved only
+              ric_tools/client.py ── MCP over HTTP, LiteLLM key ──▶ LiteLLM :4000 /near_rt/mcp, /non_rt/mcp
+                                                                        │
+                              ric_tools --role near_rt :8201 / --role non_rt :8202
+                                                                        │ EmulatorClient
+                                                              RAN emulator :8100 (lockstep)
+```
+
+**Tools.** Everything about the tools lives in `ric_tools/`:
+
+| File | What it holds |
+|---|---|
+| `controls.py` | the tools, each defined once: a `RANControls` method whose signature is the tool's arguments and whose docstring is its description |
+| `registry.py` | which role owns each tool and which resource it changes; the argument schemas governance validates are generated from `controls.py` |
+| `server.py`, `__main__.py` | one MCP server per role: the six Near-RT controls (E2-style) and the Non-RT slice policy (A1-style) |
+| `client.py` | loads a role's tools through LiteLLM for its agent |
+| `knowledge.py` | `search_ran_knowledge`, a local read-only tool |
+
+Each tool takes only the arguments the RAN uses, calls the matching emulator endpoint and returns what
+the RAN reports: previous and current values, the step from which the change applies, and for a PRB
+change the requested and the applied share (requests are snapped to a recorded split). A refused control
+(outside the safety envelope, unknown cell) comes back as a tool error and is audited as `error`, never
+`executed`. The model's justification of a call (`rationale`, `expected_effect`, `confidence`,
+`evidence_sources`) is not a tool argument: the client adds it to what the model sees and strips it
+before the MCP call, after the governance middleware has moved it into the proposal it reviews.
+
+**LiteLLM is the MCP gateway, not the executor.** The agents connect to the MCP servers through LiteLLM
+(`mcp_servers:` in `litellm_config.yaml`, with `allowed_tools` pinning each server to its role's tools)
+and call a tool only after governance approved the call. Tools are given to the model as plain function
+tools; they are never passed to a completion as `{"type": "mcp"}`, which would let the gateway execute
+them and skip governance. LiteLLM prefixes tool names with the server (`near_rt-adjust_prb_allocation`);
+the client maps them back to the registry names the middleware gates on, and refuses any tool the role
+does not own.
+
+**Verification.** Each executed action is checked deterministically on the first record of its slice
+at or after the step it applies from (`src/memory/verification.py`): `resolved` (none of the KPIs
+violated at action time is still violated), `improved` (all closer to budget), `unchanged`, `worse`, or
+`unknown`. The outcome is stored on the action in MongoDB (`agents.<agent>.actions.<i>.outcome`), shown
+to the agents in working memory (`slice_outcomes`), and summarised in `metrics.json` (`closed_loop`).
+
+**Controls in force** are the values the RAN applied, for every slice of the cell (a PRB change or a
+policy can move the other slices too); governance checks new PRB shares and policies against them.
+
+Run it:
+
+```bash
+./scripts/start_stack.sh                 # emulator, both MCP servers, LiteLLM (logs in logs/)
+poetry run python scripts/run_loop.py --scenario embb_prb_starvation --steps 10 --run-id loop-1
+```
+
+`--scenario` is a scenario of `ran_emulator/scenarios/` or a JSON path, `--seed` overrides its seed,
+`--steps` sets the run length. Without any service, `scripts/demo_run_scripted.py` runs the same loop
+with a scripted model, the emulator and the MCP servers in process.
+

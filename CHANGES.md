@@ -190,3 +190,22 @@ Token reduction:
 
 Paper tables:
 - `scripts/paper_tables.py --group "LABEL=run1,run2" ... --tex PATH`: one column per named group of runs, with the summary rows of `evaluate_run.py` (now also "Calls rejected by code"); the metrics go to a `.json` next to the table. Reasoning tokens are averaged only over records that recorded them ("--" otherwise). Table captions no longer carry an experiment number.
+
+# v3.4 — real tools over MCP (through LiteLLM), emulator closed loop, action verification
+
+The RIC agents' action tools were stubs that returned `"status": "success"` and changed nothing. They now act on the RAN emulator, and the emulator is the only telemetry source.
+
+| # | Problem | Fix | Files |
+|---|---|---|---|
+| 1 | Action tools were stubs | One MCP server per role (near-RT: six E2-style controls; non-RT: the A1-style policy) calls the emulator and returns what the RAN reports | `ric_tools/server.py`, `ric_tools/controls.py` |
+| 2 | Tools were bound in process | The agents load their tools from their MCP server through the LiteLLM gateway (`mcp_servers:` in `litellm_config.yaml`); names prefixed by LiteLLM are mapped back to registry names, and a tool the role does not own is refused. Governance still gates every call before the MCP call; LiteLLM never executes tools | `ric_tools/client.py`, `agents/base_ric.py`, `litellm_config.yaml` |
+| 3 | CSV replay: actions never affected the next records | `scripts/run_dataset.py` replaced by `scripts/run_loop.py`: each emulator step (lockstep) goes through the workflow, and actions apply from the next step | `scripts/run_loop.py` |
+| 4 | No feedback on whether an action worked | Deterministic verification on the slice's next record: resolved / improved / unchanged / worse / unknown; stored on the action (MongoDB), shown to the agents (`slice_outcomes`), reported in `metrics.json` (`closed_loop`); prompts say not to repeat an action that did not work | `src/memory/verification.py`, `agents/record_workflow.py`, `prompts/` |
+| 5 | Every PRB or scheduler action wiped the cell's working memory: emulator records carried the source trace's run, which a control switches | Emulator records carry one run per episode (`emu/<scenario>/seed<seed>`); the source trace stays in the step meta | `ran_emulator/engine.py` |
+| 6 | Working memory stored the requested PRB share, but the RAN snaps it to a recorded split (and moves the other slices); governance's conflict check used values not in force | Controls in force are the RAN's applied split, for every slice of the cell, and the applied policy | `src/memory/working_memory.py`, `src/schema/working_memory.py` |
+| 7 | A tool failure returned as a message was audited as `executed` | Audited as `error` | `middleware/ran_authorisation.py` |
+| 8 | Prompt paths depended on the working directory | Resolved from the project root | `agents/` |
+| 9 | Tool code was split across `tools/` and `mcp_servers/`, and every tool's arguments were written twice (the tool signature and a typed `*Args` class in the registry) | One package, `ric_tools/`: each tool is defined once as a `RANControls` method (signature = arguments, docstring = description); the registry keeps only owner and resource and generates governance's argument schemas from the methods | `ric_tools/` |
+| 10 | Tools took arguments they did not use: the justification fields on every MCP tool, `slice_id` on `optimize_scheduler` (one scheduler per cell), `packet_delay_budget_ms` and `guaranteed_bitrate_mbps` on `adjust_qos_parameters` (stored, never modelled) | Removed from the tools and the emulator API. The justification is added client-side for the model and stripped before the MCP call. `slice_id` is typed as a real slice and `scheduler` as the testbed's schedulers, so a wrong value fails at governance's schema stage | `ric_tools/`, `ran_emulator/`, `src/schema/limits.py`, `agents/ran_trust_governance.py` |
+
+`scripts/start_stack.sh` starts the emulator, both MCP servers and LiteLLM. `scripts/demo_run_scripted.py` runs the closed loop with a scripted model and everything in process. New tests: `tests/test_mcp_servers.py`, `tests/test_verification.py`, and `tests/test_end_to_end.py` rewritten for the closed loop (resolved action; unfixable violation escalating to the Non-RT policy; provider stop).

@@ -8,7 +8,9 @@ for that record's run. Memory across records stays in Redis (working memory)
 and the results in MongoDB; each node does its own small writes there.
 
 - ingest        SLA analysis, base-station configuration and persistence
-                (Redis); opens the record document (MongoDB) on a violation.
+                (Redis); verifies the slice's executed actions that are due
+                (src/memory/verification.py); opens the record document
+                (MongoDB) on a violation.
 - skip_healthy  no violation: the slice history keeps the record, no agent.
 - monitoring    the Monitoring Agent's decision (LLM + deterministic routing).
 - near_rt_ric / non_rt_ric
@@ -28,10 +30,11 @@ from typing import Annotated, Any, Literal, TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from agents.monitoring_agent import MonitoringAgent
+from src.memory.verification import verify
 from src.memory.working_memory import RedisWorkingMemory
 from src.repositories.mongo_repository import MongoRepository
 from src.schema.monitoring import AgentName, MonitoringDecision, SLAAnalysis, TelemetryRecord
-from src.schema.working_memory import RecordEvent
+from src.schema.working_memory import ActionOutcome, RecordEvent
 
 # Order in which the selected RIC agents run within one record.
 AGENT_ORDER: tuple[AgentName, ...] = ("near_rt_ric", "non_rt_ric")
@@ -45,6 +48,7 @@ class RecordState(TypedDict, total=False):
     sla_analysis: SLAAnalysis
     persistence: dict[str, int]
     slice_state: dict[str, Any]
+    outcomes: list[ActionOutcome]
     # Set by the Monitoring Agent
     decision: MonitoringDecision
     # One entry per invoked RIC agent: its typed result (None on failure)
@@ -149,11 +153,22 @@ class RecordWorkflow:
         record = state["record"]
         analysis = MonitoringAgent.analyze_sla(record)
         persistence: dict[str, int] = {}
+        outcomes: list[ActionOutcome] = []
         if self.memory is not None:
             # Base-station configuration (a new run of the cell clears its
             # memory) and per-slice violation persistence.
             await self.memory.observe(record)
             persistence = await self.memory.update_persistence(record, analysis.violations)
+            # Closed loop: did the actions taken earlier on this slice fix it?
+            # `seq` is the emulator step of the record.
+            due = await self.memory.pop_due(record.cell_id, record.slice_id, state.get("seq", 0))
+            outcomes = [verify(check, record, analysis) for check in due]
+            await self.memory.record_outcomes(record.cell_id, outcomes)
+            if self.store is not None:
+                for outcome in outcomes:
+                    self.store.set_action_outcome(
+                        run_id=self.run_id, record_id=outcome.rec, agent=outcome.agent,
+                        index=outcome.i, outcome=outcome.model_dump(mode="json"))
         if analysis.violations and self.store is not None:
             self.store.insert_record(
                 run_id=self.run_id, record_id=record.record_id, seq=state.get("seq", 0),
@@ -161,7 +176,7 @@ class RecordWorkflow:
                 sla=analysis.model_dump(mode="json"), persistence=persistence,
             )
         return {"sla_analysis": analysis, "persistence": persistence,
-                "slice_state": slice_state(record)}
+                "slice_state": slice_state(record), "outcomes": outcomes}
 
     async def skip_healthy(self, state: RecordState) -> dict[str, Any]:
         # The Monitoring Agent is not invoked; the slice history keeps the

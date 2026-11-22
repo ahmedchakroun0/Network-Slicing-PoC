@@ -39,8 +39,6 @@ class SliceControls:
     mcs_offset: int = 0
     target_bler: float = overlay.BASE_BLER
     priority_level: int = overlay.NEUTRAL_PRIORITY
-    packet_delay_budget_ms: float | None = None
-    guaranteed_bitrate_mbps: float | None = None
     policy: Policy | None = None
     backlog_bytes: float = 0.0       # extra backlog from overlay effects, carried over
 
@@ -122,7 +120,10 @@ class Emulator:
                 rec = TelemetryRecord(
                     record_id=f"emu-{self.scenario.name}-{cell.cell_id}-s{step:05d}-{s}",
                     cell_id=cell.cell_id, slice_id=s,
-                    run=f"emu/{self.scenario.name}/{cell.trace.run}",
+                    # One run per episode: a control switches the source trace
+                    # (meta.source_run), not the cell's configuration run, so
+                    # the agents' working memory of the cell is kept.
+                    run=f"emu/{self.scenario.name}/seed{self.scenario.seed}",
                     window_start_s=step * cell.trace.window_s, window_s=cell.trace.window_s,
                     slice_prb=cell.split.of(s), cell_prb=CELL_PRB, scheduler=cell.scheduler,
                     **rows[s][0])
@@ -246,16 +247,15 @@ class Emulator:
                             "; ".join(notes) or None, requested_pct=prb_percentage,
                             applied_pct=applied_pct)
 
-    def set_scheduler(self, cell_id: str, scheduler: str,
-                      slice_id: SliceType | None = None) -> dict[str, Any]:
+    def set_scheduler(self, cell_id: str, scheduler: str) -> dict[str, Any]:
         cell = self._cell(cell_id)
-        args = {"slice": slice_id, "scheduler": scheduler}
+        args = {"scheduler": scheduler}
         self._check("scheduler", cell_id, args, None if scheduler in limits.ALLOWED_SCHEDULERS
                     else f"scheduler {scheduler!r} is not allowed")
         previous = cell.scheduler
         note = self._switch(cell, scheduler, cell.split)
         msg = "the ColO-RAN traces use one scheduler per cell: applied to all slices"
-        return self._result("scheduler", cell, slice_id, previous, cell.scheduler,
+        return self._result("scheduler", cell, None, previous, cell.scheduler,
                             "; ".join(n for n in (msg, note) if n))
 
     def set_handover(self, cell_id: str, handover_margin_db: float) -> dict[str, Any]:
@@ -276,25 +276,14 @@ class Emulator:
         return self._result("power", cell, None, {"power_offset_db": previous},
                             {"power_offset_db": cell.power_offset_db}, "modelled effect")
 
-    def set_qos(self, cell_id: str, slice_id: SliceType, priority_level: int,
-                packet_delay_budget_ms: float, guaranteed_bitrate_mbps: float) -> dict[str, Any]:
+    def set_qos(self, cell_id: str, slice_id: SliceType, priority_level: int) -> dict[str, Any]:
         cell = self._cell(cell_id)
-        args = {"slice": slice_id, "priority_level": priority_level,
-                "packet_delay_budget_ms": packet_delay_budget_ms,
-                "guaranteed_bitrate_mbps": guaranteed_bitrate_mbps}
-        self._check("qos", cell_id, args, (
-            limits.outside(priority_level, limits.QOS_PRIORITY_RANGE, "priority_level")
-            or limits.outside(packet_delay_budget_ms, limits.QOS_DELAY_BUDGET_RANGE_MS,
-                              "packet_delay_budget_ms")
-            or limits.outside(guaranteed_bitrate_mbps, limits.QOS_GBR_RANGE_MBPS,
-                              "guaranteed_bitrate_mbps")))
+        self._check("qos", cell_id, {"slice": slice_id, "priority_level": priority_level},
+                    limits.outside(priority_level, limits.QOS_PRIORITY_RANGE, "priority_level"))
         ctl = cell.slices[slice_id]
-        keys = ("priority_level", "packet_delay_budget_ms", "guaranteed_bitrate_mbps")
-        previous = {k: getattr(ctl, k) for k in keys}
-        ctl.priority_level = int(priority_level)
-        ctl.packet_delay_budget_ms = float(packet_delay_budget_ms)
-        ctl.guaranteed_bitrate_mbps = float(guaranteed_bitrate_mbps)
-        return self._result("qos", cell, slice_id, previous, {k: getattr(ctl, k) for k in keys},
+        previous, ctl.priority_level = ctl.priority_level, int(priority_level)
+        return self._result("qos", cell, slice_id, {"priority_level": previous},
+                            {"priority_level": ctl.priority_level},
                             "modelled effect: priority below 5 borrows the cell's idle PRBs")
 
     def set_link_adaptation(self, cell_id: str, slice_id: SliceType, mcs_offset: int,

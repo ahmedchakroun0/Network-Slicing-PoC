@@ -38,18 +38,19 @@ distorted paraphrase. Untraceable numbers are listed for manual review.
 
 from __future__ import annotations
 
+import inspect
 import math
 import re
 from typing import Any
 
-from langchain_core.tools import BaseTool
-
 import agents.ran_trust_governance as governance
 from agents.monitoring_agent import MonitoringAgent
 from agents.ran_trust_governance import NON_RT_MIN_PERSISTENCE
+from ric_tools.controls import RANControls
+from ric_tools.knowledge import search_ran_knowledge
+from ric_tools.registry import ARG_MODELS, REASONING_FIELDS, TOOL_SPECS
 from src.schema.monitoring import TelemetryRecord
 from src.schema.sla import SLA_PROFILES
-from tools import near_rt_ric_tools, non_rt_ric_tools
 
 PRB_LIMITED_UTILISATION = 0.9
 RADIO_LIMITED_CQI = 7.0
@@ -84,12 +85,14 @@ _STOP = {"with", "from", "that", "this", "than", "into", "when", "which", "their
          "have", "been", "were", "will", "slice", "knowledge", "retrieved", "result",
          "search_ran_knowledge", "pattern", "context", "invocation"}
 # What the agents saw of the tools: their descriptions count as knowledge.
-_TOOLS = [t for module in (near_rt_ric_tools, non_rt_ric_tools)
-          for t in vars(module).values() if isinstance(t, BaseTool)]
-TOOL_DESCRIPTIONS = [f"{t.name}: {t.description}" for t in _TOOLS]
+TOOL_DESCRIPTIONS = [f"{spec.name}: {inspect.getdoc(getattr(RANControls, spec.name))}"
+                     for spec in TOOL_SPECS] + [
+    f"{search_ran_knowledge.name}: {search_ran_knowledge.description}"]
 # Names that make an evidence source a statement about the context.
 _CONTEXT_NAMES = (set(TelemetryRecord.model_fields)
-                  | {arg for t in _TOOLS for arg in t.args} | {"budget"}) - {
+                  | {arg for model in ARG_MODELS.values() for arg in model.model_fields}
+                  | set(REASONING_FIELDS)
+                  | {"budget"}) - {
     "target", "rationale", "expected_effect", "confidence", "evidence_sources"}
 # What the working memory showed of a slice's records: its last k records.
 MEMORY_RECORDS = 10

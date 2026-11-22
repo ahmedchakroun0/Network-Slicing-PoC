@@ -4,7 +4,7 @@
 
 MongoDB stays the source of truth; this writes a snapshot of one or more runs
 to results/<run_id>/ so the paper's numbers can be regenerated and archived
-(run_dataset.py does this at the end of every run; several runs pooled go to
+(run_loop.py does this at the end of every run; several runs pooled go to
 results/<run1>+<run2>/):
 
     metrics.json        every metric below
@@ -156,6 +156,8 @@ def action_rows(records: list[dict[str, Any]],
                     "governance_reason": governance.get("reason"),
                     **{verdict: review.get(verdict) for verdict in REVIEW_VERDICTS},
                     "execution": (action.get("execution") or {}).get("status"),
+                    # Closed loop: what the slice's next record showed (verification).
+                    "outcome": (action.get("outcome") or {}).get("outcome"),
                     **checks[(doc["run_id"], doc["seq"], agent, action.get("i", position))],
                 })
     return sorted(rows, key=lambda r: (r["run_id"], r["seq"], r["at"]))
@@ -164,6 +166,22 @@ def action_rows(records: list[dict[str, Any]],
 # --------------------------------------------------------------------------
 # Metrics
 # --------------------------------------------------------------------------
+
+
+def action_outcomes(actions: list[dict[str, Any]]) -> dict[str, Any]:
+    """Did the executed actions fix the violation (src/memory/verification.py)?"""
+    executed = [a for a in actions if a["execution"] == "executed"]
+    verified = [a for a in executed if a.get("outcome")]
+    per_tool: dict[str, Counter[str]] = {}
+    for a in verified:
+        per_tool.setdefault(a["tool"], Counter())[a["outcome"]] += 1
+    return {
+        "executed": len(executed),
+        "verified": len(verified),
+        "outcomes": dict(Counter(a["outcome"] for a in verified)),
+        "resolved": _rate(sum(a["outcome"] == "resolved" for a in verified), len(verified)),
+        "per_tool": {tool: dict(c) for tool, c in sorted(per_tool.items())},
+    }
 
 
 def invariant_violations(actions: list[dict[str, Any]]) -> dict[str, int]:
@@ -431,6 +449,7 @@ def compute_metrics(runs: list[dict[str, Any]], records: list[dict[str, Any]],
                                            if not a["approved"] and a["confidence"] is not None]).get("mean"),
             },
         },
+        "closed_loop": action_outcomes(actions),
         "invariant_violations": invariant_violations(actions),
         "cross_agent_conflicts": prb_policy_conflicts(actions),
         "latency_s": {

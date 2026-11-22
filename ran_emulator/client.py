@@ -48,10 +48,8 @@ class EmulatorClient:
         return await self._call("PUT", f"/cells/{cell}/slices/{slice_id}/prb",
                                 json={"prb_percentage": prb_percentage})
 
-    async def optimize_scheduler(self, cell: str, scheduler: str,
-                                 slice_id: str | None = None) -> dict[str, Any]:
-        return await self._call("PUT", f"/cells/{cell}/scheduler",
-                                json={"scheduler": scheduler, "slice_id": slice_id})
+    async def optimize_scheduler(self, cell: str, scheduler: str) -> dict[str, Any]:
+        return await self._call("PUT", f"/cells/{cell}/scheduler", json={"scheduler": scheduler})
 
     async def optimize_handover(self, cell: str, handover_margin_db: float) -> dict[str, Any]:
         return await self._call("PUT", f"/cells/{cell}/handover",
@@ -61,12 +59,10 @@ class EmulatorClient:
         return await self._call("PUT", f"/cells/{cell}/power",
                                 json={"power_offset_db": power_offset_db})
 
-    async def adjust_qos_parameters(self, cell: str, slice_id: str, priority_level: int,
-                                    packet_delay_budget_ms: float,
-                                    guaranteed_bitrate_mbps: float) -> dict[str, Any]:
-        return await self._call("PUT", f"/cells/{cell}/slices/{slice_id}/qos", json={
-            "priority_level": priority_level, "packet_delay_budget_ms": packet_delay_budget_ms,
-            "guaranteed_bitrate_mbps": guaranteed_bitrate_mbps})
+    async def adjust_qos_parameters(self, cell: str, slice_id: str,
+                                    priority_level: int) -> dict[str, Any]:
+        return await self._call("PUT", f"/cells/{cell}/slices/{slice_id}/qos",
+                                json={"priority_level": priority_level})
 
     async def adjust_link_adaptation(self, cell: str, slice_id: str, mcs_offset: int,
                                      target_bler: float) -> dict[str, Any]:

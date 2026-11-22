@@ -4,12 +4,14 @@ The two RIC agents are siblings: neither inherits from the other. All the
 common machinery lives here (prompt injection, governance middleware, audit
 collection, typed result). A concrete agent only declares its identity:
 
-    agent_name   - value of AgentInvocation.agent it accepts
+    agent_name   - value of AgentInvocation.agent it accepts (its role)
     prompt_path  - its system prompt file
-    tools        - tools given to the LLM (knowledge search + its action
-                   tools). The agent picks the tool itself; every tool
-                   in PROTECTED_TOOLS (tools/registry.py) is gated by the
-                   Trust & Governance Agent.
+
+Its action tools come from its MCP server (tools/mcp_client.role_tools,
+through the LiteLLM gateway) and are passed in by the runner, which owns the
+MCP session. The LLM gets them plus the local knowledge search; it picks the
+tool itself, and every call of a tool in PROTECTED_TOOLS (ric_tools/registry.py)
+is gated by the Trust & Governance Agent before the MCP call is made.
 """
 
 import json
@@ -21,12 +23,15 @@ from typing import Any, ClassVar
 from langchain.agents import AgentState, create_agent
 from langchain.agents.middleware import ModelRequest, dynamic_prompt
 from langchain_core.messages import AIMessage
+from langchain_core.tools import BaseTool
 
 from middleware.ran_authorisation import (
     RAN_AUDIT,
     AuditSink,
     RANAuthorizationMiddleware,
 )
+from ric_tools.knowledge import search_ran_knowledge
+from ric_tools.registry import PROTECTED_TOOLS
 from src.core.llm import create_llm, message_text
 from src.memory.working_memory import RedisWorkingMemory
 from src.repositories.mongo_repository import MongoRepository
@@ -38,8 +43,7 @@ from src.schema.near_rt_ric import (
     RANToolResult,
 )
 from src.schema.near_rt_ric import NearRTRICResult as RICResult  # shared result
-from src.schema.working_memory import ActionEvent
-from tools.registry import PROTECTED_TOOLS
+from src.schema.working_memory import ActionEvent, KPIAtAction, PendingCheck
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +54,9 @@ DETERMINISTIC_STAGES = frozenset(
 )
 # The LLM review's verdicts are kept in working memory as booleans only.
 REVIEW_VERDICTS = ("goal_aligned", "reasoning_sound", "behavior_acceptable")
+# What the RAN reports after an executed control (ran_emulator) that the
+# agents keep in working memory: the values now in force.
+APPLIED_FIELDS = ("current", "applied_pct", "prb", "effective_step")
 
 
 class RICState(AgentState):
@@ -63,7 +70,6 @@ class BaseRICAgent(ABC):
 
     agent_name: ClassVar[str]
     prompt_path: ClassVar[Path]
-    tools: ClassVar[list[Any]]
 
     def __init__(
         self,
@@ -72,8 +78,10 @@ class BaseRICAgent(ABC):
         memory: RedisWorkingMemory | None = None,
         mongo_repository: MongoRepository | None = None,
         run_id: str | None = None,
+        action_tools: list[BaseTool] | None = None,
     ):
         self.agent = agent
+        self.action_tools = action_tools
         self.trust_governance_agent = trust_governance_agent
         self.memory = memory
         self.mongo_repository = mongo_repository
@@ -93,7 +101,18 @@ class BaseRICAgent(ABC):
                 f"{self.agent_name} prompt not found: {self.prompt_path}"
             )
 
+        if not self.action_tools:
+            raise RuntimeError(
+                f"{self.agent_name} has no action tools: pass the tools of its MCP "
+                "server (ric_tools.client.role_tools)."
+            )
+
         self.agent = await self._build_agent()
+
+    @property
+    def tools(self) -> list[BaseTool]:
+        """What the LLM is given: the knowledge search and the action tools."""
+        return [search_ran_knowledge, *(self.action_tools or [])]
 
     async def _build_agent(self):
         base_prompt = self.prompt_path.read_text(encoding="utf-8")
@@ -120,11 +139,13 @@ Current {agent_name} invocation:
 
 Working memory of this base station and slice (facts, most recent first:
 cell configuration, last records of this slice and of the other slices,
-last tool calls executed or rejected on them):
+last tool calls executed or rejected on them, and in slice_outcomes whether
+the executed ones fixed the violation, checked on the next record):
 {working_memory}
-Do not repeat a call that was just rejected with the same parameters, and
-prefer a different action when the same violation persists after executed
-actions.
+Do not repeat a call that was just rejected with the same parameters, nor an
+action whose outcome was "unchanged" or "worse": choose a different action.
+An action whose outcome was "improved" may need a further step in the same
+direction.
 
 Your action tools: {action_tool_names}.
 Pass `target` (and `slice_id` only when the tool declares that parameter)
@@ -195,8 +216,42 @@ Do not claim an action executed unless its tool result confirms it.
                 stage=stage,
                 why=reason[:160] if stage in DETERMINISTIC_STAGES else None,
                 review={k: review[k] for k in REVIEW_VERDICTS if k in review} or None,
+                applied=BaseRICAgent._applied(action),
             ))
         return events
+
+    @staticmethod
+    def _applied(action: ActionEntry) -> dict[str, Any] | None:
+        """What the RAN reports as in force after an executed call."""
+        if action.execution.get("status") != "executed":
+            return None
+        result = action.execution.get("result") or {}
+        applied = {k: result[k] for k in APPLIED_FIELDS if result.get(k) is not None}
+        return applied or None
+
+    @staticmethod
+    def _pending_checks(
+        actions: list[ActionEntry], context: dict[str, Any], agent: str
+    ) -> list[PendingCheck]:
+        """Executed calls to verify on the slice's next record: the KPIs
+        violated when they were taken, from the trusted SLA analysis."""
+        sla = context.get("sla_analysis") or {}
+        kpis = {
+            name: KPIAtAction(measured=k["measured"], budget=k["budget"], bound=k["bound"])
+            for name in sla.get("violations") or []
+            if (k := (sla.get("kpis") or {}).get(name)) and k.get("measured") is not None
+        }
+        checks = []
+        for action in actions:
+            due = (action.execution.get("result") or {}).get("effective_step")
+            if action.execution.get("status") != "executed" or due is None or not kpis:
+                continue
+            checks.append(PendingCheck(
+                rec=context.get("record_id", ""), t=context.get("window_start_s", 0.0),
+                slice=context.get("slice_id", ""), agent=agent, i=action.i,
+                tool=action.tool, due_step=int(due), kpis=kpis,
+            ))
+        return checks
 
     @staticmethod
     def _build_typed_result(
@@ -374,5 +429,7 @@ Do not claim an action executed unless its tool result confirms it.
                 try:
                     await self.memory.record_actions(
                         cell, self._action_events(audit.actions, context, self.agent_name))
+                    await self.memory.add_pending(
+                        cell, self._pending_checks(audit.actions, context, self.agent_name))
                 except Exception:
                     logger.exception("%s: could not update working memory", self.agent_name)

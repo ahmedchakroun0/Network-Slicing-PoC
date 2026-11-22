@@ -11,6 +11,9 @@ Nothing here touches the network, a real Redis/MongoDB or a real model:
                      factories with sane defaults; override only what a test
                      is about.
 - make_sub_agent     async callable that records how it was invoked.
+- frame / bank / make_scenario
+                     a small synthetic ColO-RAN trace bank and scenario factory
+                     for the RAN emulator (tests/emulator_fixtures.py).
 """
 
 import os
@@ -34,6 +37,7 @@ from src.schema.monitoring import (
     SLAAnalysis,
     TelemetryRecord,
 )
+from tests.emulator_fixtures import bank, frame, make_scenario  # noqa: F401 (fixtures)
 
 # --------------------------------------------------------------------------
 # Fake LLM

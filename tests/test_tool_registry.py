@@ -1,40 +1,52 @@
-"""The tool registry is the single source of truth: these checks catch drift
-between a tool's signature, its governance schema and its safety envelope."""
+"""Each tool is defined once (a RANControls method); the registry only adds
+its owner and resource. These checks catch drift between them;
+tests/test_mcp_servers.py checks what the MCP servers serve."""
+
+import inspect
 
 import pytest
 
-from agents.near_rt_ric_agent import NearRTRICAgent
-from agents.non_rt_ric_agent import NonRTRICAgent
 from agents.ran_trust_governance import _safety_violation
-from tools.registry import (
+from ric_tools.controls import RANControls
+from ric_tools.registry import (
+    ARG_MODELS,
+    MCP_SERVER_OF,
     PROTECTED_TOOLS,
     REASONING_FIELDS,
     RESOURCE_OF,
     TOOL_OWNERS,
     TOOL_SPECS,
+    specs_of,
 )
 
+CONTROL_METHODS = {name for name, _ in inspect.getmembers(RANControls, inspect.iscoroutinefunction)}
+
+
+def test_every_control_method_is_a_registered_tool():
+    assert CONTROL_METHODS == PROTECTED_TOOLS
+
 
 @pytest.mark.parametrize("spec", TOOL_SPECS, ids=lambda s: s.name)
-def test_args_model_matches_tool_signature(spec):
-    tool_args = set(spec.tool.args) - set(REASONING_FIELDS)
-    assert tool_args == set(spec.args_model.model_fields)
+def test_governance_schema_is_the_method_signature(spec):
+    params = list(inspect.signature(getattr(RANControls, spec.name)).parameters)[1:]
+    assert list(ARG_MODELS[spec.name].model_fields) == params
+    assert ARG_MODELS[spec.name].model_config.get("extra") == "forbid"
+    # The justification is not a tool argument.
+    assert not set(params) & set(REASONING_FIELDS)
 
 
 @pytest.mark.parametrize("spec", TOOL_SPECS, ids=lambda s: s.name)
-def test_every_tool_takes_the_reasoning_fields(spec):
-    assert set(REASONING_FIELDS) <= set(spec.tool.args)
+def test_every_tool_is_described(spec):
+    assert inspect.getdoc(getattr(RANControls, spec.name))
 
 
 @pytest.mark.parametrize("spec", TOOL_SPECS, ids=lambda s: s.name)
 def test_every_tool_has_a_safety_envelope(spec):
     # Arguments of the right type; the values may be out of range, but the
     # tool must not hit the default-deny branch.
-    samples = {int: 0, float: 0.0, str: "x"}
-    args = {
-        name: samples.get(field.annotation, "x")
-        for name, field in spec.args_model.model_fields.items()
-    }
+    samples = {int: 0, float: 0.0}
+    args = {name: samples.get(field.annotation, "x")
+            for name, field in ARG_MODELS[spec.name].model_fields.items()}
     reason = _safety_violation(spec.name, args) or ""
     assert "No safety envelope" not in reason
 
@@ -48,7 +60,7 @@ def test_derived_tables_cover_every_tool():
     assert not TOOL_OWNERS["near_rt_ric"] & TOOL_OWNERS["non_rt_ric"]
 
 
-@pytest.mark.parametrize("agent", [NearRTRICAgent, NonRTRICAgent])
-def test_agents_get_exactly_their_owned_tools(agent):
-    action_tools = {t.name for t in agent.tools if t.name in PROTECTED_TOOLS}
-    assert action_tools == TOOL_OWNERS[agent.agent_name]
+@pytest.mark.parametrize("role", ["near_rt_ric", "non_rt_ric"])
+def test_every_role_has_a_server_and_tools(role):
+    assert MCP_SERVER_OF[role]
+    assert {s.name for s in specs_of(role)} == TOOL_OWNERS[role]
