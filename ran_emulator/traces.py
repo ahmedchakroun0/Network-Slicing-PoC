@@ -22,21 +22,29 @@ from src.schema.sla import SliceType
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATASETS = (
-    ROOT / "data/coloran_prepared_dataset.csv",   # full dataset (gitignored)
-    ROOT / "data/coloran_prepared_sample.csv",    # tracked sample, fewer traces
+    ROOT / "data/coloran_prepared_dataset.csv",  # full dataset (gitignored)
+    ROOT / "data/coloran_prepared_sample.csv",  # tracked sample, fewer traces
 )
 
 # Per-window values copied from the trace (the rest of a record is set by the emulator).
 KPI_FIELDS = (
-    "active_ues", "dl_throughput_mbps", "dl_throughput_per_ue_mbps", "dl_buffer_bytes",
-    "queueing_delay_ms", "prb_utilisation", "cell_spare_prb", "dl_cqi", "dl_mcs", "ul_sinr_db",
+    "active_ues",
+    "dl_throughput_mbps",
+    "dl_throughput_per_ue_mbps",
+    "dl_buffer_bytes",
+    "queueing_delay_ms",
+    "prb_utilisation",
+    "cell_spare_prb",
+    "dl_cqi",
+    "dl_mcs",
+    "ul_sinr_db",
 )
 RUN_RE = re.compile(r"sched(\d)/tr(\d+)/(exp\d+)")
 
 
 @dataclass
 class Trace:
-    run: str                 # e.g. "sched0/tr6/exp1"
+    run: str  # e.g. "sched0/tr6/exp1"
     cell_id: str
     scheduler: str
     split: Split
@@ -85,9 +93,16 @@ class TraceBank:
                 s: {f: g[g.slice_id == s][f].to_numpy(dtype=float) for f in KPI_FIELDS}
                 for s in SLICES
             }
-            traces.append(Trace(run=str(run), cell_id=str(cell),
-                                scheduler=str(g.scheduler.iloc[0]), split=split,
-                                window_s=float(g.window_s.iloc[0]), kpis=kpis))
+            traces.append(
+                Trace(
+                    run=str(run),
+                    cell_id=str(cell),
+                    scheduler=str(g.scheduler.iloc[0]),
+                    split=split,
+                    window_s=float(g.window_s.iloc[0]),
+                    kpis=kpis,
+                )
+            )
         return cls(traces)
 
     @classmethod
@@ -95,8 +110,9 @@ class TraceBank:
         if path is None:
             path = next((p for p in DEFAULT_DATASETS if p.exists()), None)
             if path is None:
-                raise FileNotFoundError("no prepared ColO-RAN dataset found; run "
-                                        "scripts/prepare_coloran.py first")
+                raise FileNotFoundError(
+                    "no prepared ColO-RAN dataset found; run scripts/prepare_coloran.py first"
+                )
         return cls.from_frame(pd.read_csv(path))
 
     # ---- lookup ---------------------------------------------------------
@@ -128,5 +144,7 @@ class TraceBank:
             return (int(t.scheduler != scheduler), prb, t.split.tr)
 
         best = min(same_cell, key=distance)
-        return best, (f"no trace recorded for {cell_id} {scheduler} {split.as_dict()}; "
-                      f"using nearest {best.run} {best.scheduler} {best.split.as_dict()}")
+        return best, (
+            f"no trace recorded for {cell_id} {scheduler} {split.as_dict()}; "
+            f"using nearest {best.run} {best.scheduler} {best.split.as_dict()}"
+        )

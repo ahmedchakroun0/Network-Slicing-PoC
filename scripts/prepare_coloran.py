@@ -48,7 +48,7 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:          # allow `python scripts/prepare_coloran.py`
+if str(ROOT) not in sys.path:  # allow `python scripts/prepare_coloran.py`
     sys.path.insert(0, str(ROOT))
 
 from src.schema.monitoring import TelemetryRecord
@@ -64,17 +64,28 @@ FILE_RE = re.compile(r"sched(\d)/tr(\d+)/(exp\d+)/bs(\d+)/slices_bs\d+/(\d+)_met
 COLUMNS = list(TelemetryRecord.model_fields)
 TELEMETRY_FIELDS = frozenset(COLUMNS)
 
-RAW = {"Timestamp": "ts_ms", "slice_id": "slice", "slice_prb": "slice_prb",
-       "scheduling_policy": "sched", "tx_brate downlink [Mbps]": "rate",
-       "dl_buffer [bytes]": "buf", "sum_granted_prbs": "granted", "dl_cqi": "cqi",
-       "dl_mcs": "mcs", "dl_n_samples": "dl_n", "ul_sinr": "sinr", "ul_n_samples": "ul_n"}
+RAW = {
+    "Timestamp": "ts_ms",
+    "slice_id": "slice",
+    "slice_prb": "slice_prb",
+    "scheduling_policy": "sched",
+    "tx_brate downlink [Mbps]": "rate",
+    "dl_buffer [bytes]": "buf",
+    "sum_granted_prbs": "granted",
+    "dl_cqi": "cqi",
+    "dl_mcs": "mcs",
+    "dl_n_samples": "dl_n",
+    "ul_sinr": "sinr",
+    "ul_n_samples": "ul_n",
+}
 
 
 def row_to_record(row: pd.Series) -> TelemetryRecord:
     """A prepared CSV row as a TelemetryRecord (the columns are its fields;
     empty -> None)."""
     return TelemetryRecord.model_validate(
-        {k: (None if pd.isna(v) else v) for k, v in row.items() if k in TELEMETRY_FIELDS})
+        {k: (None if pd.isna(v) else v) for k, v in row.items() if k in TELEMETRY_FIELDS}
+    )
 
 
 def discover(root: Path, experiments: list[str] | None) -> dict[tuple, list[Path]]:
@@ -102,7 +113,7 @@ def active_window(per_s: pd.DataFrame) -> tuple[float, float] | None:
     """[start, end) in seconds where every slice (column) carries sustained traffic."""
     starts, ends = [], []
     for rate in per_s.T.to_numpy():
-        on = rate > ACTIVE_FRACTION * np.quantile(rate, .95)
+        on = rate > ACTIVE_FRACTION * np.quantile(rate, 0.95)
         held = np.convolve(on, np.ones(ACTIVE_HOLD_S, dtype=int), "valid") == ACTIVE_HOLD_S
         secs = per_s.index.to_numpy()[: len(held)][held]
         if len(secs) == 0:
@@ -118,22 +129,30 @@ def slice_windows(d: pd.DataFrame, slice_prb: pd.Series, window_s: float) -> pd.
     ue = d.groupby(["w", "slice", "imsi"]).agg(rate=("rate", "mean"), buf=("buf", "mean"))
     cap_ms = window_s * 1e3
     with np.errstate(divide="ignore", invalid="ignore"):
-        delay = np.where(ue.buf <= 0, 0.0,
-                         np.where(ue.rate > 0, ue.buf * 8 / (ue.rate * 1e6) * 1e3, cap_ms))
+        delay = np.where(
+            ue.buf <= 0, 0.0, np.where(ue.rate > 0, ue.buf * 8 / (ue.rate * 1e6) * 1e3, cap_ms)
+        )
     ue["delay"] = np.minimum(delay, cap_ms)
     out = ue.groupby(["w", "slice"]).agg(
-        active_ues=("rate", "size"), dl_throughput_mbps=("rate", "sum"),
-        dl_throughput_per_ue_mbps=("rate", "mean"), dl_buffer_bytes=("buf", "mean"),
-        queueing_delay_ms=("delay", "mean"))
-    rep = d.groupby(["w", "slice"]).agg(granted=("granted", "sum"), dl_cqi=("cqi", "mean"),
-                                        dl_mcs=("mcs", "mean"), ul_sinr_db=("sinr", "mean"))
+        active_ues=("rate", "size"),
+        dl_throughput_mbps=("rate", "sum"),
+        dl_throughput_per_ue_mbps=("rate", "mean"),
+        dl_buffer_bytes=("buf", "mean"),
+        queueing_delay_ms=("delay", "mean"),
+    )
+    rep = d.groupby(["w", "slice"]).agg(
+        granted=("granted", "sum"),
+        dl_cqi=("cqi", "mean"),
+        dl_mcs=("mcs", "mean"),
+        ul_sinr_db=("sinr", "mean"),
+    )
     out = out.join(rep)
     prb = slice_prb.reindex(out.index.get_level_values("slice")).to_numpy()
     out["slice_prb"] = prb
     out["prb_utilisation"] = np.minimum(out.pop("granted") / (prb * window_s * TTI_PER_S), 1.0)
     idle = (out.slice_prb * (1 - out.prb_utilisation)).groupby("w").transform("sum")
-    out["cell_spare_prb"] = idle - out.slice_prb * (1 - out.prb_utilisation)   # other slices only
-    complete = out.groupby("w").active_ues.transform("size") == 3              # all three slices
+    out["cell_spare_prb"] = idle - out.slice_prb * (1 - out.prb_utilisation)  # other slices only
+    complete = out.groupby("w").active_ues.transform("size") == 3  # all three slices
     return out[complete].reset_index()
 
 
@@ -145,7 +164,9 @@ def build_cell_run(key: tuple, files: list[Path], window_s: float) -> list[dict]
         return []
     d["t"] = (d.ts_ms - d.ts_ms.min()) / 1000.0
 
-    per_s = d.assign(sec=d.t.astype(int)).groupby(["sec", "slice"]).rate.sum().unstack(fill_value=0.0)
+    per_s = (
+        d.assign(sec=d.t.astype(int)).groupby(["sec", "slice"]).rate.sum().unstack(fill_value=0.0)
+    )
     window = active_window(per_s)
     if window is None:
         return []
@@ -159,23 +180,37 @@ def build_cell_run(key: tuple, files: list[Path], window_s: float) -> list[dict]
     out = slice_windows(d, slice_prb, window_s)
     out["window_start_s"] = start + out.w * window_s
     out["slice_id"] = out.slice.map(SLICE_NAME)
-    out["record_id"] = [f"{run.replace('/', '-')}-bs{bs}-t{t:06.1f}-{s}"
-                        for t, s in zip(out.window_start_s, out.slice_id, strict=False)]
-    out = out.assign(cell_id=f"bs{bs}", run=run, window_s=window_s, cell_prb=CELL_PRB,
-                     scheduler=SCHEDULER[sched], slice_prb=out.slice_prb.astype(int),
-                     active_ues=out.active_ues.astype(int))
+    out["record_id"] = [
+        f"{run.replace('/', '-')}-bs{bs}-t{t:06.1f}-{s}"
+        for t, s in zip(out.window_start_s, out.slice_id, strict=False)
+    ]
+    out = out.assign(
+        cell_id=f"bs{bs}",
+        run=run,
+        window_s=window_s,
+        cell_prb=CELL_PRB,
+        scheduler=SCHEDULER[sched],
+        slice_prb=out.slice_prb.astype(int),
+        active_ues=out.active_ues.astype(int),
+    )
     out = out[COLUMNS].round(6)
-    out = out.astype(object).where(out.notna(), None)                    # NaN -> None
+    out = out.astype(object).where(out.notna(), None)  # NaN -> None
     return out.to_dict("records")
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     p.add_argument("--root", type=Path, default=ROOT / "data/raw/coloran/rome_static_medium")
     p.add_argument("--out", type=Path, default=ROOT / "data/coloran_prepared_dataset.csv")
     p.add_argument("--window", type=float, default=1.0, help="seconds per record (default 1)")
-    p.add_argument("--experiments", nargs="*", default=None, help="e.g. exp1 exp2 (default: all downloaded)")
-    p.add_argument("--runs", type=int, default=None, help="keep N random (scheduler, split, BS) runs")
+    p.add_argument(
+        "--experiments", nargs="*", default=None, help="e.g. exp1 exp2 (default: all downloaded)"
+    )
+    p.add_argument(
+        "--runs", type=int, default=None, help="keep N random (scheduler, split, BS) runs"
+    )
     p.add_argument("--seed", type=int, default=2026)
     a = p.parse_args()
 
@@ -186,7 +221,9 @@ def main() -> None:
     if a.runs is not None and a.runs < len(keys):
         rng = np.random.default_rng(a.seed)
         keys = sorted(keys[i] for i in rng.choice(len(keys), size=a.runs, replace=False))
-    print(f"{len(keys)} cell runs from {len(groups)} available ({sum(len(groups[k]) for k in keys)} UE traces)")
+    print(
+        f"{len(keys)} cell runs from {len(groups)} available ({sum(len(groups[k]) for k in keys)} UE traces)"
+    )
 
     rows: list[dict] = []
     for i, key in enumerate(keys, 1):
@@ -196,7 +233,7 @@ def main() -> None:
     if not rows:
         raise SystemExit("no complete records produced")
 
-    for row in rows:                    # every row must be a valid TelemetryRecord
+    for row in rows:  # every row must be a valid TelemetryRecord
         TelemetryRecord.model_validate(row)
     df = pd.DataFrame(rows, columns=COLUMNS)
     a.out.parent.mkdir(parents=True, exist_ok=True)
@@ -204,7 +241,9 @@ def main() -> None:
 
     kpis = ["dl_throughput_per_ue_mbps", "queueing_delay_ms", "prb_utilisation", "cell_spare_prb"]
     summary = {
-        "records": int(len(df)), "cell_runs": len(keys), "window_s": a.window,
+        "records": int(len(df)),
+        "cell_runs": len(keys),
+        "window_s": a.window,
         "records_by_slice": df.slice_id.value_counts().to_dict(),
         "kpi_median_by_slice": df.groupby("slice_id")[kpis].median().round(4).to_dict("index"),
         "source": "ColO-RAN (Polese et al., IEEE TMC 2023), GPL-3.0",

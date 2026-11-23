@@ -1,6 +1,6 @@
 """Smoke test of the LLM gateway: send one prompt through create_llm().
 
-    poetry run python scripts/check_llm_connection.py
+poetry run python scripts/check_llm_connection.py
 """
 
 import sys

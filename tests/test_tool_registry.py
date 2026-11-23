@@ -45,8 +45,10 @@ def test_every_tool_has_a_safety_envelope(spec):
     # Arguments of the right type; the values may be out of range, but the
     # tool must not hit the default-deny branch.
     samples = {int: 0, float: 0.0}
-    args = {name: samples.get(field.annotation, "x")
-            for name, field in ARG_MODELS[spec.name].model_fields.items()}
+    args = {
+        name: samples.get(field.annotation, "x")
+        for name, field in ARG_MODELS[spec.name].model_fields.items()
+    }
     reason = _safety_violation(spec.name, args) or ""
     assert "No safety envelope" not in reason
 

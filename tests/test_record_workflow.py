@@ -41,10 +41,14 @@ async def test_violation_runs_near_rt_with_trusted_context(
 ):
     near, non = make_sub_agent(), make_sub_agent()
     # The LLM selects both agents and puts a wrong target in the context.
-    fake_llm.queue(make_decision(selected_agents=[
-        make_invocation("non_rt_ric"),
-        make_invocation("near_rt_ric", context={"target": "bs999", "slice_id": "URLLC"}),
-    ]))
+    fake_llm.queue(
+        make_decision(
+            selected_agents=[
+                make_invocation("non_rt_ric"),
+                make_invocation("near_rt_ric", context={"target": "bs999", "slice_id": "URLLC"}),
+            ]
+        )
+    )
     workflow = make_workflow({"near_rt_ric": near, "non_rt_ric": non}, mongo, "run1")
     mongo.start_run(run_id="run1", config={}, summary={})
 
@@ -83,16 +87,22 @@ async def test_persistent_violation_runs_near_rt_then_non_rt(
         async def _invoke(invocation):
             order.append(name)
             return {"status": "completed"}
+
         return _invoke
 
-    workflow = make_workflow({"near_rt_ric": agent("near_rt_ric"),
-                              "non_rt_ric": agent("non_rt_ric")})
+    workflow = make_workflow(
+        {"near_rt_ric": agent("near_rt_ric"), "non_rt_ric": agent("non_rt_ric")}
+    )
     for i in range(3):
         # LLM order is Non-RT first; the graph runs Near-RT first.
-        fake_llm.queue(make_decision(selected_agents=[make_invocation("non_rt_ric"),
-                                                      make_invocation("near_rt_ric")]))
-        state = await workflow.run(make_record(record_id=f"rec-{i}", window_start_s=60.0 + i,
-                                               **VIOLATION))
+        fake_llm.queue(
+            make_decision(
+                selected_agents=[make_invocation("non_rt_ric"), make_invocation("near_rt_ric")]
+            )
+        )
+        state = await workflow.run(
+            make_record(record_id=f"rec-{i}", window_start_s=60.0 + i, **VIOLATION)
+        )
 
     assert state["persistence"]["throughput"] == 3
     assert order == ["near_rt_ric", "near_rt_ric", "near_rt_ric", "non_rt_ric"]
@@ -104,16 +114,31 @@ async def test_non_rt_sees_the_controls_near_rt_just_executed(
     make_workflow, make_record, make_decision, make_invocation, make_sub_agent, fake_llm, memory
 ):
     async def near(invocation):
-        await memory.record_actions("bs1", [ActionEvent(
-            rec="rec-2", t=62.0, slice="eMBB", agent="near_rt_ric", tool="adjust_prb_allocation",
-            params={"prb_percentage": 80}, approved=True, executed=True)])
+        await memory.record_actions(
+            "bs1",
+            [
+                ActionEvent(
+                    rec="rec-2",
+                    t=62.0,
+                    slice="eMBB",
+                    agent="near_rt_ric",
+                    tool="adjust_prb_allocation",
+                    params={"prb_percentage": 80},
+                    approved=True,
+                    executed=True,
+                )
+            ],
+        )
         return {"status": "completed"}
 
     non = make_sub_agent()
     workflow = make_workflow({"near_rt_ric": near, "non_rt_ric": non})
     for i in range(3):
-        fake_llm.queue(make_decision(selected_agents=[make_invocation("near_rt_ric"),
-                                                      make_invocation("non_rt_ric")]))
+        fake_llm.queue(
+            make_decision(
+                selected_agents=[make_invocation("near_rt_ric"), make_invocation("non_rt_ric")]
+            )
+        )
         await workflow.run(make_record(record_id=f"rec-{i}", window_start_s=60.0 + i, **VIOLATION))
 
     assert non.calls[0].context["active_controls"] == {"prb_percentage": 80}
@@ -124,8 +149,9 @@ async def test_failed_agent_does_not_stop_the_record(
     make_workflow, make_record, make_decision, make_sub_agent, fake_llm, mongo
 ):
     fake_llm.queue(make_decision())
-    workflow = make_workflow({"near_rt_ric": make_sub_agent(error=RuntimeError("boom"))},
-                             mongo, "run1")
+    workflow = make_workflow(
+        {"near_rt_ric": make_sub_agent(error=RuntimeError("boom"))}, mongo, "run1"
+    )
     mongo.start_run(run_id="run1", config={}, summary={})
 
     state = await workflow.run(make_record(**VIOLATION))

@@ -21,15 +21,18 @@ def test_run_returns_valid_records_and_meta(client):
     assert steps[0]["meta"]["bs2"]["source_run"] == "sched0/tr9/exp1"
 
 
-@pytest.mark.parametrize("path, body", [
-    ("/cells/bs2/slices/eMBB/prb", {"prb_percentage": 72}),
-    ("/cells/bs2/scheduler", {"scheduler": "proportional_fair"}),
-    ("/cells/bs2/handover", {"handover_margin_db": 2}),
-    ("/cells/bs2/power", {"power_offset_db": 3}),
-    ("/cells/bs2/slices/URLLC/qos", {"priority_level": 2}),
-    ("/cells/bs2/slices/URLLC/link-adaptation", {"mcs_offset": -2, "target_bler": 0.01}),
-    ("/cells/bs2/slices/eMBB/policy", {"min_prb_ratio_pct": 20, "max_prb_ratio_pct": 90}),
-])
+@pytest.mark.parametrize(
+    "path, body",
+    [
+        ("/cells/bs2/slices/eMBB/prb", {"prb_percentage": 72}),
+        ("/cells/bs2/scheduler", {"scheduler": "proportional_fair"}),
+        ("/cells/bs2/handover", {"handover_margin_db": 2}),
+        ("/cells/bs2/power", {"power_offset_db": 3}),
+        ("/cells/bs2/slices/URLLC/qos", {"priority_level": 2}),
+        ("/cells/bs2/slices/URLLC/link-adaptation", {"mcs_offset": -2, "target_bler": 0.01}),
+        ("/cells/bs2/slices/eMBB/policy", {"min_prb_ratio_pct": 20, "max_prb_ratio_pct": 90}),
+    ],
+)
 def test_every_control_reports_previous_current_and_effective_step(client, path, body):
     client.post("/sim/run", json={"steps": 3})
     r = client.put(path, json=body)

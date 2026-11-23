@@ -34,14 +34,32 @@ from dataclasses import dataclass
 import numpy as np
 
 # Spectral efficiency (bit/s/Hz) per CQI 0..15, TS 38.214 Table 5.2.2.1-2.
-CQI_EFFICIENCY = np.array([0.0, 0.1523, 0.2344, 0.3770, 0.6016, 0.8770, 1.1758, 1.4766,
-                           1.9141, 2.4063, 2.7305, 3.3223, 3.9023, 4.5234, 5.1152, 5.5547])
-BASE_BLER = 0.1             # BLER target of the testbed's link adaptation
-BLER_GROWTH = 1.8           # BLER multiplier per effective MCS step above the target
-RATE_PER_MCS_STEP = 0.06    # rate gain per effective MCS step
-MIN_UTILISATION = 0.05      # floor when inferring capacity from utilisation
-HARQ_RTT_MS = 8.0           # LTE/NR FDD HARQ round trip
-BACKLOG_KEEP = 0.5          # share of the unserved backlog carried to the next window
+CQI_EFFICIENCY = np.array(
+    [
+        0.0,
+        0.1523,
+        0.2344,
+        0.3770,
+        0.6016,
+        0.8770,
+        1.1758,
+        1.4766,
+        1.9141,
+        2.4063,
+        2.7305,
+        3.3223,
+        3.9023,
+        4.5234,
+        5.1152,
+        5.5547,
+    ]
+)
+BASE_BLER = 0.1  # BLER target of the testbed's link adaptation
+BLER_GROWTH = 1.8  # BLER multiplier per effective MCS step above the target
+RATE_PER_MCS_STEP = 0.06  # rate gain per effective MCS step
+MIN_UTILISATION = 0.05  # floor when inferring capacity from utilisation
+HARQ_RTT_MS = 8.0  # LTE/NR FDD HARQ round trip
+BACKLOG_KEEP = 0.5  # share of the unserved backlog carried to the next window
 NEUTRAL_HANDOVER_DB = 3.0
 NEUTRAL_PRIORITY = 5
 
@@ -71,8 +89,14 @@ class RadioEffect:
     bler: float
 
 
-def radio_effect(cqi: float, mcs: float, sinr_shift_db: float, mcs_offset: int,
-                 target_bler: float, la_lag_db: float) -> RadioEffect:
+def radio_effect(
+    cqi: float,
+    mcs: float,
+    sinr_shift_db: float,
+    mcs_offset: int,
+    target_bler: float,
+    la_lag_db: float,
+) -> RadioEffect:
     """CQI, MCS and capacity factor after an SINR shift and a link-adaptation mismatch.
 
     la_lag_db: SINR loss the outer loop has not compensated yet (link degradation),
@@ -81,7 +105,7 @@ def radio_effect(cqi: float, mcs: float, sinr_shift_db: float, mcs_offset: int,
     new_cqi = min(max(cqi + sinr_shift_db / 2.0, 1.0), 15.0)
     radio = efficiency(new_cqi) / efficiency(cqi)
     mismatch = mcs_offset + math.log(target_bler / BASE_BLER, BLER_GROWTH) + la_lag_db / 2.0
-    bler = min(max(BASE_BLER * BLER_GROWTH ** mismatch, 0.001), 0.6)
+    bler = min(max(BASE_BLER * BLER_GROWTH**mismatch, 0.001), 0.6)
     la = (1 + RATE_PER_MCS_STEP * mismatch) * (1 - bler) / (1 - BASE_BLER)
     new_mcs = min(max(mcs + 2.0 * (new_cqi - cqi) + mcs_offset, 0.0), 28.0)
     return RadioEffect(cqi=new_cqi, mcs=new_mcs, rate_factor=max(radio * la, 0.0), bler=bler)
@@ -97,16 +121,27 @@ class QueueResult:
     throughput_mbps: float
     utilisation: float
     delay_ms: float
-    buffer_bytes: float      # mean per UE, trace backlog + extra backlog
-    backlog_bytes: float     # extra slice backlog carried to the next window
-    dropped_bytes: float     # unserved backlog lost in this window
+    buffer_bytes: float  # mean per UE, trace backlog + extra backlog
+    backlog_bytes: float  # extra slice backlog carried to the next window
+    dropped_bytes: float  # unserved backlog lost in this window
 
 
-def queue_step(*, rate_mbps: float, utilisation: float, delay_ms: float | None,
-               buffer_bytes: float, ues: int, slice_prb: int, window_s: float,
-               rate_factor: float, surge: float, extra_prb: float,
-               backlog_bytes: float, harq_extra_ms: float = 0.0,
-               demand_mbps: float | None = None) -> QueueResult:
+def queue_step(
+    *,
+    rate_mbps: float,
+    utilisation: float,
+    delay_ms: float | None,
+    buffer_bytes: float,
+    ues: int,
+    slice_prb: int,
+    window_s: float,
+    rate_factor: float,
+    surge: float,
+    extra_prb: float,
+    backlog_bytes: float,
+    harq_extra_ms: float = 0.0,
+    demand_mbps: float | None = None,
+) -> QueueResult:
     """Serve one window of demand + carried backlog.
 
     demand_mbps defaults to the trace rate x surge; a surge passes the demand
@@ -127,7 +162,11 @@ def queue_step(*, rate_mbps: float, utilisation: float, delay_ms: float | None,
     else:
         queue_ms = unserved * 8 / (served * 1e6) * 1e3
         delay = min(max((delay_ms or 0.0) + queue_ms + harq_extra_ms, 0.0), cap_ms)
-    return QueueResult(throughput_mbps=served, utilisation=util, delay_ms=delay,
-                       buffer_bytes=buffer_bytes + unserved / ues,
-                       backlog_bytes=unserved * BACKLOG_KEEP,
-                       dropped_bytes=unserved * (1 - BACKLOG_KEEP))
+    return QueueResult(
+        throughput_mbps=served,
+        utilisation=util,
+        delay_ms=delay,
+        buffer_bytes=buffer_bytes + unserved / ues,
+        backlog_bytes=unserved * BACKLOG_KEEP,
+        dropped_bytes=unserved * (1 - BACKLOG_KEEP),
+    )

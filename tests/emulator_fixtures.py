@@ -26,13 +26,23 @@ def _rows():
                 ):
                     yield {
                         "record_id": f"{run.replace('/', '-')}-bs2-t{50 + w:06.1f}-{slice_id}",
-                        "cell_id": "bs2", "slice_id": slice_id, "run": run,
-                        "window_start_s": 50.0 + w, "window_s": 1.0,
-                        "slice_prb": split.of(slice_id), "cell_prb": 50, "scheduler": sched,
-                        "active_ues": 2, "dl_throughput_mbps": rate,
-                        "dl_throughput_per_ue_mbps": rate / 2, "dl_buffer_bytes": 1000.0,
-                        "queueing_delay_ms": delay, "prb_utilisation": util,
-                        "cell_spare_prb": 5.0, "dl_cqi": 9.0, "dl_mcs": 15.0,
+                        "cell_id": "bs2",
+                        "slice_id": slice_id,
+                        "run": run,
+                        "window_start_s": 50.0 + w,
+                        "window_s": 1.0,
+                        "slice_prb": split.of(slice_id),
+                        "cell_prb": 50,
+                        "scheduler": sched,
+                        "active_ues": 2,
+                        "dl_throughput_mbps": rate,
+                        "dl_throughput_per_ue_mbps": rate / 2,
+                        "dl_buffer_bytes": 1000.0,
+                        "queueing_delay_ms": delay,
+                        "prb_utilisation": util,
+                        "cell_spare_prb": 5.0,
+                        "dl_cqi": 9.0,
+                        "dl_mcs": 15.0,
                         "ul_sinr_db": None if w % 5 == 0 else 15.0,
                     }
 
@@ -51,8 +61,14 @@ def bank(frame) -> TraceBank:
 def make_scenario():
     def _make(tr=9, scheduler="round_robin", events=(), policies=None, start_offset=0, seed=0):
         return Scenario(
-            name="t", seed=seed,
-            cells={"bs2": CellSpec(scheduler=scheduler, tr=tr, start_offset=start_offset,
-                                   policies=policies or {})},
-            events=list(events))
+            name="t",
+            seed=seed,
+            cells={
+                "bs2": CellSpec(
+                    scheduler=scheduler, tr=tr, start_offset=start_offset, policies=policies or {}
+                )
+            },
+            events=list(events),
+        )
+
     return _make

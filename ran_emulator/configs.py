@@ -80,8 +80,7 @@ def snap(
     others = [o for o in SLICES if o != slice_id]
 
     def cost(s: Split) -> tuple[float, int, float, int]:
-        target = 0.0 if slice_id is None or target_prb is None else abs(
-            s.of(slice_id) - target_prb)
+        target = 0.0 if slice_id is None or target_prb is None else abs(s.of(slice_id) - target_prb)
         moved = [o for o in others if s.of(o) != current.of(o)]
         weighted = sum(ABSORB_WEIGHT[o] * abs(s.of(o) - current.of(o)) for o in moved)
         return target, len(moved), weighted, s.tr

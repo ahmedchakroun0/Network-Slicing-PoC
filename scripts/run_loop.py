@@ -134,7 +134,8 @@ async def run_loop(
             # stay open for the whole run.
             tools_of = {
                 role: await stack.enter_async_context(
-                    role_tools(role, client=(mcp_clients or {}).get(role)))
+                    role_tools(role, client=(mcp_clients or {}).get(role))
+                )
                 for role in ("near_rt_ric", "non_rt_ric")
             }
 
@@ -147,8 +148,7 @@ async def run_loop(
                     run_id=config.run_id,
                     action_tools=tools_of[role],
                 )
-                for role, cls in (("near_rt_ric", NearRTRICAgent),
-                                  ("non_rt_ric", NonRTRICAgent))
+                for role, cls in (("near_rt_ric", NearRTRICAgent), ("non_rt_ric", NonRTRICAgent))
             }
             monitoring_agent = MonitoringAgent(
                 llm=create_llm(),
@@ -164,23 +164,29 @@ async def run_loop(
                 run_id=config.run_id,
             )
 
-            mongo_repository.start_run(run_id=config.run_id,
-                                       config=_run_config(config, emulator_state),
-                                       summary=summary)
+            mongo_repository.start_run(
+                run_id=config.run_id, config=_run_config(config, emulator_state), summary=summary
+            )
             started = True
-            logger.info("Run %s: %d steps of scenario %s", config.run_id, config.steps,
-                        emulator_state.get("scenario"))
+            logger.info(
+                "Run %s: %d steps of scenario %s",
+                config.run_id,
+                config.steps,
+                emulator_state.get("scenario"),
+            )
             PROVIDER_GUARD.reset()
 
             for step in range(config.steps):
                 records = await emulator.step_records()
                 summary["steps"] += 1
                 summary["rows_selected"] += len(records)
-                mongo_repository.count(run_id=config.run_id,
-                                       counters={"steps": 1, "rows_selected": len(records)})
+                mongo_repository.count(
+                    run_id=config.run_id, counters={"steps": 1, "rows_selected": len(records)}
+                )
                 for record in records:
-                    stopped = await _process_record(workflow, mongo_repository, config,
-                                                    summary, record, step)
+                    stopped = await _process_record(
+                        workflow, mongo_repository, config, summary, record, step
+                    )
                     if stopped is not None:
                         break
                 if stopped is not None:
@@ -200,8 +206,11 @@ async def run_loop(
             logger.exception("Could not write the result files of run %s", config.run_id)
     logger.info(
         "Run %s finished: %d steps, %d records processed, %d without violation, %d failed",
-        config.run_id, summary["steps"], summary["rows_processed"],
-        summary["rows_without_violation"], summary["rows_failed"],
+        config.run_id,
+        summary["steps"],
+        summary["rows_processed"],
+        summary["rows_without_violation"],
+        summary["rows_failed"],
     )
 
 
@@ -230,13 +239,19 @@ async def _process_record(
             return None
         decision = state["decision"]
         summary["rows_processed"] += 1
-        mongo_repository.set_llm_usage(run_id=config.run_id, record_id=record_key,
-                                       usage=PROVIDER_GUARD.take_usage())
+        mongo_repository.set_llm_usage(
+            run_id=config.run_id, record_id=record_key, usage=PROVIDER_GUARD.take_usage()
+        )
         logger.info(
             "Step %d (%s): situation=%s action_required=%s agents=%s",
-            step, record_key, decision.situation, decision.action_required,
-            {agent: getattr(result, "status", None)
-             for agent, result in state["agent_results"].items()},
+            step,
+            record_key,
+            decision.situation,
+            decision.action_required,
+            {
+                agent: getattr(result, "status", None)
+                for agent, result in state["agent_results"].items()
+            },
         )
         return None
 
@@ -252,10 +267,13 @@ async def _process_record(
         )
         mongo_repository.count(run_id=config.run_id, counters={"rows_failed": 1})
         if PROVIDER_GUARD.stopped is not None:
-            mongo_repository.set_llm_usage(run_id=config.run_id, record_id=record_key,
-                                           usage=PROVIDER_GUARD.take_usage())
-            stopped = (f"Every model of the fallback chain is rate-limited "
-                       f"(step {step}, record {record_key}): {PROVIDER_GUARD.stopped}")
+            mongo_repository.set_llm_usage(
+                run_id=config.run_id, record_id=record_key, usage=PROVIDER_GUARD.take_usage()
+            )
+            stopped = (
+                f"Every model of the fallback chain is rate-limited "
+                f"(step {step}, record {record_key}): {PROVIDER_GUARD.stopped}"
+            )
             logger.error("Run %s stopped. %s", config.run_id, stopped)
             return stopped
         return None
@@ -268,22 +286,41 @@ async def _process_record(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run the agents in closed loop on the RAN emulator.")
-    parser.add_argument("--scenario", required=True,
-                        help="Emulator scenario name (ran_emulator/scenarios/) or path.")
-    parser.add_argument("--steps", type=int, default=DEFAULT_STEPS,
-                        help=f"Emulator steps to run (default {DEFAULT_STEPS}).")
-    parser.add_argument("--seed", type=int, default=None,
-                        help="Scenario seed (default: the scenario's own).")
+        description="Run the agents in closed loop on the RAN emulator."
+    )
+    parser.add_argument(
+        "--scenario",
+        required=True,
+        help="Emulator scenario name (ran_emulator/scenarios/) or path.",
+    )
+    parser.add_argument(
+        "--steps",
+        type=int,
+        default=DEFAULT_STEPS,
+        help=f"Emulator steps to run (default {DEFAULT_STEPS}).",
+    )
+    parser.add_argument(
+        "--seed", type=int, default=None, help="Scenario seed (default: the scenario's own)."
+    )
     parser.add_argument("--emulator-url", default=DEFAULT_EMULATOR_URL)
-    parser.add_argument("--run-id", default=None,
-                        help="Optional run id; defaults to a generated UUID.")
-    parser.add_argument("--knowledge-file", type=Path, default=DEFAULT_KNOWLEDGE_FILE,
-                        help="RAN knowledge file used by the knowledge search tool.")
-    parser.add_argument("--results-dir", type=Path, default=Path("results"),
-                        help="Parent directory of the run's result files (results/<run_id>/).")
-    parser.add_argument("--debug", action="store_true",
-                        help="Enable verbose LangChain tracing (set_debug).")
+    parser.add_argument(
+        "--run-id", default=None, help="Optional run id; defaults to a generated UUID."
+    )
+    parser.add_argument(
+        "--knowledge-file",
+        type=Path,
+        default=DEFAULT_KNOWLEDGE_FILE,
+        help="RAN knowledge file used by the knowledge search tool.",
+    )
+    parser.add_argument(
+        "--results-dir",
+        type=Path,
+        default=Path("results"),
+        help="Parent directory of the run's result files (results/<run_id>/).",
+    )
+    parser.add_argument(
+        "--debug", action="store_true", help="Enable verbose LangChain tracing (set_debug)."
+    )
     return parser
 
 

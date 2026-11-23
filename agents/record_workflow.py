@@ -120,8 +120,7 @@ class RecordWorkflow:
         graph.add_node("finalize", self.finalize)
 
         graph.add_edge(START, "ingest")
-        graph.add_conditional_edges("ingest", self._route_violation,
-                                    ["monitoring", "skip_healthy"])
+        graph.add_conditional_edges("ingest", self._route_violation, ["monitoring", "skip_healthy"])
         graph.add_edge("skip_healthy", END)
         for position, node in enumerate(("monitoring", *AGENT_ORDER)):
             later = list(AGENT_ORDER[position:])
@@ -140,7 +139,9 @@ class RecordWorkflow:
 
         def route(state: RecordState) -> str:
             decision = state["decision"]
-            selected = {i.agent for i in decision.selected_agents} if decision.action_required else set()
+            selected = (
+                {i.agent for i in decision.selected_agents} if decision.action_required else set()
+            )
             return next((a for a in candidates if a in selected), "finalize")
 
         return route
@@ -167,16 +168,27 @@ class RecordWorkflow:
             if self.store is not None:
                 for outcome in outcomes:
                     self.store.set_action_outcome(
-                        run_id=self.run_id, record_id=outcome.rec, agent=outcome.agent,
-                        index=outcome.i, outcome=outcome.model_dump(mode="json"))
+                        run_id=self.run_id,
+                        record_id=outcome.rec,
+                        agent=outcome.agent,
+                        index=outcome.i,
+                        outcome=outcome.model_dump(mode="json"),
+                    )
         if analysis.violations and self.store is not None:
             self.store.insert_record(
-                run_id=self.run_id, record_id=record.record_id, seq=state.get("seq", 0),
+                run_id=self.run_id,
+                record_id=record.record_id,
+                seq=state.get("seq", 0),
                 telemetry=record.model_dump(mode="json"),
-                sla=analysis.model_dump(mode="json"), persistence=persistence,
+                sla=analysis.model_dump(mode="json"),
+                persistence=persistence,
             )
-        return {"sla_analysis": analysis, "persistence": persistence,
-                "slice_state": slice_state(record), "outcomes": outcomes}
+        return {
+            "sla_analysis": analysis,
+            "persistence": persistence,
+            "slice_state": slice_state(record),
+            "outcomes": outcomes,
+        }
 
     async def skip_healthy(self, state: RecordState) -> dict[str, Any]:
         # The Monitoring Agent is not invoked; the slice history keeps the
@@ -209,8 +221,9 @@ class RecordWorkflow:
                 )
             result = await self.monitoring.invoke_agent(invocation, record.record_id, context)
             if self.store is not None:
-                self.store.count(run_id=self.run_id,
-                                 counters={f"ric_results.{agent}.{_status(result)}": 1})
+                self.store.count(
+                    run_id=self.run_id, counters={f"ric_results.{agent}.{_status(result)}": 1}
+                )
             return {"agent_results": {agent: result}}
 
         invoke.__name__ = agent
@@ -236,8 +249,11 @@ class RecordWorkflow:
                 "run_name": f"record {record.record_id}",
                 "tags": [record.cell_id, record.slice_id],
                 "metadata": {
-                    "run_id": self.run_id, "record_id": record.record_id, "seq": seq,
-                    "cell_id": record.cell_id, "slice_id": record.slice_id,
+                    "run_id": self.run_id,
+                    "record_id": record.record_id,
+                    "seq": seq,
+                    "cell_id": record.cell_id,
+                    "slice_id": record.slice_id,
                 },
             },
         )

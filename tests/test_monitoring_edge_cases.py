@@ -13,9 +13,7 @@ async def test_run_marks_warning_when_some_metrics_are_unavailable(
         severity="high",
         global_situation="Partial telemetry received.",
         action_required=True,
-        sla_analysis=MonitoringAgent.analyze_sla(
-            make_record(queueing_delay_ms=None)
-        ),
+        sla_analysis=MonitoringAgent.analyze_sla(make_record(queueing_delay_ms=None)),
         selected_agents=[
             AgentInvocation(
                 agent="near_rt_ric",
@@ -44,8 +42,14 @@ async def test_run_marks_warning_when_some_metrics_are_unavailable(
 
 
 def _insert(mongo, record):
-    mongo.insert_record(run_id="run1", record_id=record.record_id, seq=1,
-                        telemetry=record.model_dump(mode="json"), sla={}, persistence={})
+    mongo.insert_record(
+        run_id="run1",
+        record_id=record.record_id,
+        seq=1,
+        telemetry=record.model_dump(mode="json"),
+        sla={},
+        persistence={},
+    )
 
 
 @pytest.mark.asyncio
@@ -57,9 +61,7 @@ async def test_run_records_missing_subagent_as_error(
         severity="high",
         global_situation="Near-RT intervention needed.",
         action_required=True,
-        sla_analysis=MonitoringAgent.analyze_sla(
-            make_record(queueing_delay_ms=300.0)
-        ),
+        sla_analysis=MonitoringAgent.analyze_sla(make_record(queueing_delay_ms=300.0)),
         selected_agents=[
             AgentInvocation(
                 agent="near_rt_ric",
@@ -96,9 +98,7 @@ async def test_run_records_subagent_exception_as_error(
         severity="high",
         global_situation="Policy-level action needed.",
         action_required=True,
-        sla_analysis=MonitoringAgent.analyze_sla(
-            make_record(dl_throughput_per_ue_mbps=1.5)
-        ),
+        sla_analysis=MonitoringAgent.analyze_sla(make_record(dl_throughput_per_ue_mbps=1.5)),
         selected_agents=[
             AgentInvocation(
                 agent="non_rt_ric",
@@ -116,8 +116,9 @@ async def test_run_records_subagent_exception_as_error(
 
     record = make_record(record_id="rec-subagent-error", dl_throughput_per_ue_mbps=1.5)
     _insert(mongo, record)
-    agent = make_monitoring_agent(sub_agents={"non_rt_ric": failing_agent}, mongo=mongo,
-                                  run_id="run1")
+    agent = make_monitoring_agent(
+        sub_agents={"non_rt_ric": failing_agent}, mongo=mongo, run_id="run1"
+    )
     result = await agent.run(record, persistence={"throughput": 3})
 
     assert result.action_required is True

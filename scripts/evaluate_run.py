@@ -50,8 +50,12 @@ load_dotenv()
 REVIEW_VERDICTS = ("goal_aligned", "reasoning_sound", "behavior_acceptable")
 # Below this, a rate is an anecdote: reported, but flagged.
 MIN_PROPOSALS = 30
-RATING_COLUMNS = ("expert_action_appropriate_1to5", "expert_reasoning_grounded_1to5",
-                  "expert_agrees_with_governance_yes_no", "expert_notes")
+RATING_COLUMNS = (
+    "expert_action_appropriate_1to5",
+    "expert_reasoning_grounded_1to5",
+    "expert_agrees_with_governance_yes_no",
+    "expert_notes",
+)
 
 
 def wilson(successes: int, n: int, z: float = 1.96) -> tuple[float, float] | None:
@@ -69,8 +73,12 @@ def wilson(successes: int, n: int, z: float = 1.96) -> tuple[float, float] | Non
 
 def _rate(successes: int, n: int) -> dict[str, Any]:
     interval = wilson(successes, n)
-    return {"count": successes, "n": n, "rate": successes / n if n else None,
-            "ci95": list(interval) if interval else None}
+    return {
+        "count": successes,
+        "n": n,
+        "rate": successes / n if n else None,
+        "ci95": list(interval) if interval else None,
+    }
 
 
 def _seconds(start: Any, end: Any) -> float | None:
@@ -83,8 +91,13 @@ def _distribution(values: list[float]) -> dict[str, Any]:
     series = pd.Series(values, dtype=float)
     if series.empty:
         return {"n": 0}
-    return {"n": len(series), "mean": series.mean(), "median": series.median(),
-            "p95": series.quantile(0.95), "max": series.max()}
+    return {
+        "n": len(series),
+        "mean": series.mean(),
+        "median": series.median(),
+        "p95": series.quantile(0.95),
+        "max": series.max(),
+    }
 
 
 # --------------------------------------------------------------------------
@@ -92,41 +105,53 @@ def _distribution(values: list[float]) -> dict[str, Any]:
 # --------------------------------------------------------------------------
 
 
-def record_rows(records: list[dict[str, Any]],
-                rows_by_run: dict[str, list[dict[str, Any]]] | None = None) -> list[dict[str, Any]]:
+def record_rows(
+    records: list[dict[str, Any]], rows_by_run: dict[str, list[dict[str, Any]]] | None = None
+) -> list[dict[str, Any]]:
     checks = annotate(records, rows_by_run)[0]
     rows = []
     for doc in records:
         telemetry, monitoring = doc["telemetry"], doc.get("monitoring") or {}
         agents = doc.get("agents") or {}
         finished = [a["finished_at"] for a in agents.values() if a.get("finished_at")]
-        rows.append({
-            "run_id": doc["run_id"], "seq": doc["seq"], "record_id": telemetry["record_id"],
-            "status": doc.get("status"), "cell_id": telemetry["cell_id"],
-            "slice_id": telemetry["slice_id"], "experiment": telemetry["run"],
-            "slice_prb": telemetry["slice_prb"], "cell_prb": telemetry["cell_prb"],
-            "scheduler": telemetry["scheduler"],
-            "throughput_per_ue_mbps": telemetry["dl_throughput_per_ue_mbps"],
-            "queueing_delay_ms": telemetry["queueing_delay_ms"],
-            "prb_utilisation": telemetry["prb_utilisation"],
-            "cell_spare_prb": telemetry["cell_spare_prb"],
-            "violations": ",".join(doc["sla"].get("violations", [])),
-            "max_persistence": max((doc.get("persistence") or {}).values(), default=0),
-            "situation": monitoring.get("situation"), "severity": monitoring.get("severity"),
-            "overridden": monitoring.get("overridden"),
-            "agents_selected": ",".join(i["agent"] for i in monitoring.get("selected_agents", [])),
-            "notes": " | ".join(monitoring.get("orchestration_notes", [])),
-            "ric_seconds": _seconds(monitoring.get("decided_at"), max(finished, default=None)),
-            "llm_calls": (doc.get("llm") or {}).get("calls"),
-            "input_tokens": (doc.get("llm") or {}).get("input_tokens"),
-            "output_tokens": (doc.get("llm") or {}).get("output_tokens"),
-            **checks[(doc["run_id"], doc["seq"])],
-        })
+        rows.append(
+            {
+                "run_id": doc["run_id"],
+                "seq": doc["seq"],
+                "record_id": telemetry["record_id"],
+                "status": doc.get("status"),
+                "cell_id": telemetry["cell_id"],
+                "slice_id": telemetry["slice_id"],
+                "experiment": telemetry["run"],
+                "slice_prb": telemetry["slice_prb"],
+                "cell_prb": telemetry["cell_prb"],
+                "scheduler": telemetry["scheduler"],
+                "throughput_per_ue_mbps": telemetry["dl_throughput_per_ue_mbps"],
+                "queueing_delay_ms": telemetry["queueing_delay_ms"],
+                "prb_utilisation": telemetry["prb_utilisation"],
+                "cell_spare_prb": telemetry["cell_spare_prb"],
+                "violations": ",".join(doc["sla"].get("violations", [])),
+                "max_persistence": max((doc.get("persistence") or {}).values(), default=0),
+                "situation": monitoring.get("situation"),
+                "severity": monitoring.get("severity"),
+                "overridden": monitoring.get("overridden"),
+                "agents_selected": ",".join(
+                    i["agent"] for i in monitoring.get("selected_agents", [])
+                ),
+                "notes": " | ".join(monitoring.get("orchestration_notes", [])),
+                "ric_seconds": _seconds(monitoring.get("decided_at"), max(finished, default=None)),
+                "llm_calls": (doc.get("llm") or {}).get("calls"),
+                "input_tokens": (doc.get("llm") or {}).get("input_tokens"),
+                "output_tokens": (doc.get("llm") or {}).get("output_tokens"),
+                **checks[(doc["run_id"], doc["seq"])],
+            }
+        )
     return rows
 
 
-def action_rows(records: list[dict[str, Any]],
-                rows_by_run: dict[str, list[dict[str, Any]]] | None = None) -> list[dict[str, Any]]:
+def action_rows(
+    records: list[dict[str, Any]], rows_by_run: dict[str, list[dict[str, Any]]] | None = None
+) -> list[dict[str, Any]]:
     checks = annotate(records, rows_by_run)[1]
     rows = []
     for doc in records:
@@ -136,30 +161,39 @@ def action_rows(records: list[dict[str, Any]],
                 governance = action.get("governance") or {}
                 reasoning = action.get("reasoning") or {}
                 review = governance.get("llm_review") or {}
-                rows.append({
-                    "run_id": doc["run_id"], "seq": doc["seq"], "at": str(action.get("at")),
-                    "cell_id": telemetry["cell_id"], "slice_id": telemetry["slice_id"],
-                    "experiment": telemetry["run"],
-                    "violations": ",".join(doc["sla"].get("violations", [])),
-                    "throughput_per_ue_mbps": telemetry["dl_throughput_per_ue_mbps"],
-                    "queueing_delay_ms": telemetry["queueing_delay_ms"],
-                    "slice_prb_share_pct": round(100 * telemetry["slice_prb"] / telemetry["cell_prb"], 1),
-                    "max_persistence": max((doc.get("persistence") or {}).values(), default=0),
-                    "agent": agent, "tool": action["tool"], "target": action.get("target"),
-                    "params": json.dumps(action.get("params") or {}, sort_keys=True),
-                    "forced": bool((action.get("agent_message") or {}).get("forced")),
-                    "confidence": reasoning.get("confidence"),
-                    "rationale": reasoning.get("rationale"),
-                    "expected_effect": reasoning.get("expected_effect"),
-                    "approved": bool(governance.get("approved")),
-                    "failed_stage": governance.get("failed_stage"),
-                    "governance_reason": governance.get("reason"),
-                    **{verdict: review.get(verdict) for verdict in REVIEW_VERDICTS},
-                    "execution": (action.get("execution") or {}).get("status"),
-                    # Closed loop: what the slice's next record showed (verification).
-                    "outcome": (action.get("outcome") or {}).get("outcome"),
-                    **checks[(doc["run_id"], doc["seq"], agent, action.get("i", position))],
-                })
+                rows.append(
+                    {
+                        "run_id": doc["run_id"],
+                        "seq": doc["seq"],
+                        "at": str(action.get("at")),
+                        "cell_id": telemetry["cell_id"],
+                        "slice_id": telemetry["slice_id"],
+                        "experiment": telemetry["run"],
+                        "violations": ",".join(doc["sla"].get("violations", [])),
+                        "throughput_per_ue_mbps": telemetry["dl_throughput_per_ue_mbps"],
+                        "queueing_delay_ms": telemetry["queueing_delay_ms"],
+                        "slice_prb_share_pct": round(
+                            100 * telemetry["slice_prb"] / telemetry["cell_prb"], 1
+                        ),
+                        "max_persistence": max((doc.get("persistence") or {}).values(), default=0),
+                        "agent": agent,
+                        "tool": action["tool"],
+                        "target": action.get("target"),
+                        "params": json.dumps(action.get("params") or {}, sort_keys=True),
+                        "forced": bool((action.get("agent_message") or {}).get("forced")),
+                        "confidence": reasoning.get("confidence"),
+                        "rationale": reasoning.get("rationale"),
+                        "expected_effect": reasoning.get("expected_effect"),
+                        "approved": bool(governance.get("approved")),
+                        "failed_stage": governance.get("failed_stage"),
+                        "governance_reason": governance.get("reason"),
+                        **{verdict: review.get(verdict) for verdict in REVIEW_VERDICTS},
+                        "execution": (action.get("execution") or {}).get("status"),
+                        # Closed loop: what the slice's next record showed (verification).
+                        "outcome": (action.get("outcome") or {}).get("outcome"),
+                        **checks[(doc["run_id"], doc["seq"], agent, action.get("i", position))],
+                    }
+                )
     return sorted(rows, key=lambda r: (r["run_id"], r["seq"], r["at"]))
 
 
@@ -187,19 +221,26 @@ def action_outcomes(actions: list[dict[str, Any]]) -> dict[str, Any]:
 def invariant_violations(actions: list[dict[str, Any]]) -> dict[str, int]:
     """What the gate guarantees, checked on the stored results: all must be 0."""
     return {
-        "rejected_but_executed": sum(not a["approved"] and a["execution"] == "executed"
-                                     for a in actions),
-        "approved_but_not_executed": sum(a["approved"] and a["execution"] != "executed"
-                                         for a in actions),
+        "rejected_but_executed": sum(
+            not a["approved"] and a["execution"] == "executed" for a in actions
+        ),
+        "approved_but_not_executed": sum(
+            a["approved"] and a["execution"] != "executed" for a in actions
+        ),
         "non_rt_below_persistence": sum(
-            a["approved"] and a["agent"] == "non_rt_ric"
-            and a["max_persistence"] < NON_RT_MIN_PERSISTENCE for a in actions),
-        "wrong_cell_executed": sum(a["execution"] == "executed" and a["target"] != a["cell_id"]
-                                   for a in actions),
+            a["approved"]
+            and a["agent"] == "non_rt_ric"
+            and a["max_persistence"] < NON_RT_MIN_PERSISTENCE
+            for a in actions
+        ),
+        "wrong_cell_executed": sum(
+            a["execution"] == "executed" and a["target"] != a["cell_id"] for a in actions
+        ),
         "wrong_slice_executed": sum(
             a["execution"] == "executed"
             and json.loads(a["params"]).get("slice_id", a["slice_id"]) != a["slice_id"]
-            for a in actions),
+            for a in actions
+        ),
     }
 
 
@@ -214,16 +255,19 @@ def resubmissions(actions: list[dict[str, Any]]) -> dict[str, int]:
         for index, call in enumerate(calls):
             if call["approved"]:
                 continue
-            later = [c for c in calls[index + 1:] if c["approved"]]
+            later = [c for c in calls[index + 1 :] if c["approved"]]
             if not later:
                 abandoned += 1
                 continue
             recovered += 1
-            reworded += (call["failed_stage"] == "llm_review"
-                         and any(c["params"] == call["params"] for c in later))
-    return {"rejected_then_same_tool_approved": recovered,
-            "review_rejection_overturned_by_rewording": reworded,
-            "rejected_never_approved": abandoned}
+            reworded += call["failed_stage"] == "llm_review" and any(
+                c["params"] == call["params"] for c in later
+            )
+    return {
+        "rejected_then_same_tool_approved": recovered,
+        "review_rejection_overturned_by_rewording": reworded,
+        "rejected_never_approved": abandoned,
+    }
 
 
 def prb_policy_conflicts(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -241,16 +285,29 @@ def prb_policy_conflicts(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if action["tool"] == "adjust_prb_allocation":
             allocation[stream] = (params["prb_percentage"], action["seq"])
         elif action["tool"] == "update_slice_resource_policy":
-            policy[stream] = (params["min_prb_ratio_pct"], params["max_prb_ratio_pct"], action["seq"])
+            policy[stream] = (
+                params["min_prb_ratio_pct"],
+                params["max_prb_ratio_pct"],
+                action["seq"],
+            )
         else:
             continue
         if stream in allocation and stream in policy:
             share, share_seq = allocation[stream]
             low, high, policy_seq = policy[stream]
             if not low <= share <= high:
-                conflicts.append({"run_id": stream[0], "cell_id": stream[1], "slice_id": stream[2],
-                                  "prb_percentage": share, "prb_seq": share_seq,
-                                  "policy_min": low, "policy_max": high, "policy_seq": policy_seq})
+                conflicts.append(
+                    {
+                        "run_id": stream[0],
+                        "cell_id": stream[1],
+                        "slice_id": stream[2],
+                        "prb_percentage": share,
+                        "prb_seq": share_seq,
+                        "policy_min": low,
+                        "policy_max": high,
+                        "policy_seq": policy_seq,
+                    }
+                )
     return conflicts
 
 
@@ -264,11 +321,15 @@ def llm_usage(records: list[dict[str, Any]], rows_without_violation: int) -> dic
     # before they were recorded): left out, not counted as 0.
     with_violation = {key: _distribution([u[key] for u in measured if key in u]) for key in keys}
     with_violation["total_tokens"] = _distribution(
-        [u.get("input_tokens", 0) + u.get("output_tokens", 0) for u in measured])
+        [u.get("input_tokens", 0) + u.get("output_tokens", 0) for u in measured]
+    )
     callers = sorted({caller for u in measured for caller in u.get("by_caller", {})})
     per_caller = {
-        caller: {key: sum(u.get("by_caller", {}).get(caller, {}).get(key, 0) for u in measured)
-                 / len(measured) for key in keys}
+        caller: {
+            key: sum(u.get("by_caller", {}).get(caller, {}).get(key, 0) for u in measured)
+            / len(measured)
+            for key in keys
+        }
         for caller in callers
     }
     rows = len(measured) + rows_without_violation
@@ -278,8 +339,13 @@ def llm_usage(records: list[dict[str, Any]], rows_without_violation: int) -> dic
         "records_without_usage_field": len(records) - len(measured),
         "with_violation": with_violation,
         "with_violation_mean_per_caller": per_caller,
-        "without_violation": {"records": rows_without_violation, "calls": 0,
-                              "input_tokens": 0, "output_tokens": 0, "reasoning_tokens": 0},
+        "without_violation": {
+            "records": rows_without_violation,
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "reasoning_tokens": 0,
+        },
         # Unknown, not 0, when no record of the runs was measured.
         "mean_per_row_all": {key: totals[key] / rows if measured else None for key in keys},
         "totals": totals,
@@ -306,10 +372,16 @@ def agent_quality(rows: list[dict[str, Any]], actions: list[dict[str, Any]]) -> 
     return {
         "monitoring": {
             key: _bool_rate([r[key] for r in rows])
-            for key in ("sla_recomputed_agrees", "llm_flags_violation", "llm_situation_ok",
-                        "llm_severity_agrees", "llm_routing_agrees", "objective_names_kpis")
-        } | {"numbers_traceable": _rate(monitoring_quoted - monitoring_untraced,
-                                        monitoring_quoted)},
+            for key in (
+                "sla_recomputed_agrees",
+                "llm_flags_violation",
+                "llm_situation_ok",
+                "llm_severity_agrees",
+                "llm_routing_agrees",
+                "objective_names_kpis",
+            )
+        }
+        | {"numbers_traceable": _rate(monitoring_quoted - monitoring_untraced, monitoring_quoted)},
         "tool_choice": {
             "diagnosis": dict(Counter(a["diagnosis"] for a in actions)),
             "tool_cause": dict(causes),
@@ -321,24 +393,30 @@ def agent_quality(rows: list[dict[str, Any]], actions: list[dict[str, Any]]) -> 
         "grounding": {
             "numbers_traceable": _rate(quoted - untraced, quoted),
             "actions_all_numbers_traceable": _rate(
-                sum(a["numbers_untraced"] == 0 for a in actions), len(actions)),
+                sum(a["numbers_untraced"] == 0 for a in actions), len(actions)
+            ),
             "evidence_supported": _rate(sum(a["evidence_supported"] for a in actions), sources),
             "actions_without_evidence": sum(a["evidence_sources"] == 0 for a in actions),
             "knowledge_cited_without_retrieval": sum(
-                a["evidence_knowledge"] > 0 and a["retrieved_knowledge"] == 0 for a in actions),
+                a["evidence_knowledge"] > 0 and a["retrieved_knowledge"] == 0 for a in actions
+            ),
         },
         # The review against the rules: proxies for false approvals / rejections.
         "governance_vs_rules": {
             "approved_but_rule_inconsistent": sum(
-                a["approved"] and a["tool_cause"] == "inconsistent" for a in actions),
+                a["approved"] and a["tool_cause"] == "inconsistent" for a in actions
+            ),
             "review_rejected_but_rule_consistent": sum(
                 a["failed_stage"] == "llm_review" and a["tool_cause"] == "consistent"
-                for a in actions),
+                for a in actions
+            ),
         },
     }
 
 
-def processed_rows(run: dict[str, Any], records: list[dict[str, Any]]) -> list[TelemetryRecord] | None:
+def processed_rows(
+    run: dict[str, Any], records: list[dict[str, Any]]
+) -> list[TelemetryRecord] | None:
     """The dataset rows a run processed (None when the dataset file is gone):
     its selection, cut at the last stored record when the run stopped."""
     config = run.get("config") or {}
@@ -356,18 +434,26 @@ def processed_rows(run: dict[str, Any], records: list[dict[str, Any]]) -> list[T
         last = max((d["seq"] for d in records if d["run_id"] == run["_id"]), default=0)
         frame = frame[frame.index + 1 <= last]
     fields = set(TelemetryRecord.model_fields)
-    return [TelemetryRecord.model_validate(
-        {k: (None if pd.isna(v) else v) for k, v in row.items() if k in fields})
-        for _, row in frame.iterrows()]
+    return [
+        TelemetryRecord.model_validate(
+            {k: (None if pd.isna(v) else v) for k, v in row.items() if k in fields}
+        )
+        for _, row in frame.iterrows()
+    ]
 
 
-def sla_detection(runs: list[dict[str, Any]], records: list[dict[str, Any]],
-                  rows: dict[str, list[TelemetryRecord] | None]) -> dict[str, Any]:
+def sla_detection(
+    runs: list[dict[str, Any]],
+    records: list[dict[str, Any]],
+    rows: dict[str, list[TelemetryRecord] | None],
+) -> dict[str, Any]:
     """Every violated row of the dataset reached the agents: recompute the SLA
     analysis on the rows each run processed and compare with the records it
     stored (a skipped row has no record)."""
-    stored = {(d["run_id"], (d.get("telemetry") or {}).get("record_id") or d["_id"].split(":", 1)[1])
-              for d in records}
+    stored = {
+        (d["run_id"], (d.get("telemetry") or {}).get("record_id") or d["_id"].split(":", 1)[1])
+        for d in records
+    }
     result = {"rows_checked": 0, "violated_rows": 0, "missed": 0, "runs_without_dataset": []}
     for run in runs:
         if rows.get(run["_id"]) is None:
@@ -381,9 +467,12 @@ def sla_detection(runs: list[dict[str, Any]], records: list[dict[str, Any]],
     return result
 
 
-def compute_metrics(runs: list[dict[str, Any]], records: list[dict[str, Any]],
-                    actions: list[dict[str, Any]],
-                    rows_by_run: dict[str, list[dict[str, Any]]] | None = None) -> dict[str, Any]:
+def compute_metrics(
+    runs: list[dict[str, Any]],
+    records: list[dict[str, Any]],
+    actions: list[dict[str, Any]],
+    rows_by_run: dict[str, list[dict[str, Any]]] | None = None,
+) -> dict[str, Any]:
     failed = [doc for doc in records if doc.get("status") != "done"]
     records = [doc for doc in records if doc.get("status") == "done"]
     rows = record_rows(records, rows_by_run)
@@ -406,8 +495,15 @@ def compute_metrics(runs: list[dict[str, Any]], records: list[dict[str, Any]],
     return {
         "run_ids": [r["_id"] for r in runs],
         "models": sorted({str((r.get("config") or {}).get("model")) for r in runs}),
-        "models_served": dict(sum((Counter({m["model"]: m["calls"] for m in doc.get("models", [])})
-                                   for doc in records), Counter())),
+        "models_served": dict(
+            sum(
+                (
+                    Counter({m["model"]: m["calls"] for m in doc.get("models", [])})
+                    for doc in records
+                ),
+                Counter(),
+            )
+        ),
         "stopped": {r["_id"]: r["stop_reason"] for r in runs if r.get("stop_reason")},
         "dataset": {
             "rows_selected": sum(s.get("rows_selected", 0) for s in summaries),
@@ -423,30 +519,46 @@ def compute_metrics(runs: list[dict[str, Any]], records: list[dict[str, Any]],
             "decision_overridden_by_code": sum(bool(row["overridden"]) for row in rows),
             "non_rt_dropped_below_threshold": sum("not invoked" in n for n in notes),
             "near_rt_fallback": sum("by fallback" in n for n in notes),
-            "agent_selected": dict(Counter(
-                agent for row in rows for agent in row["agents_selected"].split(",") if agent)),
+            "agent_selected": dict(
+                Counter(
+                    agent for row in rows for agent in row["agents_selected"].split(",") if agent
+                )
+            ),
             "situation": dict(Counter(row["situation"] for row in rows)),
         },
         "governance": {
             "proposals": len(actions),
             "approved": _rate(approved, len(actions)),
-            "rejected_by_stage": dict(Counter(
-                a["failed_stage"] for a in actions if not a["approved"])),
+            "rejected_by_stage": dict(
+                Counter(a["failed_stage"] for a in actions if not a["approved"])
+            ),
             "review_verdict_false": {
-                verdict: sum(a[verdict] is False for a in actions) for verdict in REVIEW_VERDICTS},
+                verdict: sum(a[verdict] is False for a in actions) for verdict in REVIEW_VERDICTS
+            },
             "per_tool": per_tool,
             "per_agent": dict(Counter(a["agent"] for a in actions)),
         },
         "behaviour": {
             "calls_per_record": _distribution(
-                list(Counter((a["run_id"], a["seq"]) for a in actions).values())),
+                list(Counter((a["run_id"], a["seq"]) for a in actions).values())
+            ),
             "forced_calls": _rate(sum(a["forced"] for a in actions), len(actions)),
             "resubmissions": resubmissions(actions),
             "mean_confidence": {
-                "approved": _distribution([a["confidence"] for a in actions
-                                           if a["approved"] and a["confidence"] is not None]).get("mean"),
-                "rejected": _distribution([a["confidence"] for a in actions
-                                           if not a["approved"] and a["confidence"] is not None]).get("mean"),
+                "approved": _distribution(
+                    [
+                        a["confidence"]
+                        for a in actions
+                        if a["approved"] and a["confidence"] is not None
+                    ]
+                ).get("mean"),
+                "rejected": _distribution(
+                    [
+                        a["confidence"]
+                        for a in actions
+                        if not a["approved"] and a["confidence"] is not None
+                    ]
+                ).get("mean"),
             },
         },
         "closed_loop": action_outcomes(actions),
@@ -455,10 +567,10 @@ def compute_metrics(runs: list[dict[str, Any]], records: list[dict[str, Any]],
         "latency_s": {
             **{agent: _distribution(values) for agent, values in durations.items()},
             "ric_phase_per_record": _distribution(
-                [row["ric_seconds"] for row in rows if row["ric_seconds"] is not None]),
+                [row["ric_seconds"] for row in rows if row["ric_seconds"] is not None]
+            ),
         },
-        "llm_usage": llm_usage(records, sum(s.get("rows_without_violation", 0)
-                                            for s in summaries)),
+        "llm_usage": llm_usage(records, sum(s.get("rows_without_violation", 0) for s in summaries)),
         "agent_quality": agent_quality(rows, actions),
         "enough_data": len(actions) >= MIN_PROPOSALS,
     }
@@ -489,28 +601,55 @@ def summary_rows(metrics: dict[str, Any]) -> list[tuple[str, str]]:
     review_rejected = governance["rejected_by_stage"].get("llm_review", 0)
     return [
         ("Records with a violation", str(metrics["dataset"]["records_with_violation"])),
-        ("Violations flagged by the Monitoring LLM (\\%)",
-         _percent(quality["monitoring"]["llm_flags_violation"])),
+        (
+            "Violations flagged by the Monitoring LLM (\\%)",
+            _percent(quality["monitoring"]["llm_flags_violation"]),
+        ),
         ("Situation not called normal (\\%)", _percent(quality["monitoring"]["llm_situation_ok"])),
         ("Severity agrees with code (\\%)", _percent(quality["monitoring"]["llm_severity_agrees"])),
-        ("Routing agrees with the rule (\\%)", _percent(quality["monitoring"]["llm_routing_agrees"])),
+        (
+            "Routing agrees with the rule (\\%)",
+            _percent(quality["monitoring"]["llm_routing_agrees"]),
+        ),
         ("Protected tool calls per record", _mean(behaviour["calls_per_record"])),
-        ("Tool consistent with the diagnosis (\\%)",
-         _percent(quality["tool_choice"]["consistent_among_judged"])),
-        ("PRB change in the right direction (\\%)", _percent(quality["tool_choice"]["direction_ok"])),
+        (
+            "Tool consistent with the diagnosis (\\%)",
+            _percent(quality["tool_choice"]["consistent_among_judged"]),
+        ),
+        (
+            "PRB change in the right direction (\\%)",
+            _percent(quality["tool_choice"]["direction_ok"]),
+        ),
         ("Quoted numbers traceable (\\%)", _percent(quality["grounding"]["numbers_traceable"])),
         ("Evidence sources supported (\\%)", _percent(quality["grounding"]["evidence_supported"])),
         ("Calls approved (\\%)", _percent(governance["approved"])),
-        ("Calls rejected by code (\\%)",
-         _percent({"count": proposals - governance["approved"]["count"] - review_rejected,
-                   "n": proposals,
-                   "rate": (proposals - governance["approved"]["count"] - review_rejected) / proposals
-                   if proposals else None})),
-        ("Calls rejected by the LLM review (\\%)",
-         _percent({"count": review_rejected, "n": proposals,
-                   "rate": review_rejected / proposals if proposals else None})),
-        ("Review rejection overturned by rewording",
-         str(behaviour["resubmissions"]["review_rejection_overturned_by_rewording"])),
+        (
+            "Calls rejected by code (\\%)",
+            _percent(
+                {
+                    "count": proposals - governance["approved"]["count"] - review_rejected,
+                    "n": proposals,
+                    "rate": (proposals - governance["approved"]["count"] - review_rejected)
+                    / proposals
+                    if proposals
+                    else None,
+                }
+            ),
+        ),
+        (
+            "Calls rejected by the LLM review (\\%)",
+            _percent(
+                {
+                    "count": review_rejected,
+                    "n": proposals,
+                    "rate": review_rejected / proposals if proposals else None,
+                }
+            ),
+        ),
+        (
+            "Review rejection overturned by rewording",
+            str(behaviour["resubmissions"]["review_rejection_overturned_by_rewording"]),
+        ),
         ("Gate invariant violations", str(sum(metrics["invariant_violations"].values()))),
         ("PRB share outside the slice policy", str(len(metrics["cross_agent_conflicts"]))),
         ("Model calls per record", _mean(usage["calls"])),
@@ -529,20 +668,29 @@ def latex_table(columns: dict[str, dict[str, Any]], caption: str, label: str) ->
     rows = [summary_rows(m) for m in columns.values()]
     body = "\n".join(
         " & ".join([label_] + [r[index][1] for r in rows]) + " \\\\"
-        for index, (label_, _) in enumerate(rows[0]))
+        for index, (label_, _) in enumerate(rows[0])
+    )
     header = " & ".join(["Metric"] + [n.replace("_", "\\_") for n in names]) + " \\\\"
-    return ("\\begin{table}[!t]\n\\centering\n"
-            f"\\caption{{{caption}}}\\label{{{label}}}\n\\footnotesize\n"
-            "\\setlength{\\tabcolsep}{3pt}\n"
-            f"\\begin{{tabular}}{{@{{}}l{'r' * len(names)}@{{}}}}\n\\toprule\n{header}\n\\midrule\n"
-            f"{body}\n\\bottomrule\n\\end{{tabular}}\n\\end{{table}}\n")
+    return (
+        "\\begin{table}[!t]\n\\centering\n"
+        f"\\caption{{{caption}}}\\label{{{label}}}\n\\footnotesize\n"
+        "\\setlength{\\tabcolsep}{3pt}\n"
+        f"\\begin{{tabular}}{{@{{}}l{'r' * len(names)}@{{}}}}\n\\toprule\n{header}\n\\midrule\n"
+        f"{body}\n\\bottomrule\n\\end{{tabular}}\n\\end{{table}}\n"
+    )
 
 
-def write_outputs(out: Path, metrics: dict[str, Any], records: list[dict[str, Any]],
-                  actions: list[dict[str, Any]],
-                  rows_by_run: dict[str, list[dict[str, Any]]] | None = None) -> None:
+def write_outputs(
+    out: Path,
+    metrics: dict[str, Any],
+    records: list[dict[str, Any]],
+    actions: list[dict[str, Any]],
+    rows_by_run: dict[str, list[dict[str, Any]]] | None = None,
+) -> None:
     out.mkdir(parents=True, exist_ok=True)
-    (out / "metrics.json").write_text(json.dumps(metrics, indent=2, default=float), encoding="utf-8")
+    (out / "metrics.json").write_text(
+        json.dumps(metrics, indent=2, default=float), encoding="utf-8"
+    )
     pd.DataFrame(record_rows(records, rows_by_run)).to_csv(out / "records.csv", index=False)
     table = pd.DataFrame(actions)
     table.to_csv(out / "actions.csv", index=False)
@@ -551,8 +699,10 @@ def write_outputs(out: Path, metrics: dict[str, Any], records: list[dict[str, An
         rating[column] = ""
     rating.to_csv(out / "expert_rating.csv", index=False)
     model = ", ".join(metrics["models"])
-    (out / "e4_table.tex").write_text(latex_table(
-        {model: metrics}, "Live LLM agents behind the gate", "tab:live"), encoding="utf-8")
+    (out / "e4_table.tex").write_text(
+        latex_table({model: metrics}, "Live LLM agents behind the gate", "tab:live"),
+        encoding="utf-8",
+    )
 
 
 def collect(repository: MongoRepository, run_ids: list[str]) -> dict[str, Any]:
@@ -561,10 +711,13 @@ def collect(repository: MongoRepository, run_ids: list[str]) -> dict[str, Any]:
     missing = sorted(set(run_ids) - {r["_id"] for r in runs})
     if missing:
         raise ValueError(f"unknown run id(s): {', '.join(missing)}")
-    records = list(repository.records.find({"run_id": {"$in": run_ids}}).sort(
-        [("run_id", 1), ("seq", 1)]))
+    records = list(
+        repository.records.find({"run_id": {"$in": run_ids}}).sort([("run_id", 1), ("seq", 1)])
+    )
     rows = {run["_id"]: processed_rows(run, records) for run in runs}
-    rows_by_run = {run_id: [r.model_dump() for r in found] for run_id, found in rows.items() if found}
+    rows_by_run = {
+        run_id: [r.model_dump() for r in found] for run_id, found in rows.items() if found
+    }
     done = [doc for doc in records if doc.get("status") == "done"]
     actions = action_rows(done, rows_by_run)
     metrics = compute_metrics(runs, records, actions, rows_by_run)
@@ -572,8 +725,12 @@ def collect(repository: MongoRepository, run_ids: list[str]) -> dict[str, Any]:
     return {"metrics": metrics, "records": done, "actions": actions, "rows_by_run": rows_by_run}
 
 
-def evaluate(repository: MongoRepository, run_ids: list[str], out: Path | None = None,
-             results_dir: Path = Path("results")) -> tuple[Path, dict[str, Any]]:
+def evaluate(
+    repository: MongoRepository,
+    run_ids: list[str],
+    out: Path | None = None,
+    results_dir: Path = Path("results"),
+) -> tuple[Path, dict[str, Any]]:
     """Compute the metrics of the runs and write their result files."""
     found = collect(repository, run_ids)
     out = out or results_dir / "+".join(run_ids)
@@ -584,12 +741,20 @@ def evaluate(repository: MongoRepository, run_ids: list[str], out: Path | None =
 def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate live runs stored in MongoDB.")
     parser.add_argument("run_ids", nargs="+", help="One or more run ids (pooled together).")
-    parser.add_argument("--out", type=Path, default=None,
-                        help="Output directory (default: results/<run id>).")
-    parser.add_argument("--tex", type=Path, default=None,
-                        help="Also write the LaTeX table here (e.g. the paper's tables/).")
-    parser.add_argument("--label", default=None,
-                        help="Column name of the LaTeX table (default: the configured model).")
+    parser.add_argument(
+        "--out", type=Path, default=None, help="Output directory (default: results/<run id>)."
+    )
+    parser.add_argument(
+        "--tex",
+        type=Path,
+        default=None,
+        help="Also write the LaTeX table here (e.g. the paper's tables/).",
+    )
+    parser.add_argument(
+        "--label",
+        default=None,
+        help="Column name of the LaTeX table (default: the configured model).",
+    )
     args = parser.parse_args()
 
     try:
@@ -599,17 +764,35 @@ def main() -> None:
     if args.tex:
         args.tex.parent.mkdir(parents=True, exist_ok=True)
         label = args.label or ", ".join(metrics["models"])
-        args.tex.write_text(latex_table({label: metrics}, "Live LLM agents behind the gate",
-                                        "tab:live"), encoding="utf-8")
+        args.tex.write_text(
+            latex_table({label: metrics}, "Live LLM agents behind the gate", "tab:live"),
+            encoding="utf-8",
+        )
 
-    print(json.dumps({k: metrics[k] for k in ("dataset", "governance", "invariant_violations",
-                                              "cross_agent_conflicts", "llm_usage",
-                                              "agent_quality", "sla_detection")},
-                     indent=2, default=float))
+    print(
+        json.dumps(
+            {
+                k: metrics[k]
+                for k in (
+                    "dataset",
+                    "governance",
+                    "invariant_violations",
+                    "cross_agent_conflicts",
+                    "llm_usage",
+                    "agent_quality",
+                    "sla_detection",
+                )
+            },
+            indent=2,
+            default=float,
+        )
+    )
     print(f"\nWritten to {out}/")
     if not metrics["enough_data"]:
-        print(f"Only {metrics['governance']['proposals']} tool calls: too few for rates "
-              f"(need at least {MIN_PROPOSALS}).")
+        print(
+            f"Only {metrics['governance']['proposals']} tool calls: too few for rates "
+            f"(need at least {MIN_PROPOSALS})."
+        )
 
 
 if __name__ == "__main__":

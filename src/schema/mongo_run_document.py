@@ -115,10 +115,17 @@ class RunDocument(BaseModel):
     finished_at: datetime | None = None
     status: Literal["running", "finished", "stopped"] = "running"
     stop_reason: str | None = Field(
-        default=None, description="Why the run ended early (e.g. every model rate-limited).")
+        default=None, description="Why the run ended early (e.g. every model rate-limited)."
+    )
     config: dict[str, Any] = Field(default_factory=dict)
     summary: dict[str, Any] = Field(default_factory=dict)
 
 
-__all__ = ["ActionEntry", "AgentMessage", "AgentRun", "KnowledgeEntry", "RecordDocument",
-           "RunDocument"]
+__all__ = [
+    "ActionEntry",
+    "AgentMessage",
+    "AgentRun",
+    "KnowledgeEntry",
+    "RecordDocument",
+    "RunDocument",
+]

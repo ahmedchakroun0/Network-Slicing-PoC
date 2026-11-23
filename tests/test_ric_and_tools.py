@@ -65,10 +65,7 @@ async def test_search_ran_knowledge_returns_relevant_chunk(tmp_path, monkeypatch
 
     result = await search_ran_knowledge.ainvoke({"query": "latency scheduler"})
 
-    assert (
-        "Latency optimization guidance" in result
-        or "Scheduler fairness for slices" in result
-    )
+    assert "Latency optimization guidance" in result or "Scheduler fairness for slices" in result
 
 
 # The action tools run on the MCP servers: tests/test_mcp_servers.py.
@@ -83,10 +80,13 @@ async def test_scheduler_tool_offers_the_testbed_schedulers(bank, make_scenario)
     from ran_emulator.client import EmulatorClient
     from ric_tools.server import build_server
 
-    emulator = EmulatorClient(base_url="http://emu", transport=httpx.ASGITransport(
-        app=create_app(bank, make_scenario())))
+    emulator = EmulatorClient(
+        base_url="http://emu", transport=httpx.ASGITransport(app=create_app(bank, make_scenario()))
+    )
     async with Client(build_server("near_rt_ric", emulator)) as client:
-        tool = next(t for t in (await client.list_tools()).tools
-                    if t.name == "optimize_scheduler")
+        tool = next(t for t in (await client.list_tools()).tools if t.name == "optimize_scheduler")
     assert tool.input_schema["properties"]["scheduler"]["enum"] == [
-        "round_robin", "waterfilling", "proportional_fair"]
+        "round_robin",
+        "waterfilling",
+        "proportional_fair",
+    ]

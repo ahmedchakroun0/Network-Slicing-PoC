@@ -19,8 +19,12 @@ class EmulatorError(RuntimeError):
 
 
 class EmulatorClient:
-    def __init__(self, base_url: str = "http://127.0.0.1:8100", timeout_s: float = 10.0,
-                 transport: httpx.AsyncBaseTransport | None = None):
+    def __init__(
+        self,
+        base_url: str = "http://127.0.0.1:8100",
+        timeout_s: float = 10.0,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ):
         self._http = httpx.AsyncClient(base_url=base_url, timeout=timeout_s, transport=transport)
 
     async def __aenter__(self) -> EmulatorClient:
@@ -43,37 +47,50 @@ class EmulatorClient:
         return r.json()
 
     # ---- controls (one per action tool) ----------------------------------
-    async def adjust_prb_allocation(self, cell: str, slice_id: str,
-                                    prb_percentage: float) -> dict[str, Any]:
-        return await self._call("PUT", f"/cells/{cell}/slices/{slice_id}/prb",
-                                json={"prb_percentage": prb_percentage})
+    async def adjust_prb_allocation(
+        self, cell: str, slice_id: str, prb_percentage: float
+    ) -> dict[str, Any]:
+        return await self._call(
+            "PUT", f"/cells/{cell}/slices/{slice_id}/prb", json={"prb_percentage": prb_percentage}
+        )
 
     async def optimize_scheduler(self, cell: str, scheduler: str) -> dict[str, Any]:
         return await self._call("PUT", f"/cells/{cell}/scheduler", json={"scheduler": scheduler})
 
     async def optimize_handover(self, cell: str, handover_margin_db: float) -> dict[str, Any]:
-        return await self._call("PUT", f"/cells/{cell}/handover",
-                                json={"handover_margin_db": handover_margin_db})
+        return await self._call(
+            "PUT", f"/cells/{cell}/handover", json={"handover_margin_db": handover_margin_db}
+        )
 
     async def adjust_power_control(self, cell: str, power_offset_db: float) -> dict[str, Any]:
-        return await self._call("PUT", f"/cells/{cell}/power",
-                                json={"power_offset_db": power_offset_db})
+        return await self._call(
+            "PUT", f"/cells/{cell}/power", json={"power_offset_db": power_offset_db}
+        )
 
-    async def adjust_qos_parameters(self, cell: str, slice_id: str,
-                                    priority_level: int) -> dict[str, Any]:
-        return await self._call("PUT", f"/cells/{cell}/slices/{slice_id}/qos",
-                                json={"priority_level": priority_level})
+    async def adjust_qos_parameters(
+        self, cell: str, slice_id: str, priority_level: int
+    ) -> dict[str, Any]:
+        return await self._call(
+            "PUT", f"/cells/{cell}/slices/{slice_id}/qos", json={"priority_level": priority_level}
+        )
 
-    async def adjust_link_adaptation(self, cell: str, slice_id: str, mcs_offset: int,
-                                     target_bler: float) -> dict[str, Any]:
-        return await self._call("PUT", f"/cells/{cell}/slices/{slice_id}/link-adaptation",
-                                json={"mcs_offset": mcs_offset, "target_bler": target_bler})
+    async def adjust_link_adaptation(
+        self, cell: str, slice_id: str, mcs_offset: int, target_bler: float
+    ) -> dict[str, Any]:
+        return await self._call(
+            "PUT",
+            f"/cells/{cell}/slices/{slice_id}/link-adaptation",
+            json={"mcs_offset": mcs_offset, "target_bler": target_bler},
+        )
 
-    async def update_slice_resource_policy(self, cell: str, slice_id: str,
-                                           min_prb_ratio_pct: float,
-                                           max_prb_ratio_pct: float) -> dict[str, Any]:
-        return await self._call("PUT", f"/cells/{cell}/slices/{slice_id}/policy", json={
-            "min_prb_ratio_pct": min_prb_ratio_pct, "max_prb_ratio_pct": max_prb_ratio_pct})
+    async def update_slice_resource_policy(
+        self, cell: str, slice_id: str, min_prb_ratio_pct: float, max_prb_ratio_pct: float
+    ) -> dict[str, Any]:
+        return await self._call(
+            "PUT",
+            f"/cells/{cell}/slices/{slice_id}/policy",
+            json={"min_prb_ratio_pct": min_prb_ratio_pct, "max_prb_ratio_pct": max_prb_ratio_pct},
+        )
 
     # ---- simulation ------------------------------------------------------
     async def reset(self, scenario: str | None = None, seed: int | None = None) -> dict[str, Any]:
@@ -93,8 +110,9 @@ class EmulatorClient:
     async def state(self) -> dict[str, Any]:
         return await self._call("GET", "/state")
 
-    async def kpis(self, cell: str, from_step: int = 0,
-                   to_step: int | None = None) -> list[dict[str, Any]]:
+    async def kpis(
+        self, cell: str, from_step: int = 0, to_step: int | None = None
+    ) -> list[dict[str, Any]]:
         params: dict[str, int] = {"from_step": from_step}
         if to_step is not None:
             params["to_step"] = to_step
@@ -108,4 +126,4 @@ class EmulatorClient:
         async with self._http.stream("GET", "/telemetry/stream", timeout=None) as r:
             async for line in r.aiter_lines():
                 if line.startswith("data: "):
-                    yield json.loads(line[len("data: "):])
+                    yield json.loads(line[len("data: ") :])

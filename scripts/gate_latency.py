@@ -62,8 +62,10 @@ def _controls_of(tool: str, params: dict[str, Any]) -> dict[str, int]:
     if tool == "adjust_prb_allocation":
         return {"prb_percentage": params["prb_percentage"]}
     if tool == "update_slice_resource_policy":
-        return {"policy_min": params["min_prb_ratio_pct"],
-                "policy_max": params["max_prb_ratio_pct"]}
+        return {
+            "policy_min": params["min_prb_ratio_pct"],
+            "policy_max": params["max_prb_ratio_pct"],
+        }
     return {}
 
 
@@ -79,21 +81,23 @@ def load_invocations(run: str, results: Path = RESULTS) -> list[dict[str, Any]]:
         if not invocations or invocations[-1]["key"] != key:
             violations = [v for v in rec["violations"].split(",") if v]
             persistence = int(rec["max_persistence"])
-            invocations.append({
-                "key": key,
-                "agent": a["agent"],
-                "invocation": {
+            invocations.append(
+                {
+                    "key": key,
                     "agent": a["agent"],
-                    "context": {
-                        "target": rec["cell_id"],
-                        "slice_id": rec["slice_id"],
-                        "sla_analysis": {"violations": violations},
-                        "persistence": {v: persistence for v in violations},
-                        "active_controls": dict(controls),
+                    "invocation": {
+                        "agent": a["agent"],
+                        "context": {
+                            "target": rec["cell_id"],
+                            "slice_id": rec["slice_id"],
+                            "sla_analysis": {"violations": violations},
+                            "persistence": {v: persistence for v in violations},
+                            "active_controls": dict(controls),
+                        },
                     },
-                },
-                "calls": [],
-            })
+                    "calls": [],
+                }
+            )
         params = json.loads(a["params"] or "{}")
         args = {**params, "target": a["target"] or None}
         for field in ("rationale", "expected_effect"):  # empty in the CSV = not sent
@@ -104,10 +108,14 @@ def load_invocations(run: str, results: Path = RESULTS) -> list[dict[str, Any]]:
         if a.get("evidence_sources"):
             args["evidence_sources"] = [s for s in a["evidence_sources"].split(" || ") if s]
         approved = _bool(a["approved"])
-        invocations[-1]["calls"].append({
-            "tool": a["tool"], "args": args, "params": params,
-            "stored": "approved" if approved else a["failed_stage"],
-        })
+        invocations[-1]["calls"].append(
+            {
+                "tool": a["tool"],
+                "args": args,
+                "params": params,
+                "stored": "approved" if approved else a["failed_stage"],
+            }
+        )
         if approved:
             controls.update(_controls_of(a["tool"], params))
     return invocations
@@ -125,9 +133,12 @@ class ReplayedReview:
     async def authorize(self, proposal, state=None) -> GovernanceResult:
         result = await self.gate.authorize(proposal)
         if result.approved and self.verdict == "llm_review":
-            return GovernanceResult(approved=False, reason="[llm_review] stored verdict",
-                                    failed_stage="llm_review",
-                                    checks_passed=result.checks_passed)
+            return GovernanceResult(
+                approved=False,
+                reason="[llm_review] stored verdict",
+                failed_stage="llm_review",
+                checks_passed=result.checks_passed,
+            )
         return result
 
 
@@ -153,8 +164,10 @@ async def replay(invocation: dict[str, Any], middleware, review=None) -> list[st
             await middleware._gate(_request(call, invocation["invocation"], i), _executed)
     finally:
         mw.RAN_AUDIT.reset(token)
-    return ["approved" if e["governance"]["approved"] else e["governance"]["failed_stage"]
-            for e in sink.entries]
+    return [
+        "approved" if e["governance"]["approved"] else e["governance"]["failed_stage"]
+        for e in sink.entries
+    ]
 
 
 async def fidelity(groups) -> dict[str, Any]:
@@ -171,8 +184,15 @@ async def fidelity(groups) -> dict[str, Any]:
                     checked += 1
                     if outcome != call["stored"]:
                         mismatches += 1
-                        details.append({"run": run, "record": inv["key"][0], "tool": call["tool"],
-                                        "stored": call["stored"], "replayed": outcome})
+                        details.append(
+                            {
+                                "run": run,
+                                "record": inv["key"][0],
+                                "tool": call["tool"],
+                                "stored": call["stored"],
+                                "replayed": outcome,
+                            }
+                        )
     return {"calls": checked, "mismatches": mismatches, "details": details}
 
 
@@ -196,7 +216,8 @@ async def stage_latency(groups, reps: int) -> dict[str, list[float]]:
                     submitted, _ = mw.build_submission(call["tool"], call["args"])
                     try:
                         proposal = mw.RANActionProposal.model_validate(submitted).model_copy(
-                            update={"invocation_context": {"invocation": inv["invocation"]}})
+                            update={"invocation_context": {"invocation": inv["invocation"]}}
+                        )
                     except Exception:
                         proposal = None
                     model = ARG_MODELS.get(call["tool"])
@@ -204,9 +225,11 @@ async def stage_latency(groups, reps: int) -> dict[str, list[float]]:
                     if proposal is not None and model is not None:
                         try:
                             args = model.model_validate(
-                                {**proposal.parameters, "target": proposal.target}).model_dump()
+                                {**proposal.parameters, "target": proposal.target}
+                            ).model_dump()
                         except Exception:
                             args = None
+
                     # g_S as in authorize(): reject = exception. Loop values are
                     # bound as defaults (the closure is timed in this iteration).
                     def schema_stage(model=model, proposal=proposal):
@@ -222,7 +245,9 @@ async def stage_latency(groups, reps: int) -> dict[str, list[float]]:
                         if args is not None:
                             out["g_P"].append(_ns(gate._check_policy_trust, proposal, args) / 1e3)
                             out["g_L"].append(_ns(gate._check_sla, proposal, args) / 1e3)
-                            out["g_R"].append(_ns(gate._check_resource_safety, proposal, args) / 1e3)
+                            out["g_R"].append(
+                                _ns(gate._check_resource_safety, proposal, args) / 1e3
+                            )
                         sink = mw.AuditSink()
                         sink.entries = list(prefix)
                         token = mw.RAN_AUDIT.set(sink)
@@ -241,21 +266,33 @@ async def scaling(groups, n_max: int, reps: int) -> dict[str, Any]:
     calls of other tools (rejected, so every guard scans the whole audit)."""
     gate = RANTrustGovernanceAgent(use_llm=False)
     middleware = mw.RANAuthorizationMiddleware(gate)
-    mw.MAX_PROTECTED_CALLS = 10 ** 6
+    mw.MAX_PROTECTED_CALLS = 10**6
     invs = [inv for _, runs, _ in groups for run in runs for inv in load_invocations(run)]
-    target_inv = next(inv for inv in reversed(invs) for c in inv["calls"]
-                      if c["tool"] == "adjust_prb_allocation" and c["stored"] == "approved")
-    target = next(c for c in target_inv["calls"]
-                  if c["tool"] == "adjust_prb_allocation" and c["stored"] == "approved")
-    fillers = [c for inv in invs for c in inv["calls"]
-               if c["tool"] != "adjust_prb_allocation" and c["stored"] != "approved"]
+    target_inv = next(
+        inv
+        for inv in reversed(invs)
+        for c in inv["calls"]
+        if c["tool"] == "adjust_prb_allocation" and c["stored"] == "approved"
+    )
+    target = next(
+        c
+        for c in target_inv["calls"]
+        if c["tool"] == "adjust_prb_allocation" and c["stored"] == "approved"
+    )
+    fillers = [
+        c
+        for inv in invs
+        for c in inv["calls"]
+        if c["tool"] != "adjust_prb_allocation" and c["stored"] != "approved"
+    ]
     rows = []
     for n in range(1, n_max + 1):
         sink = mw.AuditSink()
         token = mw.RAN_AUDIT.set(sink)
         for i in range(n - 1):
-            await middleware._gate(_request(fillers[i % len(fillers)], target_inv["invocation"], i),
-                                   _executed)
+            await middleware._gate(
+                _request(fillers[i % len(fillers)], target_inv["invocation"], i), _executed
+            )
         mw.RAN_AUDIT.reset(token)
         prefix = list(sink.entries)
         samples = []
@@ -270,8 +307,16 @@ async def scaling(groups, n_max: int, reps: int) -> dict[str, Any]:
             mw.RAN_AUDIT.reset(token)
         samples.sort()
         q = lambda p: samples[min(len(samples) - 1, int(p * len(samples)))]  # noqa: E731, B023 (used in this iteration)
-        rows.append({"n": n, "p5": q(0.05), "p25": q(0.25), "median": statistics.median(samples),
-                     "p75": q(0.75), "p95": q(0.95)})
+        rows.append(
+            {
+                "n": n,
+                "p5": q(0.05),
+                "p25": q(0.25),
+                "median": statistics.median(samples),
+                "p75": q(0.75),
+                "p95": q(0.95),
+            }
+        )
     return {"target_tool": target["tool"], "rows": rows}
 
 
@@ -299,18 +344,39 @@ async def main_async(args) -> dict[str, Any]:
         print("  mismatch", d)
     stages = await stage_latency(groups, args.reps)
     scale = await scaling(groups, args.n_max, args.reps)
-    summary = {k: {"n": len(v), "median_us": statistics.median(v),
-                   "p99_us": sorted(v)[int(0.99 * len(v)) - 1]} for k, v in stages.items() if v}
+    summary = {
+        k: {
+            "n": len(v),
+            "median_us": statistics.median(v),
+            "p99_us": sorted(v)[int(0.99 * len(v)) - 1],
+        }
+        for k, v in stages.items()
+        if v
+    }
     for k, s in summary.items():
         print(f"{k:5s} n={s['n']:6d} median={s['median_us']:8.1f} us  p99={s['p99_us']:8.1f} us")
-    return {"cpu": _cpu(), "python": platform.python_version(), "reps": args.reps,
-            "fidelity": check, "summary": summary, "samples_us": stages, "scaling": scale}
+    return {
+        "cpu": _cpu(),
+        "python": platform.python_version(),
+        "reps": args.reps,
+        "fidelity": check,
+        "summary": summary,
+        "samples_us": stages,
+        "scaling": scale,
+    }
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Deterministic gate latency on replayed live calls.")
-    parser.add_argument("--group", type=parse_group, action="append", required=True,
-                        help="LABEL=run1,run2:CAP (CAP = protected calls per invocation of the run)")
+    parser = argparse.ArgumentParser(
+        description="Deterministic gate latency on replayed live calls."
+    )
+    parser.add_argument(
+        "--group",
+        type=parse_group,
+        action="append",
+        required=True,
+        help="LABEL=run1,run2:CAP (CAP = protected calls per invocation of the run)",
+    )
     parser.add_argument("--reps", type=int, default=2000)
     parser.add_argument("--n-max", type=int, default=64)
     parser.add_argument("--out", type=Path, default=RESULTS / "gate_latency.json")

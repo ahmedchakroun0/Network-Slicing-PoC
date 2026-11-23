@@ -20,8 +20,11 @@ def _assert_replay(emu: Emulator, df: pd.DataFrame, steps: int) -> None:
         res = emu.step()
         for rec in res.records:
             meta = res.meta[rec.cell_id]
-            src = df[(df.run == meta["source_run"]) & (df.cell_id == rec.cell_id)
-                     & (df.slice_id == rec.slice_id)].sort_values("window_start_s")
+            src = df[
+                (df.run == meta["source_run"])
+                & (df.cell_id == rec.cell_id)
+                & (df.slice_id == rec.slice_id)
+            ].sort_values("window_start_s")
             row = src.iloc[meta["trace_offset"]]
             for f in (*KPI_FIELDS, "slice_prb", "scheduler"):
                 expected = None if pd.isna(row[f]) else row[f]
@@ -30,7 +33,7 @@ def _assert_replay(emu: Emulator, df: pd.DataFrame, steps: int) -> None:
 
 def test_transparent_replay_without_actions_or_events(bank, frame, make_scenario):
     emu = Emulator(bank, make_scenario(tr=9))
-    _assert_replay(emu, frame, steps=25)      # also crosses the end of the trace
+    _assert_replay(emu, frame, steps=25)  # also crosses the end of the trace
 
 
 @pytest.mark.skipif(not SAMPLE.exists(), reason="prepared ColO-RAN sample not present")
@@ -38,8 +41,12 @@ def test_transparent_replay_on_real_coloran_sample():
     df = pd.read_csv(SAMPLE)
     bank = TraceBank.from_frame(df)
     trace = next(iter(bank))
-    sc = Scenario(name="real", cells={trace.cell_id: CellSpec(
-        scheduler=trace.scheduler, tr=trace.split.tr, start_offset=0)})
+    sc = Scenario(
+        name="real",
+        cells={
+            trace.cell_id: CellSpec(scheduler=trace.scheduler, tr=trace.split.tr, start_offset=0)
+        },
+    )
     _assert_replay(Emulator(bank, sc), df, steps=10)
 
 
@@ -78,20 +85,23 @@ def test_scheduler_change_applies_to_the_cell(bank, make_scenario):
 
 def test_missing_trace_falls_back_to_nearest_and_says_so(bank, make_scenario):
     emu = Emulator(bank, make_scenario(tr=9))
-    out = emu.set_scheduler("bs2", "waterfilling")      # not in the synthetic bank
+    out = emu.set_scheduler("bs2", "waterfilling")  # not in the synthetic bank
     assert "nearest" in out["note"]
     assert emu.cells["bs2"].scheduler == "round_robin"
 
 
-@pytest.mark.parametrize("call", [
-    lambda e: e.set_prb("bs2", "eMBB", 95),
-    lambda e: e.set_power("bs2", 9),
-    lambda e: e.set_handover("bs2", -1),
-    lambda e: e.set_scheduler("bs2", "fifo"),
-    lambda e: e.set_link_adaptation("bs2", "URLLC", -8, 0.1),
-    lambda e: e.set_qos("bs2", "eMBB", 0),
-    lambda e: e.set_policy("bs2", "eMBB", 60, 40),
-])
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda e: e.set_prb("bs2", "eMBB", 95),
+        lambda e: e.set_power("bs2", 9),
+        lambda e: e.set_handover("bs2", -1),
+        lambda e: e.set_scheduler("bs2", "fifo"),
+        lambda e: e.set_link_adaptation("bs2", "URLLC", -8, 0.1),
+        lambda e: e.set_qos("bs2", "eMBB", 0),
+        lambda e: e.set_policy("bs2", "eMBB", 60, 40),
+    ],
+)
 def test_out_of_envelope_controls_are_refused_and_logged(bank, make_scenario, call):
     emu = Emulator(bank, make_scenario())
     with pytest.raises(ControlError):
@@ -100,7 +110,7 @@ def test_out_of_envelope_controls_are_refused_and_logged(bank, make_scenario, ca
 
 
 def test_policy_moves_a_split_that_breaks_it(bank, make_scenario):
-    emu = Emulator(bank, make_scenario(tr=9))           # eMBB 18 PRBs = 36 %
+    emu = Emulator(bank, make_scenario(tr=9))  # eMBB 18 PRBs = 36 %
     out = emu.set_policy("bs2", "eMBB", 60, 90)
     assert out["prb"]["eMBB"] >= 30 and "violated the policy" in out["note"]
     # Later PRB actions are snapped inside the policy...
@@ -133,7 +143,8 @@ def test_history_and_runtime_events(bank, make_scenario):
 
 
 def test_initial_split_outside_scenario_policy_is_snapped(bank):
-    sc = Scenario(name="p", cells={"bs2": CellSpec(tr=9, start_offset=0,
-                                                   policies={"eMBB": (60, 90)})})
+    sc = Scenario(
+        name="p", cells={"bs2": CellSpec(tr=9, start_offset=0, policies={"eMBB": (60, 90)})}
+    )
     assert Emulator(bank, sc).cells["bs2"].split.embb >= 30
     assert SPLITS[9].embb == 18

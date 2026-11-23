@@ -44,8 +44,9 @@ def main() -> None:
     columns = {label: collect(repository, run_ids)["metrics"] for label, run_ids in args.group}
     args.tex.parent.mkdir(parents=True, exist_ok=True)
     args.tex.write_text(latex_table(columns, args.caption, args.label), encoding="utf-8")
-    args.tex.with_suffix(".json").write_text(json.dumps(columns, indent=2, default=float),
-                                             encoding="utf-8")
+    args.tex.with_suffix(".json").write_text(
+        json.dumps(columns, indent=2, default=float), encoding="utf-8"
+    )
     print(args.tex.read_text(encoding="utf-8"))
 
 

@@ -35,8 +35,9 @@ def _embb(emu, steps):
 
 
 def test_demand_surge_builds_delay_then_recovers(bank, make_scenario):
-    ev = EventSpec(type="demand_surge", cell="bs2", slice="eMBB", factor=1.5,
-                   start_step=3, duration=5)
+    ev = EventSpec(
+        type="demand_surge", cell="bs2", slice="eMBB", factor=1.5, start_step=3, duration=5
+    )
     emu = Emulator(bank, make_scenario(tr=12, events=[ev]))
     recs = _embb(emu, 20)
     assert recs[5].queueing_delay_ms > recs[0].queueing_delay_ms + 50
@@ -44,11 +45,12 @@ def test_demand_surge_builds_delay_then_recovers(bank, make_scenario):
 
 
 def test_surge_demand_is_anchored_so_more_capacity_absorbs_it(bank, make_scenario):
-    ev = EventSpec(type="demand_surge", cell="bs2", slice="eMBB", factor=1.2,
-                   start_step=0, duration=50)
-    emu = Emulator(bank, make_scenario(tr=10, events=[ev]))       # eMBB 24 PRBs
+    ev = EventSpec(
+        type="demand_surge", cell="bs2", slice="eMBB", factor=1.2, start_step=0, duration=50
+    )
+    emu = Emulator(bank, make_scenario(tr=10, events=[ev]))  # eMBB 24 PRBs
     congested = _embb(emu, 3)[-1].queueing_delay_ms
-    emu.set_prb("bs2", "eMBB", 84)                                # 42 PRBs
+    emu.set_prb("bs2", "eMBB", 84)  # 42 PRBs
     assert _embb(emu, 5)[-1].queueing_delay_ms < congested / 2
 
 
@@ -72,8 +74,9 @@ def test_outage_zeroes_service_then_drains(bank, make_scenario):
 
 
 def test_priority_borrows_idle_prbs(bank, make_scenario):
-    ev = EventSpec(type="demand_surge", cell="bs2", slice="eMBB", factor=1.3,
-                   start_step=0, duration=50)
+    ev = EventSpec(
+        type="demand_surge", cell="bs2", slice="eMBB", factor=1.3, start_step=0, duration=50
+    )
     emu = Emulator(bank, make_scenario(tr=12, events=[ev]))
     before = _embb(emu, 3)[-1]
     emu.set_qos("bs2", "eMBB", 1)

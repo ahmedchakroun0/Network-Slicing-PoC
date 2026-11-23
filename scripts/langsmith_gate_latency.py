@@ -54,8 +54,10 @@ def collect(client, project: str, runs: set[str]) -> list[dict[str, Any]]:
     tagged = list(client.list_runs(project_name=project, filter='has(tags, "governance")'))
     spans = [s for s in tagged if s.name.startswith("governance ")]
     models = [r for r in tagged if r.run_type == "llm" and r.dotted_order]
-    print(f"{len(spans)} governance spans, {len(models)} model calls inside them, "
-          f"in project {project!r}")
+    print(
+        f"{len(spans)} governance spans, {len(models)} model calls inside them, "
+        f"in project {project!r}"
+    )
     calls = []
     for span in spans:
         run_id = _metadata(span).get("run_id")
@@ -65,19 +67,28 @@ def collect(client, project: str, runs: set[str]) -> list[dict[str, Any]]:
         reviews = [r for r in models if r.dotted_order.startswith(span.dotted_order)]
         outputs = span.outputs or {}
         content = json.dumps(outputs, default=str)
-        calls.append({
-            "run_id": run_id,
-            "record_id": _metadata(span).get("record_id"),
-            "tool": span.name.removeprefix("governance "),
-            "gate_s": _seconds(span),
-            "reviewed": bool(reviews),
-            "g_v_s": sum(_seconds(r) or 0 for r in reviews) if reviews else None,
-            "tokens": {k: sum(_tokens(r).get(k, 0) for r in reviews)
-                       for k in ("prompt_tokens", "completion_tokens", "total_tokens")},
-            "outcome": ("rejected" if '"rejected"' in content
-                        else "executed" if reviews or "executed" in content else "unknown"),
-            "start": span.start_time.isoformat() if span.start_time else None,
-        })
+        calls.append(
+            {
+                "run_id": run_id,
+                "record_id": _metadata(span).get("record_id"),
+                "tool": span.name.removeprefix("governance "),
+                "gate_s": _seconds(span),
+                "reviewed": bool(reviews),
+                "g_v_s": sum(_seconds(r) or 0 for r in reviews) if reviews else None,
+                "tokens": {
+                    k: sum(_tokens(r).get(k, 0) for r in reviews)
+                    for k in ("prompt_tokens", "completion_tokens", "total_tokens")
+                },
+                "outcome": (
+                    "rejected"
+                    if '"rejected"' in content
+                    else "executed"
+                    if reviews or "executed" in content
+                    else "unknown"
+                ),
+                "start": span.start_time.isoformat() if span.start_time else None,
+            }
+        )
     return calls
 
 
@@ -112,17 +123,27 @@ def _dist(values: list[float]) -> dict[str, float] | None:
     values = sorted(v for v in values if v is not None)
     if not values:
         return None
-    return {"n": len(values), "median": statistics.median(values),
-            "p95": values[min(len(values) - 1, int(0.95 * len(values)))], "max": values[-1]}
+    return {
+        "n": len(values),
+        "median": statistics.median(values),
+        "p95": values[min(len(values) - 1, int(0.95 * len(values)))],
+        "max": values[-1],
+    }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Gate latency with g_V from LangSmith traces.")
-    parser.add_argument("--runs", default="claude-run2,claude-run4,claude-run5",
-                        help="comma-separated dataset run ids (empty = all)")
+    parser.add_argument(
+        "--runs",
+        default="claude-run2,claude-run4,claude-run5",
+        help="comma-separated dataset run ids (empty = all)",
+    )
     parser.add_argument("--project", default=os.getenv("LANGSMITH_PROJECT", "default"))
-    parser.add_argument("--match-results", action="store_true",
-                        help="keep only the calls stored in results/<run>/actions.csv")
+    parser.add_argument(
+        "--match-results",
+        action="store_true",
+        help="keep only the calls stored in results/<run>/actions.csv",
+    )
     parser.add_argument("--out", type=Path, default=_ROOT / "results" / "gate_latency_llm.json")
     args = parser.parse_args()
 
@@ -140,8 +161,10 @@ def main() -> None:
             projects = [p.name for p in client.list_projects()]
         except Exception:
             pass
-        sys.exit(f"Could not read the traces ({type(exc).__name__}: {exc}). "
-                 f"Projects visible with this key: {projects or 'none'}")
+        sys.exit(
+            f"Could not read the traces ({type(exc).__name__}: {exc}). "
+            f"Projects visible with this key: {projects or 'none'}"
+        )
 
     if args.match_results:
         traced = len(calls)
@@ -154,12 +177,19 @@ def main() -> None:
         "gate_with_g_v_s": _dist([c["gate_s"] for c in reviewed]),
         "gate_without_g_v_s": _dist([c["gate_s"] for c in calls if not c["reviewed"]]),
         "g_v_s": _dist([c["g_v_s"] for c in reviewed]),
-        "g_v_tokens_mean": {k: statistics.mean(c["tokens"][k] for c in reviewed)
-                            for k in ("prompt_tokens", "completion_tokens", "total_tokens")}
-        if reviewed else None,
+        "g_v_tokens_mean": {
+            k: statistics.mean(c["tokens"][k] for c in reviewed)
+            for k in ("prompt_tokens", "completion_tokens", "total_tokens")
+        }
+        if reviewed
+        else None,
     }
-    args.out.write_text(json.dumps({"project": args.project, "summary": summary, "calls": calls},
-                                   indent=2, default=str), encoding="utf-8")
+    args.out.write_text(
+        json.dumps(
+            {"project": args.project, "summary": summary, "calls": calls}, indent=2, default=str
+        ),
+        encoding="utf-8",
+    )
     print(json.dumps(summary, indent=2))
     print(f"wrote {args.out}")
 

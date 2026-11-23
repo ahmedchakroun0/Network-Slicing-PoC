@@ -53,19 +53,35 @@ class _Structured:
     async def ainvoke(self, _input, *args, **kwargs):
         if self.schema is MonitoringDecision:
             return MonitoringDecision(
-                situation="critical", severity="high", global_situation="queueing delay degradation",
+                situation="critical",
+                severity="high",
+                global_situation="queueing delay degradation",
                 action_required=True,
                 selected_agents=[
-                    AgentInvocation(agent="near_rt_ric", responsibility="fast mitigation",
-                                    objective="Reduce latency", priority="high", reason="latency violation"),
-                    AgentInvocation(agent="non_rt_ric", responsibility="policy",
-                                    objective="Prevent persistent latency", priority="high", reason="persistence"),
+                    AgentInvocation(
+                        agent="near_rt_ric",
+                        responsibility="fast mitigation",
+                        objective="Reduce latency",
+                        priority="high",
+                        reason="latency violation",
+                    ),
+                    AgentInvocation(
+                        agent="non_rt_ric",
+                        responsibility="policy",
+                        objective="Prevent persistent latency",
+                        priority="high",
+                        reason="persistence",
+                    ),
                 ],
                 reason="latency violation",
             )
         if self.schema is _LLMReview:
-            return _LLMReview(goal_aligned=True, reasoning_sound=True, behavior_acceptable=True,
-                              reason="Scripted approval.")
+            return _LLMReview(
+                goal_aligned=True,
+                reasoning_sound=True,
+                behavior_acceptable=True,
+                reason="Scripted approval.",
+            )
         raise AssertionError(f"unexpected schema {self.schema}")
 
 
@@ -94,22 +110,40 @@ class ScriptedChatModel(BaseChatModel):
             # The invocation is sent once, as one JSON line of the system prompt.
             inv = json.loads(system.split(" invocation:\n", 1)[1].split("\n", 1)[0])
             ctx = inv["context"]
-            base = {"target": ctx["target"],
-                    "rationale": "eMBB throughput and delay exceed their budgets on this slice.",
-                    "expected_effect": "Higher throughput, lower delay.", "confidence": 0.8}
+            base = {
+                "target": ctx["target"],
+                "rationale": "eMBB throughput and delay exceed their budgets on this slice.",
+                "expected_effect": "Higher throughput, lower delay.",
+                "confidence": 0.8,
+            }
             if "Non-RT RIC Agent" in system:
-                name, args = "update_slice_resource_policy", {**base, "slice_id": ctx["slice_id"],
-                                                               "min_prb_ratio_pct": 60, "max_prb_ratio_pct": 90}
+                name, args = (
+                    "update_slice_resource_policy",
+                    {
+                        **base,
+                        "slice_id": ctx["slice_id"],
+                        "min_prb_ratio_pct": 60,
+                        "max_prb_ratio_pct": 90,
+                    },
+                )
             else:
-                name, args = "adjust_prb_allocation", {**base, "slice_id": ctx["slice_id"], "prb_percentage": 72}
+                name, args = (
+                    "adjust_prb_allocation",
+                    {**base, "slice_id": ctx["slice_id"], "prb_percentage": 72},
+                )
             _CALLS["n"] += 1
-            msg = AIMessage(content="", tool_calls=[{"name": name, "args": args, "id": f"call_{_CALLS['n']}"}])
+            msg = AIMessage(
+                content="", tool_calls=[{"name": name, "args": args, "id": f"call_{_CALLS['n']}"}]
+            )
         return ChatResult(generations=[ChatGeneration(message=msg)])
 
 
-SCENARIO = {"name": "e2e", "seed": 0,
-            # tr 9: eMBB 18 PRBs, MTC 21, URLLC 11 -> eMBB violates both KPIs.
-            "cells": {"bs2": {"scheduler": "round_robin", "tr": 9, "start_offset": 0}}}
+SCENARIO = {
+    "name": "e2e",
+    "seed": 0,
+    # tr 9: eMBB 18 PRBs, MTC 21, URLLC 11 -> eMBB violates both KPIs.
+    "cells": {"bs2": {"scheduler": "round_robin", "tr": 9, "start_offset": 0}},
+}
 
 
 @pytest.fixture
@@ -121,10 +155,12 @@ def services(monkeypatch, tmp_path):
     fake_model = ScriptedChatModel(callbacks=[PROVIDER_GUARD])
     monkeypatch.setattr(run_loop, "create_llm", lambda: fake_model)
     monkeypatch.setattr(base_ric, "create_llm", lambda: fake_model)
-    monkeypatch.setattr(core_llm, "create_llm", lambda: fake_model)   # governance review
+    monkeypatch.setattr(core_llm, "create_llm", lambda: fake_model)  # governance review
     monkeypatch.setattr(mongo_repo, "MongoClient", mongomock.MongoClient)
     redis = fakeredis.aioredis.FakeRedis(decode_responses=True)
-    monkeypatch.setattr(RedisWorkingMemory, "from_url", classmethod(lambda cls, *a, **k: cls(redis)))
+    monkeypatch.setattr(
+        RedisWorkingMemory, "from_url", classmethod(lambda cls, *a, **k: cls(redis))
+    )
     store = {"redis": redis}
     original_init = mongo_repo.MongoRepository.__init__
 
@@ -140,15 +176,19 @@ def services(monkeypatch, tmp_path):
 @asynccontextmanager
 async def closed_loop(bank):
     """The emulator and both MCP servers, in process."""
-    emulator = EmulatorClient(base_url="http://emu",
-                              transport=httpx.ASGITransport(app=create_app(bank, _scenario())))
-    async with Client(build_server("near_rt_ric", emulator)) as near, \
-            Client(build_server("non_rt_ric", emulator)) as non:
+    emulator = EmulatorClient(
+        base_url="http://emu", transport=httpx.ASGITransport(app=create_app(bank, _scenario()))
+    )
+    async with (
+        Client(build_server("near_rt_ric", emulator)) as near,
+        Client(build_server("non_rt_ric", emulator)) as non,
+    ):
         yield emulator, {"near_rt_ric": near, "non_rt_ric": non}
 
 
 def _scenario():
     from ran_emulator.scenarios import Scenario
+
     return Scenario.model_validate(SCENARIO)
 
 
@@ -165,9 +205,15 @@ async def test_action_fixes_the_violation_and_is_verified_resolved(frame, servic
 
     async with closed_loop(bank) as (emulator, mcp_clients):
         await run_loop.run_loop(
-            run_loop.RunConfig(run_id="loop", scenario=str(tmp_path / "e2e.json"), steps=3,
-                               results_dir=tmp_path / "results"),
-            emulator=emulator, mcp_clients=mcp_clients)
+            run_loop.RunConfig(
+                run_id="loop",
+                scenario=str(tmp_path / "e2e.json"),
+                steps=3,
+                results_dir=tmp_path / "results",
+            ),
+            emulator=emulator,
+            mcp_clients=mcp_clients,
+        )
         sim_actions = await emulator._call("GET", "/sim/actions")
         violations = await emulator.violations()
 
@@ -182,7 +228,8 @@ async def test_action_fixes_the_violation_and_is_verified_resolved(frame, servic
 
     # The approved call really changed the RAN, inside its envelope.
     assert [(a["control"], a["requested_pct"], a["applied_pct"]) for a in sim_actions] == [
-        ("prb", 72, 72.0)]
+        ("prb", 72, 72.0)
+    ]
     assert violations == []
 
     (doc,) = repo.records.find({"run_id": "loop"})
@@ -213,7 +260,9 @@ async def test_unfixable_violation_escalates_to_the_non_rt_policy(bank, services
     async with closed_loop(bank) as (emulator, mcp_clients):
         await run_loop.run_loop(
             run_loop.RunConfig(run_id="esc", scenario=str(tmp_path / "e2e.json"), steps=3),
-            emulator=emulator, mcp_clients=mcp_clients)
+            emulator=emulator,
+            mcp_clients=mcp_clients,
+        )
 
     repo = services["repo"]
     docs = sorted(repo.records.find({"run_id": "esc"}), key=lambda d: d["seq"])
@@ -229,10 +278,15 @@ async def test_unfixable_violation_escalates_to_the_non_rt_policy(bank, services
         assert f"persisted {observed} consecutive" in doc["monitoring"]["orchestration_notes"][0]
     (policy,) = _actions(docs[2], "non_rt_ric")
     assert policy["governance"]["approved"] and policy["execution"]["status"] == "executed"
-    assert policy["execution"]["result"]["current"] == {"min_prb_ratio_pct": 60.0,
-                                                        "max_prb_ratio_pct": 90.0}
+    assert policy["execution"]["result"]["current"] == {
+        "min_prb_ratio_pct": 60.0,
+        "max_prb_ratio_pct": 90.0,
+    }
     assert await RedisWorkingMemory(services["redis"]).controls("bs2", "eMBB") == {
-        "prb_percentage": 72.0, "policy_min": 60.0, "policy_max": 90.0}
+        "prb_percentage": 72.0,
+        "policy_min": 60.0,
+        "policy_max": 90.0,
+    }
 
     # The model usage of a record is split per caller.
     assert docs[2]["llm"]["by_caller"]["non_rt_ric"]["calls"] >= 1
@@ -255,24 +309,37 @@ async def test_run_stops_when_every_model_is_rate_limited(bank, services, tmp_pa
             seen.append(record.record_id)
             if len(seen) == 2:
                 PROVIDER_GUARD.stopped = "RateLimitError: all deployments in cooldown"
-            decision = MonitoringDecision(situation="critical", severity="high", global_situation="x",
-                                          action_required=False, reason="x")
+            decision = MonitoringDecision(
+                situation="critical",
+                severity="high",
+                global_situation="x",
+                action_required=False,
+                reason="x",
+            )
             return {"outcome": "done", "decision": decision, "agent_results": {}}
 
     monkeypatch.setattr(run_loop, "RecordWorkflow", _Workflow)
     try:
         async with closed_loop(bank) as (emulator, mcp_clients):
             await run_loop.run_loop(
-                run_loop.RunConfig(run_id="stop", scenario=str(tmp_path / "e2e.json"), steps=3,
-                                   results_dir=tmp_path / "results"),
-                emulator=emulator, mcp_clients=mcp_clients)
+                run_loop.RunConfig(
+                    run_id="stop",
+                    scenario=str(tmp_path / "e2e.json"),
+                    steps=3,
+                    results_dir=tmp_path / "results",
+                ),
+                emulator=emulator,
+                mcp_clients=mcp_clients,
+            )
     finally:
         PROVIDER_GUARD.reset()
 
     repo = services["repo"]
     run = repo.runs.find_one({"_id": "stop"})
     assert seen == ["emu-e2e-bs2-s00000-eMBB", "emu-e2e-bs2-s00000-MTC"]
-    assert run["status"] == "stopped" and "step 0, record emu-e2e-bs2-s00000-MTC" in run["stop_reason"]
+    assert (
+        run["status"] == "stopped" and "step 0, record emu-e2e-bs2-s00000-MTC" in run["stop_reason"]
+    )
     failed = repo.records.find_one({"_id": "stop:emu-e2e-bs2-s00000-MTC"})
     assert failed["status"] == "failed" and failed["error"]["type"] == "ModelProviderStopped"
     metrics = json.loads((tmp_path / "results" / "stop" / "metrics.json").read_text())

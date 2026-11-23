@@ -23,10 +23,10 @@ from ran_emulator.client import EmulatorClient
 from src.schema.monitoring import Scheduler
 from src.schema.sla import SliceType
 
-Cell = Annotated[str, Field(
-    min_length=1, description="The base station to act on: the invocation's target.")]
-Slice = Annotated[SliceType, Field(
-    description="The slice to act on: the invocation's slice_id.")]
+Cell = Annotated[
+    str, Field(min_length=1, description="The base station to act on: the invocation's target.")
+]
+Slice = Annotated[SliceType, Field(description="The slice to act on: the invocation's slice_id.")]
 
 
 class RANControls:
@@ -80,8 +80,9 @@ class RANControls:
         self,
         target: Cell,
         slice_id: Slice,
-        priority_level: Annotated[int, Field(
-            description="Scheduling priority, 1-10; 1 is the highest.")],
+        priority_level: Annotated[
+            int, Field(description="Scheduling priority, 1-10; 1 is the highest.")
+        ],
     ) -> dict[str, Any]:
         """Change the scheduling priority of a slice. Below 5, the slice may
         borrow the PRBs the cell's other slices leave idle."""
@@ -91,16 +92,22 @@ class RANControls:
         self,
         target: Cell,
         slice_id: Slice,
-        mcs_offset: Annotated[int, Field(
-            description="Added to the MCS chosen from the CQI, -5 to 5 "
-                        "(negative = more robust, positive = more aggressive).")],
-        target_bler: Annotated[float, Field(
-            description="Block error rate link adaptation aims for, 0.001-0.2.")],
+        mcs_offset: Annotated[
+            int,
+            Field(
+                description="Added to the MCS chosen from the CQI, -5 to 5 "
+                "(negative = more robust, positive = more aggressive)."
+            ),
+        ],
+        target_bler: Annotated[
+            float, Field(description="Block error rate link adaptation aims for, 0.001-0.2.")
+        ],
     ) -> dict[str, Any]:
         """Change the downlink link adaptation of a slice: a more robust setting
         trades throughput for fewer retransmissions (lower delay)."""
-        return await self._emulator.adjust_link_adaptation(target, slice_id, mcs_offset,
-                                                           target_bler)
+        return await self._emulator.adjust_link_adaptation(
+            target, slice_id, mcs_offset, target_bler
+        )
 
     # ------------------------------------------------------------- Non-RT RIC
 
@@ -108,13 +115,17 @@ class RANControls:
         self,
         target: Cell,
         slice_id: Slice,
-        min_prb_ratio_pct: Annotated[int, Field(
-            description="Guaranteed PRB share of the slice, 5-80 %.")],
-        max_prb_ratio_pct: Annotated[int, Field(
-            description="Maximum PRB share of the slice, 20-100 %; not below the minimum.")],
+        min_prb_ratio_pct: Annotated[
+            int, Field(description="Guaranteed PRB share of the slice, 5-80 %.")
+        ],
+        max_prb_ratio_pct: Annotated[
+            int,
+            Field(description="Maximum PRB share of the slice, 20-100 %; not below the minimum."),
+        ],
     ) -> dict[str, Any]:
         """Set the resource policy of a slice (an A1 policy): its guaranteed and
         maximum PRB share. If the current PRB split violates the policy, the
         cell moves to the closest split that respects it."""
         return await self._emulator.update_slice_resource_policy(
-            target, slice_id, min_prb_ratio_pct, max_prb_ratio_pct)
+            target, slice_id, min_prb_ratio_pct, max_prb_ratio_pct
+        )

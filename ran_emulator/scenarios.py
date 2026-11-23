@@ -24,7 +24,8 @@ class EventSpec(BaseModel):
     type: EventType
     cell: str
     slice: SliceType | None = Field(
-        default=None, description="Required for demand_surge and link_degradation.")
+        default=None, description="Required for demand_surge and link_degradation."
+    )
     start_step: int = Field(default=0, ge=0)
     duration: int = Field(default=60, ge=1)
     factor: float = Field(default=1.0, gt=0, description="demand_surge: demand multiplier.")
@@ -44,12 +45,18 @@ class CellSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     scheduler: Scheduler = "round_robin"
-    tr: int = Field(default=9, ge=0, le=27,
-                    description="Initial PRB split, index in configs.SPLITS (ColO-RAN tr).")
+    tr: int = Field(
+        default=9,
+        ge=0,
+        le=27,
+        description="Initial PRB split, index in configs.SPLITS (ColO-RAN tr).",
+    )
     start_offset: int | None = Field(
-        default=None, ge=0, description="Initial window in the trace; None = drawn from the seed.")
+        default=None, ge=0, description="Initial window in the trace; None = drawn from the seed."
+    )
     policies: dict[SliceType, tuple[float, float]] = Field(
-        default_factory=dict, description="Slice PRB policies (min %, max %).")
+        default_factory=dict, description="Slice PRB policies (min %, max %)."
+    )
 
 
 class Scenario(BaseModel):

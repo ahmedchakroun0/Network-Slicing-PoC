@@ -37,7 +37,12 @@ POLICY = {
 @pytest.mark.asyncio
 async def test_role_binding_rejects_cross_role_tool():
     gov = RANTrustGovernanceAgent(use_llm=False)
-    p = _proposal("update_slice_resource_policy", POLICY, "near_rt_ric", {**CTX, "persistence": {"latency": 5}})
+    p = _proposal(
+        "update_slice_resource_policy",
+        POLICY,
+        "near_rt_ric",
+        {**CTX, "persistence": {"latency": 5}},
+    )
     d = await gov.authorize(p)
     assert d.approved is False
     assert d.failed_stage == "policy_trust"
@@ -53,12 +58,15 @@ async def test_role_binding_rejects_unknown_agent():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("persistence,approved", [
-    (None, False),
-    ({"latency": NON_RT_MIN_PERSISTENCE - 1}, False),
-    ({"latency": NON_RT_MIN_PERSISTENCE}, True),
-    ({"latency": 1, "jitter": 9}, False),   # only VIOLATED KPIs count
-])
+@pytest.mark.parametrize(
+    "persistence,approved",
+    [
+        (None, False),
+        ({"latency": NON_RT_MIN_PERSISTENCE - 1}, False),
+        ({"latency": NON_RT_MIN_PERSISTENCE}, True),
+        ({"latency": 1, "jitter": 9}, False),  # only VIOLATED KPIs count
+    ],
+)
 async def test_non_rt_persistence_gate(persistence, approved):
     gov = RANTrustGovernanceAgent(use_llm=False)
     ctx = dict(CTX)
@@ -73,7 +81,9 @@ async def test_non_rt_persistence_gate(persistence, approved):
 @pytest.mark.asyncio
 async def test_near_rt_actions_do_not_need_persistence():
     gov = RANTrustGovernanceAgent(use_llm=False)
-    p = _proposal("adjust_prb_allocation", {"slice_id": "eMBB", "prb_percentage": 50}, "near_rt_ric", CTX)
+    p = _proposal(
+        "adjust_prb_allocation", {"slice_id": "eMBB", "prb_percentage": 50}, "near_rt_ric", CTX
+    )
     assert (await gov.authorize(p)).approved is True
 
 
@@ -88,8 +98,15 @@ async def test_monitoring_prompt_receives_persistence(make_monitoring_agent, fak
     record = make_record(queueing_delay_ms=400.0)
     agent = make_monitoring_agent()
     analysis = agent.analyze_sla(record)
-    fake_llm.queue(MonitoringDecision(
-        situation="warning", severity="low", global_situation="queueing delay",
-        action_required=False, sla_analysis=analysis, reason="test"))
+    fake_llm.queue(
+        MonitoringDecision(
+            situation="warning",
+            severity="low",
+            global_situation="queueing delay",
+            action_required=False,
+            sla_analysis=analysis,
+            reason="test",
+        )
+    )
     await agent.run(record, persistence={"queueing_delay": 4})
     assert "'queueing_delay': 4" in fake_llm.last_prompt

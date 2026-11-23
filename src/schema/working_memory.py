@@ -34,8 +34,10 @@ class RecordEvent(BaseModel):
             rec=record.record_id,
             t=record.window_start_s,
             slice=record.slice_id,
-            kpis={**{name: kpi.measured for name, kpi in analysis.kpis.items()},
-                  "prb_utilisation": record.prb_utilisation},
+            kpis={
+                **{name: kpi.measured for name, kpi in analysis.kpis.items()},
+                "prb_utilisation": record.prb_utilisation,
+            },
             violations=analysis.violations,
             severity=severity,
             agents=agents or [],
@@ -103,14 +105,20 @@ class ActionOutcome(BaseModel):
     checked_rec: str = Field(description="Record that verified it.")
     checked_t: float
     kpis: dict[str, dict[str, float | None]] = Field(
-        default_factory=dict, description="Per KPI: before, after, budget.")
+        default_factory=dict, description="Per KPI: before, after, budget."
+    )
 
 
 def _compact_events(events: list[BaseModel], drop: set[str]) -> list[dict[str, Any]]:
     """Events without empty fields and without fields the list already implies."""
-    return [{key: value for key, value in event.model_dump(mode="json", exclude_none=True).items()
-             if key not in drop and value not in ([], {})}
-            for event in events]
+    return [
+        {
+            key: value
+            for key, value in event.model_dump(mode="json", exclude_none=True).items()
+            if key not in drop and value not in ([], {})
+        }
+        for event in events
+    ]
 
 
 class MemoryView(BaseModel):
@@ -127,7 +135,8 @@ class MemoryView(BaseModel):
     cell_actions: list[ActionEvent] = Field(default_factory=list)
     slice_outcomes: list[ActionOutcome] = Field(
         default_factory=list,
-        description="Whether the last executed actions on this slice fixed its violation.")
+        description="Whether the last executed actions on this slice fixed its violation.",
+    )
     persistence: dict[str, int] = Field(default_factory=dict)
 
     def compact(self, persistence: bool = True) -> dict[str, Any]:
@@ -140,8 +149,9 @@ class MemoryView(BaseModel):
             "cell_records": _compact_events(self.cell_records, {"rec"}),
             "slice_actions": _compact_events(self.slice_actions, {"rec", "slice"}),
             "cell_actions": _compact_events(self.cell_actions, {"rec"}),
-            "slice_outcomes": _compact_events(self.slice_outcomes,
-                                              {"rec", "slice", "i", "checked_rec"}),
+            "slice_outcomes": _compact_events(
+                self.slice_outcomes, {"rec", "slice", "i", "checked_rec"}
+            ),
             "persistence": self.persistence if persistence else {},
         }
         return {key: value for key, value in view.items() if value}

@@ -14,12 +14,12 @@ def test_the_28_recorded_splits_in_coloran_order():
 
 
 def test_snap_moves_the_target_slice_and_keeps_the_others_close():
-    assert snap(SPLITS[9], "eMBB", 36, {}) == Split(36, 3, 11)   # URLLC kept at 11
+    assert snap(SPLITS[9], "eMBB", 36, {}) == Split(36, 3, 11)  # URLLC kept at 11
     assert snap(SPLITS[9], "URLLC", 17, {}) == Split(18, 15, 17)  # eMBB kept at 18
 
 
 def test_snap_respects_policies_and_fails_when_none_fit():
-    got = snap(SPLITS[9], "eMBB", 42, {"URLLC": (20, 100)})        # URLLC >= 10 PRBs
+    got = snap(SPLITS[9], "eMBB", 42, {"URLLC": (20, 100)})  # URLLC >= 10 PRBs
     assert got.urllc >= 10
     with pytest.raises(ValueError):
         snap(SPLITS[9], "eMBB", 6, {"eMBB": (80, 100), "URLLC": (80, 100)})

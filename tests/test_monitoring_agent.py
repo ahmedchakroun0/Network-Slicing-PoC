@@ -26,18 +26,18 @@ def test_analyze_sla_uses_the_slice_profile(make_record):
 
 def test_severity_is_relative_to_the_bound(make_record):
     # throughput 1.0 vs min 3.6 -> 3.6x short -> high; delay 120 vs max 100 -> low
-    sev = MonitoringAgent._severity(MonitoringAgent.analyze_sla(
-        make_record(dl_throughput_per_ue_mbps=1.0)))
+    sev = MonitoringAgent._severity(
+        MonitoringAgent.analyze_sla(make_record(dl_throughput_per_ue_mbps=1.0))
+    )
     assert sev == "high"
-    sev = MonitoringAgent._severity(MonitoringAgent.analyze_sla(
-        make_record(queueing_delay_ms=120.0)))
+    sev = MonitoringAgent._severity(
+        MonitoringAgent.analyze_sla(make_record(queueing_delay_ms=120.0))
+    )
     assert sev == "low"
 
 
 @pytest.mark.asyncio
-async def test_run_no_action_when_kpis_are_ok(
-    make_monitoring_agent, fake_llm, memory, make_record
-):
+async def test_run_no_action_when_kpis_are_ok(make_monitoring_agent, fake_llm, memory, make_record):
     decision = MonitoringDecision(
         situation="normal",
         severity="none",
@@ -101,12 +101,8 @@ async def test_run_invokes_only_selected_agents(
     )
     fake_llm.queue(decision)
 
-    agent = make_monitoring_agent(
-        sub_agents={"near_rt_ric": near_agent, "non_rt_ric": non_agent}
-    )
-    record = make_record(
-        record_id="rec-2", queueing_delay_ms=500.0, dl_throughput_per_ue_mbps=2.0
-    )
+    agent = make_monitoring_agent(sub_agents={"near_rt_ric": near_agent, "non_rt_ric": non_agent})
+    record = make_record(record_id="rec-2", queueing_delay_ms=500.0, dl_throughput_per_ue_mbps=2.0)
     result = await agent.run(record, persistence={"throughput": 3, "queueing_delay": 3})
 
     assert result.action_required is True
@@ -123,8 +119,14 @@ async def test_effective_decision_and_llm_output_are_stored(
     make_monitoring_agent, fake_llm, mongo, make_record, make_decision
 ):
     record = make_record(record_id="rec-3", dl_throughput_per_ue_mbps=1.0)
-    mongo.insert_record(run_id="run1", record_id="rec-3", seq=1,
-                        telemetry=record.model_dump(mode="json"), sla={}, persistence={})
+    mongo.insert_record(
+        run_id="run1",
+        record_id="rec-3",
+        seq=1,
+        telemetry=record.model_dump(mode="json"),
+        sla={},
+        persistence={},
+    )
     # The LLM calls the situation "normal": the override makes it "warning".
     fake_llm.queue(make_decision(situation="normal", selected_agents=[]))
 
@@ -134,7 +136,7 @@ async def test_effective_decision_and_llm_output_are_stored(
     assert stored["situation"] == "warning" and stored["severity"] == "high"
     assert stored["overridden"] is True
     assert stored["llm_output"]["situation"] == "normal"
-    assert "sla_analysis" not in stored                 # stored once, on the record
+    assert "sla_analysis" not in stored  # stored once, on the record
 
 
 @pytest.mark.asyncio
@@ -142,10 +144,19 @@ async def test_llm_output_is_not_duplicated_when_not_overridden(
     make_monitoring_agent, fake_llm, mongo, make_record, make_decision, make_invocation
 ):
     record = make_record(record_id="rec-4", dl_throughput_per_ue_mbps=1.0)
-    mongo.insert_record(run_id="run1", record_id="rec-4", seq=1,
-                        telemetry=record.model_dump(mode="json"), sla={}, persistence={})
-    fake_llm.queue(make_decision(situation="critical", severity="high",
-                                 selected_agents=[make_invocation(context={})]))
+    mongo.insert_record(
+        run_id="run1",
+        record_id="rec-4",
+        seq=1,
+        telemetry=record.model_dump(mode="json"),
+        sla={},
+        persistence={},
+    )
+    fake_llm.queue(
+        make_decision(
+            situation="critical", severity="high", selected_agents=[make_invocation(context={})]
+        )
+    )
 
     await make_monitoring_agent(mongo=mongo, run_id="run1").run(record)
 
@@ -155,20 +166,39 @@ async def test_llm_output_is_not_duplicated_when_not_overridden(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("persistence,invoked", [
-    (None, ["near_rt_ric"]),
-    ({"throughput": 2, "queueing_delay": 0}, ["near_rt_ric"]),
-    ({"throughput": 3, "queueing_delay": 0}, ["near_rt_ric", "non_rt_ric"]),
-])
+@pytest.mark.parametrize(
+    "persistence,invoked",
+    [
+        (None, ["near_rt_ric"]),
+        ({"throughput": 2, "queueing_delay": 0}, ["near_rt_ric"]),
+        ({"throughput": 3, "queueing_delay": 0}, ["near_rt_ric", "non_rt_ric"]),
+    ],
+)
 async def test_non_rt_is_invoked_only_for_a_persistent_violation(
-    make_monitoring_agent, fake_llm, mongo, make_record, make_decision, make_invocation,
-    make_sub_agent, persistence, invoked,
+    make_monitoring_agent,
+    fake_llm,
+    mongo,
+    make_record,
+    make_decision,
+    make_invocation,
+    make_sub_agent,
+    persistence,
+    invoked,
 ):
     record = make_record(record_id="rec-p", dl_throughput_per_ue_mbps=1.0)
-    mongo.insert_record(run_id="run1", record_id="rec-p", seq=1,
-                        telemetry=record.model_dump(mode="json"), sla={}, persistence={})
-    fake_llm.queue(make_decision(selected_agents=[make_invocation("near_rt_ric"),
-                                                  make_invocation("non_rt_ric")]))
+    mongo.insert_record(
+        run_id="run1",
+        record_id="rec-p",
+        seq=1,
+        telemetry=record.model_dump(mode="json"),
+        sla={},
+        persistence={},
+    )
+    fake_llm.queue(
+        make_decision(
+            selected_agents=[make_invocation("near_rt_ric"), make_invocation("non_rt_ric")]
+        )
+    )
     near, non = make_sub_agent(), make_sub_agent()
 
     result = await make_monitoring_agent(
@@ -182,7 +212,9 @@ async def test_non_rt_is_invoked_only_for_a_persistent_violation(
         assert "non_rt_ric not invoked" in stored["orchestration_notes"][0]
         assert stored["overridden"] is True
         assert [a["agent"] for a in stored["llm_output"]["selected_agents"]] == [
-            "near_rt_ric", "non_rt_ric"]          # the LLM's choice stays visible
+            "near_rt_ric",
+            "non_rt_ric",
+        ]  # the LLM's choice stays visible
     else:
         assert stored["orchestration_notes"] == []
 
@@ -190,16 +222,25 @@ async def test_non_rt_is_invoked_only_for_a_persistent_violation(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("llm_agents", [[], ["non_rt_ric"]])
 async def test_a_violation_is_never_left_without_an_agent(
-    make_monitoring_agent, fake_llm, make_record, make_decision, make_invocation, make_sub_agent,
+    make_monitoring_agent,
+    fake_llm,
+    make_record,
+    make_decision,
+    make_invocation,
+    make_sub_agent,
     llm_agents,
 ):
     record = make_record(dl_throughput_per_ue_mbps=1.0, queueing_delay_ms=400.0)
-    fake_llm.queue(make_decision(action_required=False,
-                                 selected_agents=[make_invocation(a) for a in llm_agents]))
+    fake_llm.queue(
+        make_decision(
+            action_required=False, selected_agents=[make_invocation(a) for a in llm_agents]
+        )
+    )
     near = make_sub_agent()
 
     result = await make_monitoring_agent(sub_agents={"near_rt_ric": near}).run(
-        record, persistence={"throughput": 1, "queueing_delay": 1})
+        record, persistence={"throughput": 1, "queueing_delay": 1}
+    )
 
     assert result.action_required is True
     assert [i.agent for i in result.selected_agents] == ["near_rt_ric"]

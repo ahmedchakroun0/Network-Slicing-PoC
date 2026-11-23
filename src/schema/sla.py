@@ -36,15 +36,25 @@ class KPIBudget(BaseModel):
 
 SLA_PROFILES: dict[str, dict[str, KPIBudget]] = {
     "eMBB": {
-        "throughput": KPIBudget(field="dl_throughput_per_ue_mbps", budget=3.6, unit="Mbps", bound="min"),
-        "queueing_delay": KPIBudget(field="queueing_delay_ms", budget=100.0, unit="ms", bound="max"),
+        "throughput": KPIBudget(
+            field="dl_throughput_per_ue_mbps", budget=3.6, unit="Mbps", bound="min"
+        ),
+        "queueing_delay": KPIBudget(
+            field="queueing_delay_ms", budget=100.0, unit="ms", bound="max"
+        ),
     },
     "MTC": {
-        "throughput": KPIBudget(field="dl_throughput_per_ue_mbps", budget=0.015, unit="Mbps", bound="min"),
-        "queueing_delay": KPIBudget(field="queueing_delay_ms", budget=100.0, unit="ms", bound="max"),
+        "throughput": KPIBudget(
+            field="dl_throughput_per_ue_mbps", budget=0.015, unit="Mbps", bound="min"
+        ),
+        "queueing_delay": KPIBudget(
+            field="queueing_delay_ms", budget=100.0, unit="ms", bound="max"
+        ),
     },
     "URLLC": {
-        "throughput": KPIBudget(field="dl_throughput_per_ue_mbps", budget=0.005, unit="Mbps", bound="min"),
+        "throughput": KPIBudget(
+            field="dl_throughput_per_ue_mbps", budget=0.005, unit="Mbps", bound="min"
+        ),
         "queueing_delay": KPIBudget(field="queueing_delay_ms", budget=10.0, unit="ms", bound="max"),
     },
 }

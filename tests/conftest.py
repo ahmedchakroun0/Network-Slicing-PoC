@@ -248,9 +248,17 @@ def monitoring_prompt_dir(tmp_path, monkeypatch):
 
 @pytest.fixture
 def make_monitoring_agent(MonitoringAgent, fake_llm, memory, monitoring_prompt_dir):
-    def _make(sub_agents: dict[str, Any] | None = None, mongo: MongoRepository | None = None,
-              run_id: str | None = None):
-        return MonitoringAgent(llm=fake_llm, memory=memory, sub_agents=sub_agents or {},
-                               mongo_repository=mongo, run_id=run_id)
+    def _make(
+        sub_agents: dict[str, Any] | None = None,
+        mongo: MongoRepository | None = None,
+        run_id: str | None = None,
+    ):
+        return MonitoringAgent(
+            llm=fake_llm,
+            memory=memory,
+            sub_agents=sub_agents or {},
+            mongo_repository=mongo,
+            run_id=run_id,
+        )
 
     return _make

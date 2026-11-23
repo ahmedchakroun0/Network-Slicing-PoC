@@ -40,7 +40,8 @@ def _refusals_as_tool_errors(
             return await method(**arguments)
         except EmulatorError as exc:
             raise ToolError(
-                f"the RAN refused the control ({exc.status_code}): {exc.detail}") from exc
+                f"the RAN refused the control ({exc.status_code}): {exc.detail}"
+            ) from exc
 
     return tool
 
@@ -55,5 +56,6 @@ def build_server(role: AgentRole, emulator: EmulatorClient) -> MCPServer:
     for spec in specs_of(role):
         method = getattr(controls, spec.name)
         server.tool(name=spec.name, description=inspect.getdoc(method))(
-            _refusals_as_tool_errors(method))
+            _refusals_as_tool_errors(method)
+        )
     return server

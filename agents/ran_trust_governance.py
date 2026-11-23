@@ -85,9 +85,8 @@ def _safety_violation(tool_name: str, args: dict[str, Any]) -> str | None:
         return _outside(args["priority_level"], QOS_PRIORITY_RANGE, "priority_level")
 
     if tool_name == "adjust_link_adaptation":
-        return (
-            _outside(args["mcs_offset"], MCS_OFFSET_RANGE, "mcs_offset")
-            or _outside(args["target_bler"], TARGET_BLER_RANGE, "target_bler")
+        return _outside(args["mcs_offset"], MCS_OFFSET_RANGE, "mcs_offset") or _outside(
+            args["target_bler"], TARGET_BLER_RANGE, "target_bler"
         )
 
     if tool_name == "update_slice_resource_policy":
@@ -100,15 +99,10 @@ def _safety_violation(tool_name: str, args: dict[str, Any]) -> str | None:
 
     # Default deny: a tool whose parameters have no safety envelope is
     # never executed.
-    return (
-        f"No safety envelope is defined for {tool_name!r}; "
-        "action not allowed (fail closed)."
-    )
+    return f"No safety envelope is defined for {tool_name!r}; action not allowed (fail closed)."
 
 
-def _control_conflict(
-    tool_name: str, args: dict[str, Any], controls: dict[str, int]
-) -> str | None:
+def _control_conflict(tool_name: str, args: dict[str, Any], controls: dict[str, int]) -> str | None:
     """A PRB share and a slice policy must agree, whichever came first. Each
     call passes its own envelope, so only the controls already executed on
     this slice (trusted context) can show the conflict."""
@@ -244,17 +238,14 @@ class RANTrustGovernanceAgent:
                 included (default env GOVERNANCE_LLM_TIMEOUT_S, 180 s); on
                 timeout the action is rejected (fail closed).
         """
-        self.allowed_tools = (
-            set(allowed_tools) if allowed_tools is not None else set(ARG_MODELS)
-        )
+        self.allowed_tools = set(allowed_tools) if allowed_tools is not None else set(ARG_MODELS)
         self.use_llm = use_llm
         self.llm_timeout_s = (
-            llm_timeout_s if llm_timeout_s is not None
+            llm_timeout_s
+            if llm_timeout_s is not None
             else float(os.getenv("GOVERNANCE_LLM_TIMEOUT_S", "180"))
         )
-        self._reviewer = (
-            llm.with_structured_output(_LLMReview) if llm is not None else None
-        )
+        self._reviewer = llm.with_structured_output(_LLMReview) if llm is not None else None
 
     # ------------------------------------------------------------------
     # Public API (called by the RIC agents' middleware)
@@ -285,12 +276,9 @@ class RANTrustGovernanceAgent:
             ).model_dump()
         except ValidationError as exc:
             details = "; ".join(
-                f"{'.'.join(str(p) for p in err['loc'])}: {err['msg']}"
-                for err in exc.errors()
+                f"{'.'.join(str(p) for p in err['loc'])}: {err['msg']}" for err in exc.errors()
             )
-            return self._reject(
-                "schema", f"Invalid action arguments: {details}", passed
-            )
+            return self._reject("schema", f"Invalid action arguments: {details}", passed)
         # The RIC agent must explain why it wants this action.
         if not proposal.rationale.strip() or not proposal.expected_effect.strip():
             return self._reject(
@@ -316,10 +304,7 @@ class RANTrustGovernanceAgent:
         if not self.use_llm:
             return GovernanceResult(
                 approved=True,
-                reason=(
-                    "Action passed all deterministic governance checks "
-                    "(LLM review disabled)."
-                ),
+                reason=("Action passed all deterministic governance checks (LLM review disabled)."),
                 checks_passed=passed,
             )
 
@@ -351,9 +336,7 @@ class RANTrustGovernanceAgent:
         invocation = proposal.invocation_context.get("invocation") or {}
         return invocation.get("context") or {}
 
-    def _check_policy_trust(
-        self, proposal: RANActionProposal, args: dict[str, Any]
-    ) -> str | None:
+    def _check_policy_trust(self, proposal: RANActionProposal, args: dict[str, Any]) -> str | None:
         tool_name = proposal.tool_name
         if tool_name not in self.allowed_tools:
             return f"Tool {tool_name!r} is not allowed for this agent."
@@ -389,9 +372,7 @@ class RANTrustGovernanceAgent:
 
         return None
 
-    def _check_sla(
-        self, proposal: RANActionProposal, args: dict[str, Any]
-    ) -> str | None:
+    def _check_sla(self, proposal: RANActionProposal, args: dict[str, Any]) -> str | None:
         sla = self._context(proposal).get("sla_analysis")
         if not isinstance(sla, dict):
             return "SLA analysis missing from context; action cannot be justified."
@@ -440,9 +421,7 @@ class RANTrustGovernanceAgent:
     ) -> list[tuple[str, str]]:
         invocation = proposal.invocation_context.get("invocation") or {}
         context = invocation.get("context") or {}
-        invocation_view = {
-            key: value for key, value in invocation.items() if key != "context"
-        }
+        invocation_view = {key: value for key, value in invocation.items() if key != "context"}
 
         agent = invocation_view.get("agent", "unknown")
         role = _ROLE_DESCRIPTIONS.get(agent, "No role description available.")
@@ -490,21 +469,16 @@ class RANTrustGovernanceAgent:
                 reviewer.ainvoke(self._build_review_messages(proposal, args)),
                 timeout=self.llm_timeout_s,
             )
-            review = (
-                raw if isinstance(raw, _LLMReview) else _LLMReview.model_validate(raw)
-            )
+            review = raw if isinstance(raw, _LLMReview) else _LLMReview.model_validate(raw)
         except Exception as exc:
-            return False, (
-                f"LLM review unavailable ({type(exc).__name__}: {exc}); "
-                "action not approved."
-            ), None
+            return (
+                False,
+                (f"LLM review unavailable ({type(exc).__name__}: {exc}); action not approved."),
+                None,
+            )
 
         full = LLMReview(**review.model_dump())
-        if (
-            review.reasoning_sound
-            and review.goal_aligned
-            and review.behavior_acceptable
-        ):
+        if review.reasoning_sound and review.goal_aligned and review.behavior_acceptable:
             return True, review.reason, full
 
         problems = []

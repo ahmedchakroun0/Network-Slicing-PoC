@@ -90,9 +90,7 @@ class AgentInvocation(BaseModel):
     )
 
     objective: str = Field(
-        description=(
-            "The specific objective that the selected agent should accomplish."
-        )
+        description=("The specific objective that the selected agent should accomplish.")
     )
 
     priority: Literal[
@@ -138,9 +136,7 @@ class MonitoringDecision(BaseModel):
 
     selected_agents: list[AgentInvocation] = Field(default_factory=list)
 
-    reason: str = Field(
-        description=("Overall explanation of the orchestration decision.")
-    )
+    reason: str = Field(description=("Overall explanation of the orchestration decision."))
 
     record_id: str | None = None
 

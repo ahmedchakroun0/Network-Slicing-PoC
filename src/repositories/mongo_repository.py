@@ -59,8 +59,13 @@ class MongoRepository:
 
     def ensure_indexes(self) -> None:
         self.records.create_index([("run_id", ASCENDING), ("seq", ASCENDING)])
-        self.records.create_index([("run_id", ASCENDING), ("telemetry.cell_id", ASCENDING),
-                                   ("telemetry.slice_id", ASCENDING)])
+        self.records.create_index(
+            [
+                ("run_id", ASCENDING),
+                ("telemetry.cell_id", ASCENDING),
+                ("telemetry.slice_id", ASCENDING),
+            ]
+        )
         self.records.create_index([("run_id", ASCENDING), ("sla.violations", ASCENDING)])
 
     def _update_record(self, run_id: str, record_id: str, update: dict[str, Any]) -> None:
@@ -78,13 +83,16 @@ class MongoRepository:
     def count(self, *, run_id: str, counters: dict[str, int]) -> None:
         """Increment run summary counters, e.g. {"rows_processed": 1}."""
         if counters:
-            self.runs.update_one({"_id": run_id},
-                                 {"$inc": {f"summary.{k}": v for k, v in counters.items()}})
+            self.runs.update_one(
+                {"_id": run_id}, {"$inc": {f"summary.{k}": v for k, v in counters.items()}}
+            )
 
     def finish_run(self, *, run_id: str, stopped: str | None = None) -> None:
         """Close the run; `stopped` is why it ended before its last row."""
-        update: dict[str, Any] = {"status": "stopped" if stopped else "finished",
-                                  "finished_at": _now()}
+        update: dict[str, Any] = {
+            "status": "stopped" if stopped else "finished",
+            "finished_at": _now(),
+        }
         if stopped:
             update["stop_reason"] = stopped
         self.runs.update_one({"_id": run_id}, {"$set": update})
@@ -103,15 +111,24 @@ class MongoRepository:
         sla: dict[str, Any],
         persistence: dict[str, int],
     ) -> None:
-        doc = RecordDocument(_id=record_key(run_id, record_id), run_id=run_id, seq=seq,
-                             status="received", telemetry=telemetry, sla=sla,
-                             persistence=persistence)
+        doc = RecordDocument(
+            _id=record_key(run_id, record_id),
+            run_id=run_id,
+            seq=seq,
+            status="received",
+            telemetry=telemetry,
+            sla=sla,
+            persistence=persistence,
+        )
         fields = doc.model_dump(by_alias=True, exclude={"id", "monitoring", "agents", "error"})
         self.records.update_one({"_id": doc.id}, {"$setOnInsert": fields}, upsert=True)
 
     def set_decision(self, *, run_id: str, record_id: str, decision: dict[str, Any]) -> None:
-        self._update_record(run_id, record_id, {"$set": {
-            "monitoring": {**decision, "decided_at": _now()}, "status": "decided"}})
+        self._update_record(
+            run_id,
+            record_id,
+            {"$set": {"monitoring": {**decision, "decided_at": _now()}, "status": "decided"}},
+        )
 
     def finish_record(self, *, run_id: str, record_id: str) -> None:
         self._update_record(run_id, record_id, {"$set": {"status": "done"}})
@@ -121,25 +138,54 @@ class MongoRepository:
         that answered them (after gateway fallbacks); added to the run totals."""
         served = usage.get("models") or {}
         llm = {key: value for key, value in usage.items() if key != "models"}
-        self._update_record(run_id, record_id, {"$set": {
-            "llm": llm,
-            "models": [{"model": model, "calls": calls} for model, calls in sorted(served.items())],
-        }})
-        self.count(run_id=run_id, counters={
-            f"llm.{key}": llm.get(key, 0)
-            for key in ("calls", "failed_calls", "input_tokens", "output_tokens",
-                        "reasoning_tokens")})
+        self._update_record(
+            run_id,
+            record_id,
+            {
+                "$set": {
+                    "llm": llm,
+                    "models": [
+                        {"model": model, "calls": calls} for model, calls in sorted(served.items())
+                    ],
+                }
+            },
+        )
+        self.count(
+            run_id=run_id,
+            counters={
+                f"llm.{key}": llm.get(key, 0)
+                for key in (
+                    "calls",
+                    "failed_calls",
+                    "input_tokens",
+                    "output_tokens",
+                    "reasoning_tokens",
+                )
+            },
+        )
 
     def fail_record(
-        self, *, run_id: str, record_id: str, seq: int, error: dict[str, Any],
+        self,
+        *,
+        run_id: str,
+        record_id: str,
+        seq: int,
+        error: dict[str, Any],
         telemetry: dict[str, Any] | None = None,
     ) -> None:
         """Mark a record failed; creates it when it failed before insert_record."""
         self.records.update_one(
             {"_id": record_key(run_id, record_id)},
-            {"$set": {"status": "failed", "error": error},
-             "$setOnInsert": {"run_id": run_id, "seq": seq, "telemetry": telemetry or {},
-                              "sla": {}, "persistence": {}}},
+            {
+                "$set": {"status": "failed", "error": error},
+                "$setOnInsert": {
+                    "run_id": run_id,
+                    "seq": seq,
+                    "telemetry": telemetry or {},
+                    "sla": {},
+                    "persistence": {},
+                },
+            },
             upsert=True,
         )
 
@@ -152,14 +198,16 @@ class MongoRepository:
         self._update_record(run_id, record_id, {"$set": {f"agents.{agent}": run.model_dump()}})
 
     def push_action(self, *, run_id: str, record_id: str, agent: str, entry: ActionEntry) -> None:
-        self._update_record(run_id, record_id,
-                            {"$push": {f"agents.{agent}.actions": entry.model_dump()}})
+        self._update_record(
+            run_id, record_id, {"$push": {f"agents.{agent}.actions": entry.model_dump()}}
+        )
 
     def push_knowledge(
         self, *, run_id: str, record_id: str, agent: str, entry: KnowledgeEntry
     ) -> None:
-        self._update_record(run_id, record_id,
-                            {"$push": {f"agents.{agent}.knowledge": entry.model_dump()}})
+        self._update_record(
+            run_id, record_id, {"$push": {f"agents.{agent}.knowledge": entry.model_dump()}}
+        )
 
     def finish_agent(
         self,
@@ -173,8 +221,11 @@ class MongoRepository:
         error: dict[str, Any] | None = None,
     ) -> None:
         prefix = f"agents.{agent}"
-        fields: dict[str, Any] = {f"{prefix}.status": status, f"{prefix}.finished_at": _now(),
-                                  f"{prefix}.selected_action": selected_action}
+        fields: dict[str, Any] = {
+            f"{prefix}.status": status,
+            f"{prefix}.finished_at": _now(),
+            f"{prefix}.selected_action": selected_action,
+        }
         if final_message is not None:
             fields[f"{prefix}.final_message"] = final_message.model_dump()
         if error is not None:
@@ -185,8 +236,9 @@ class MongoRepository:
         self, *, run_id: str, record_id: str, agent: str, index: int, outcome: dict[str, Any]
     ) -> None:
         """Verification of an executed action, set on the action itself."""
-        self._update_record(run_id, record_id, {"$set": {
-            f"agents.{agent}.actions.{index}.outcome": outcome}})
+        self._update_record(
+            run_id, record_id, {"$set": {f"agents.{agent}.actions.{index}.outcome": outcome}}
+        )
         self.count(run_id=run_id, counters={f"action_outcomes.{outcome['outcome']}": 1})
 
 

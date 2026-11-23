@@ -10,7 +10,6 @@ class RetrievedKnowledge(BaseModel):
     score: float
 
 
-
 class RANActionProposal(BaseModel):
     tool_name: Literal[
         "adjust_prb_allocation",
@@ -20,7 +19,6 @@ class RANActionProposal(BaseModel):
         "adjust_qos_parameters",
         "adjust_link_adaptation",
         "update_slice_resource_policy",
-        
     ]
 
     parameters: dict[str, Any] = Field(default_factory=dict)

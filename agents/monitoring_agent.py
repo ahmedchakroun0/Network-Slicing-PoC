@@ -25,8 +25,11 @@ logger = logging.getLogger(__name__)
 SubAgent = Callable[[AgentInvocation], Awaitable[Any]]
 # Not stored with the decision: the SLA analysis is on the record, and the
 # agent context is injected by trusted code.
-_STORED_EXCLUDE = {"sla_analysis": True, "record_id": True,
-                   "selected_agents": {"__all__": {"context"}}}
+_STORED_EXCLUDE = {
+    "sla_analysis": True,
+    "record_id": True,
+    "selected_agents": {"__all__": {"context"}},
+}
 _PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "monitoring.txt"
 
 
@@ -86,8 +89,13 @@ Return a MonitoringDecision.
     @staticmethod
     def _compare(measured: float | None, term: KPIBudget) -> KPIStatus:
         """Compare a measured KPI with its SLA term."""
-        status = KPIStatus(measured=measured, budget=term.budget, unit=term.unit,
-                           bound=term.bound, status="unavailable")
+        status = KPIStatus(
+            measured=measured,
+            budget=term.budget,
+            unit=term.unit,
+            bound=term.bound,
+            status="unavailable",
+        )
         if measured is None:
             return status
         violation = measured < term.budget if term.bound == "min" else measured > term.budget
@@ -99,8 +107,7 @@ Return a MonitoringDecision.
         """Evaluate the record against its slice's SLA profile deterministically."""
         profile = SLA_PROFILES.get(record.slice_id, {})
         kpis = {
-            name: cls._compare(getattr(record, term.field), term)
-            for name, term in profile.items()
+            name: cls._compare(getattr(record, term.field), term) for name, term in profile.items()
         }
         return SLAAnalysis(
             slice_id=record.slice_id,
@@ -170,13 +177,15 @@ Return a MonitoringDecision.
                 f"{sla_analysis.kpis[kpi].bound} {sla_analysis.kpis[kpi].budget})"
                 for kpi in sla_analysis.violations
             )
-            decision.selected_agents = [AgentInvocation(
-                agent="near_rt_ric",
-                responsibility="Mitigate the SLA violations of this slice.",
-                objective=f"Restore the violated KPIs: {violated}.",
-                priority={"high": "high", "medium": "medium"}.get(decision.severity, "low"),
-                reason="Fallback: the record has SLA violations but no agent was selected.",
-            )]
+            decision.selected_agents = [
+                AgentInvocation(
+                    agent="near_rt_ric",
+                    responsibility="Mitigate the SLA violations of this slice.",
+                    objective=f"Restore the violated KPIs: {violated}.",
+                    priority={"high": "high", "medium": "medium"}.get(decision.severity, "low"),
+                    reason="Fallback: the record has SLA violations but no agent was selected.",
+                )
+            ]
             notes.append("near_rt_ric invoked by fallback: SLA violations with no agent selected.")
 
     @staticmethod
@@ -262,8 +271,7 @@ Return a MonitoringDecision.
                 decision.situation = "normal"
                 decision.severity = "none"
                 decision.reason = (
-                    "All monitored KPIs were evaluated and no SLA violations "
-                    "were detected."
+                    "All monitored KPIs were evaluated and no SLA violations were detected."
                 )
         else:
             decision.severity = self._severity(sla_analysis)
@@ -291,7 +299,9 @@ Return a MonitoringDecision.
             await self.memory.record_decision(
                 record.cell_id,
                 RecordEvent.of(
-                    record, sla_analysis, decision.severity,
+                    record,
+                    sla_analysis,
+                    decision.severity,
                     [i.agent for i in decision.selected_agents],
                 ),
             )
@@ -319,10 +329,14 @@ Return a MonitoringDecision.
             logger.error("No implementation registered for %s", invocation.agent)
             if store is not None:
                 store.finish_agent(
-                    run_id=self.run_id, record_id=record_id, agent=invocation.agent,
+                    run_id=self.run_id,
+                    record_id=record_id,
+                    agent=invocation.agent,
                     status="error",
-                    error={"type": "MissingAgent",
-                           "message": "No implementation registered for this agent."},
+                    error={
+                        "type": "MissingAgent",
+                        "message": "No implementation registered for this agent.",
+                    },
                 )
             return None
 
@@ -334,7 +348,9 @@ Return a MonitoringDecision.
             logger.exception("%s invocation failed", invocation.agent)
             if store is not None:
                 store.finish_agent(
-                    run_id=self.run_id, record_id=record_id, agent=invocation.agent,
+                    run_id=self.run_id,
+                    record_id=record_id,
+                    agent=invocation.agent,
                     status="error",
                     error={"type": type(exc).__name__, "message": str(exc)},
                 )

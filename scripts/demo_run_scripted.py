@@ -45,7 +45,7 @@ steps = int(sys.argv[1]) if len(sys.argv) > 1 else 10
 scenario = sys.argv[2] if len(sys.argv) > 2 else "embb_prb_starvation"
 
 m = ScriptedChatModel()
-rl.create_llm = base_ric.create_llm = core_llm.create_llm = (lambda: m)
+rl.create_llm = base_ric.create_llm = core_llm.create_llm = lambda: m
 mrepo.MongoClient = mongomock.MongoClient
 redis = fakeredis.aioredis.FakeRedis(decode_responses=True)
 RedisWorkingMemory.from_url = classmethod(lambda cls, *a, **k: cls(redis))
@@ -64,11 +64,15 @@ mrepo.MongoRepository.__init__ = cap
 async def main() -> None:
     app = create_app(TraceBank.load(), load_scenario(scenario))
     emulator = EmulatorClient(base_url="http://emu", transport=httpx.ASGITransport(app=app))
-    async with Client(build_server("near_rt_ric", emulator)) as near, \
-            Client(build_server("non_rt_ric", emulator)) as non:
-        await rl.run_loop(rl.RunConfig(run_id="demo", scenario=scenario, steps=steps),
-                          emulator=emulator,
-                          mcp_clients={"near_rt_ric": near, "non_rt_ric": non})
+    async with (
+        Client(build_server("near_rt_ric", emulator)) as near,
+        Client(build_server("non_rt_ric", emulator)) as non,
+    ):
+        await rl.run_loop(
+            rl.RunConfig(run_id="demo", scenario=scenario, steps=steps),
+            emulator=emulator,
+            mcp_clients={"near_rt_ric": near, "non_rt_ric": non},
+        )
         print("EMULATOR ACTIONS", json.dumps(await emulator._call("GET", "/sim/actions")))
 
 
@@ -77,9 +81,25 @@ repo = store["repo"]
 print("RUN", json.dumps(repo.runs.find_one({"_id": "demo"})["summary"]))
 for r in repo.records.find({"run_id": "demo"}).sort("seq", 1):
     t, d = r["telemetry"], r.get("monitoring") or {}
-    out = {a: [(x["governance"].get("failed_stage") or "approved",
-                (x.get("outcome") or {}).get("outcome")) for x in e.get("actions", [])]
-           for a, e in (r.get("agents") or {}).items()}
-    print(r["seq"], t["cell_id"], t["slice_id"], r["sla"].get("violations"), "persist=",
-          r["persistence"], "agents=", [i["agent"] for i in d.get("selected_agents", [])], out)
+    out = {
+        a: [
+            (
+                x["governance"].get("failed_stage") or "approved",
+                (x.get("outcome") or {}).get("outcome"),
+            )
+            for x in e.get("actions", [])
+        ]
+        for a, e in (r.get("agents") or {}).items()
+    }
+    print(
+        r["seq"],
+        t["cell_id"],
+        t["slice_id"],
+        r["sla"].get("violations"),
+        "persist=",
+        r["persistence"],
+        "agents=",
+        [i["agent"] for i in d.get("selected_agents", [])],
+        out,
+    )
 print("REDIS KEYS", sorted(asyncio.run(redis.keys("wm:*"))))

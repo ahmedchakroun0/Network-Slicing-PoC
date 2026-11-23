@@ -53,15 +53,24 @@ def registry_name(listed: str, server: str) -> str:
 
 # What the model sees of the justification fields (not sent to the MCP server).
 REASONING_SCHEMA: dict[str, dict[str, Any]] = {
-    "rationale": {"type": "string", "description": (
-        "Why this tool and these exact values: quote measured and budget of the violated "
-        "KPIs.")},
-    "expected_effect": {"type": "string",
-                        "description": "Which KPI should improve, and how."},
-    "confidence": {"type": "number", "minimum": 0, "maximum": 1,
-                   "description": "Your confidence that the action fixes the violation."},
-    "evidence_sources": {"type": "array", "items": {"type": "string"},
-                         "description": "The knowledge snippets and context facts you used."},
+    "rationale": {
+        "type": "string",
+        "description": (
+            "Why this tool and these exact values: quote measured and budget of the violated KPIs."
+        ),
+    },
+    "expected_effect": {"type": "string", "description": "Which KPI should improve, and how."},
+    "confidence": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1,
+        "description": "Your confidence that the action fixes the violation.",
+    },
+    "evidence_sources": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": "The knowledge snippets and context facts you used.",
+    },
 }
 REQUIRED_REASONING = ("rationale", "expected_effect", "confidence")
 assert set(REASONING_SCHEMA) == set(REASONING_FIELDS)
@@ -106,8 +115,12 @@ async def load_tools(client: Client, role: AgentRole) -> list[StructuredTool]:
     for listed in (await client.list_tools()).tools:
         name = registry_name(listed.name, server)
         if name not in owned:
-            logger.warning("MCP server %s lists %r, which %s does not own: not offered.",
-                           server, listed.name, role)
+            logger.warning(
+                "MCP server %s lists %r, which %s does not own: not offered.",
+                server,
+                listed.name,
+                role,
+            )
             continue
         tools.append(_wrap(client, listed, name))
     missing = owned - {t.name for t in tools}
@@ -132,8 +145,10 @@ async def role_tools(
             base = (base_url or os.environ["LITELLM_API_BASE"]).rstrip("/")
             key = api_key or os.environ["LITELLM_API_KEY"]
             url = f"{base}/{MCP_SERVER_OF[role]}/mcp"
-            http = await stack.enter_async_context(httpx2.AsyncClient(
-                headers={"Authorization": f"Bearer {key}"}, timeout=timeout_s))
+            http = await stack.enter_async_context(
+                httpx2.AsyncClient(headers={"Authorization": f"Bearer {key}"}, timeout=timeout_s)
+            )
             client = await stack.enter_async_context(
-                Client(streamable_http_client(url, http_client=http)))
+                Client(streamable_http_client(url, http_client=http))
+            )
         yield await load_tools(client, role)

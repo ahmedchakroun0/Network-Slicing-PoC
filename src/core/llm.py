@@ -22,9 +22,7 @@ def message_text(message: Any) -> str | None:
     """Visible text of a chat message (string or list of content blocks)."""
     content = getattr(message, "content", None)
     if isinstance(content, list):
-        content = "\n".join(
-            b.get("text", "") if isinstance(b, dict) else str(b) for b in content
-        )
+        content = "\n".join(b.get("text", "") if isinstance(b, dict) else str(b) for b in content)
     return content.strip() or None if isinstance(content, str) else None
 
 
@@ -59,10 +57,7 @@ class ModelProviderStopped(RuntimeError):
 
 def is_rate_limit(error: BaseException) -> bool:
     """A rate limit from the gateway: 429, or every model cooling down."""
-    return (
-        getattr(error, "status_code", None) == 429
-        or "RateLimit" in type(error).__name__
-    )
+    return getattr(error, "status_code", None) == 429 or "RateLimit" in type(error).__name__
 
 
 # Who made a model call: the workflow node of the record graph (first part
@@ -80,8 +75,14 @@ def caller_of(tags: list[str] | None, metadata: dict[str, Any] | None) -> str:
 
 
 def _usage() -> dict[str, int]:
-    return {"calls": 0, "failed_calls": 0, "input_tokens": 0, "output_tokens": 0,
-            "reasoning_tokens": 0, "calls_without_usage": 0}
+    return {
+        "calls": 0,
+        "failed_calls": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "reasoning_tokens": 0,
+        "calls_without_usage": 0,
+    }
 
 
 class ProviderGuard(BaseCallbackHandler):
@@ -96,8 +97,8 @@ class ProviderGuard(BaseCallbackHandler):
       take_usage() returns and resets them, once per record.
     """
 
-    raise_error = True   # a stopped provider must abort the call
-    run_inline = True    # state changes in call order
+    raise_error = True  # a stopped provider must abort the call
+    run_inline = True  # state changes in call order
 
     def __init__(self) -> None:
         self.stopped: str | None = None
@@ -108,8 +109,9 @@ class ProviderGuard(BaseCallbackHandler):
         self.usage: dict[str, dict[str, int]] = {}
         self._callers: dict[Any, str] = {}
 
-    def on_chat_model_start(self, serialized, messages, *, run_id=None, tags=None,
-                            metadata=None, **kwargs: Any) -> None:
+    def on_chat_model_start(
+        self, serialized, messages, *, run_id=None, tags=None, metadata=None, **kwargs: Any
+    ) -> None:
         if self.stopped is not None:
             raise ModelProviderStopped(self.stopped)
         self._callers[run_id] = caller_of(tags, metadata)
@@ -129,8 +131,9 @@ class ProviderGuard(BaseCallbackHandler):
                 usage["input_tokens"] += tokens.get("input_tokens", 0)
                 usage["output_tokens"] += tokens.get("output_tokens", 0)
                 # Part of output_tokens (billed) when the provider reports it.
-                usage["reasoning_tokens"] += (
-                    (tokens.get("output_token_details") or {}).get("reasoning") or 0)
+                usage["reasoning_tokens"] += (tokens.get("output_token_details") or {}).get(
+                    "reasoning"
+                ) or 0
 
     def on_llm_error(self, error: BaseException, *, run_id=None, **kwargs: Any) -> None:
         self.usage.setdefault(self._callers.pop(run_id, "other"), _usage())["failed_calls"] += 1

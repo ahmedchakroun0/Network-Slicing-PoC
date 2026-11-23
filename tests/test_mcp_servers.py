@@ -19,8 +19,11 @@ from ric_tools.controls import RANControls
 from ric_tools.registry import ARG_MODELS, MCP_SERVER_OF, TOOL_OWNERS, TOOL_SPECS
 from ric_tools.server import build_server
 
-REASONING = {"rationale": "eMBB throughput is below budget.", "expected_effect": "Higher rate.",
-             "confidence": 0.8}
+REASONING = {
+    "rationale": "eMBB throughput is below budget.",
+    "expected_effect": "Higher rate.",
+    "confidence": 0.8,
+}
 
 CALLS = {
     "adjust_prb_allocation": {"slice_id": "eMBB", "prb_percentage": 72},
@@ -29,8 +32,11 @@ CALLS = {
     "adjust_power_control": {"power_offset_db": 3.0},
     "adjust_qos_parameters": {"slice_id": "URLLC", "priority_level": 2},
     "adjust_link_adaptation": {"slice_id": "URLLC", "mcs_offset": -2, "target_bler": 0.01},
-    "update_slice_resource_policy": {"slice_id": "eMBB", "min_prb_ratio_pct": 20,
-                                     "max_prb_ratio_pct": 90},
+    "update_slice_resource_policy": {
+        "slice_id": "eMBB",
+        "min_prb_ratio_pct": 20,
+        "max_prb_ratio_pct": 90,
+    },
 }
 
 
@@ -62,8 +68,7 @@ async def test_served_schema_is_the_control_method(emulator, spec):
 @pytest.mark.parametrize("spec", TOOL_SPECS, ids=lambda s: s.name)
 async def test_every_tool_changes_the_emulator(emulator, spec):
     async with Client(build_server(spec.owner, emulator)) as client:
-        result = await client.call_tool(
-            spec.name, {"target": "bs2", **CALLS[spec.name]})
+        result = await client.call_tool(spec.name, {"target": "bs2", **CALLS[spec.name]})
     assert not result.is_error, result.content
     payload = json.loads(result.content[0].text)
     assert {"previous", "current", "effective_step"} <= payload.keys()
@@ -73,17 +78,19 @@ async def test_every_tool_changes_the_emulator(emulator, spec):
 
 async def test_prb_reports_requested_and_applied_share(emulator):
     async with Client(build_server("near_rt_ric", emulator)) as client:
-        result = await client.call_tool("adjust_prb_allocation", {
-            "target": "bs2", "slice_id": "eMBB", "prb_percentage": 70})
+        result = await client.call_tool(
+            "adjust_prb_allocation", {"target": "bs2", "slice_id": "eMBB", "prb_percentage": 70}
+        )
     payload = json.loads(result.content[0].text)
     assert payload["requested_pct"] == 70
-    assert payload["applied_pct"] == payload["current"]["eMBB"] * 2   # 50 PRBs
+    assert payload["applied_pct"] == payload["current"]["eMBB"] * 2  # 50 PRBs
 
 
 async def test_refused_control_is_an_mcp_error_and_a_violation(emulator):
     async with Client(build_server("near_rt_ric", emulator)) as client:
-        result = await client.call_tool("adjust_power_control", {
-            "target": "bs2", "power_offset_db": 20.0})
+        result = await client.call_tool(
+            "adjust_power_control", {"target": "bs2", "power_offset_db": 20.0}
+        )
     assert result.is_error
     assert "power_offset_db must be within" in result.content[0].text
     assert (await emulator.violations())[0]["control"] == "power"
@@ -113,8 +120,10 @@ async def test_prefixed_tools_get_registry_names_and_plain_function_schemas(emul
 
 
 async def test_model_sees_the_justification_fields_but_the_server_does_not(emulator):
-    async with Client(build_server("near_rt_ric", emulator)) as client, \
-            role_tools("near_rt_ric", client=client) as tools:
+    async with (
+        Client(build_server("near_rt_ric", emulator)) as client,
+        role_tools("near_rt_ric", client=client) as tools,
+    ):
         prb = next(t for t in tools if t.name == "adjust_prb_allocation")
         schema = prb.args_schema
         assert set(REASONING_SCHEMA) <= schema["properties"].keys()
@@ -128,19 +137,30 @@ async def test_model_sees_the_justification_fields_but_the_server_does_not(emula
             return await call_tool(name, arguments)
 
         client.call_tool = spy
-        out = json.loads(await prb.ainvoke(
-            {"target": "bs2", "slice_id": "eMBB", "prb_percentage": 72, **REASONING,
-             "evidence_sources": ["slice_state"]}))
+        out = json.loads(
+            await prb.ainvoke(
+                {
+                    "target": "bs2",
+                    "slice_id": "eMBB",
+                    "prb_percentage": 72,
+                    **REASONING,
+                    "evidence_sources": ["slice_state"],
+                }
+            )
+        )
     assert sent == [{"target": "bs2", "slice_id": "eMBB", "prb_percentage": 72}]
     assert out["requested_pct"] == 72
 
 
 async def test_tool_calls_the_listed_name_and_raises_on_error(emulator):
-    async with Client(build_server("near_rt_ric", emulator)) as client, \
-            role_tools("near_rt_ric", client=client) as tools:
+    async with (
+        Client(build_server("near_rt_ric", emulator)) as client,
+        role_tools("near_rt_ric", client=client) as tools,
+    ):
         power = next(t for t in tools if t.name == "adjust_power_control")
-        out = json.loads(await power.ainvoke(
-            {"target": "bs2", "power_offset_db": 3.0, **REASONING}))
+        out = json.loads(
+            await power.ainvoke({"target": "bs2", "power_offset_db": 3.0, **REASONING})
+        )
         assert out["current"] == {"power_offset_db": 3.0}
         with pytest.raises(ToolException, match="power_offset_db must be within"):
             await power.ainvoke({"target": "bs2", "power_offset_db": 20.0, **REASONING})

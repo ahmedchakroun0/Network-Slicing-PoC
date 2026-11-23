@@ -59,50 +59,121 @@ EVIDENCE_WORD_SUPPORT = 0.6
 # How each tool relates to the cause of a throughput / delay violation.
 # ColO-RAN UEs are static: a handover change cannot address a violation.
 TOOL_CAUSE = {
-    "adjust_prb_allocation": {"prb_limited": "consistent", "radio_limited": "inconsistent",
-                              "unclear": "inconsistent"},
-    "update_slice_resource_policy": {"prb_limited": "consistent", "radio_limited": "inconsistent",
-                                     "unclear": "inconsistent"},
-    "adjust_link_adaptation": {"prb_limited": "inconsistent", "radio_limited": "consistent",
-                               "unclear": "neutral"},
-    "adjust_power_control": {"prb_limited": "inconsistent", "radio_limited": "consistent",
-                             "unclear": "neutral"},
-    "optimize_scheduler": {"prb_limited": "neutral", "radio_limited": "neutral",
-                           "unclear": "neutral"},
-    "adjust_qos_parameters": {"prb_limited": "neutral", "radio_limited": "neutral",
-                              "unclear": "neutral"},
-    "optimize_handover": {"prb_limited": "inconsistent", "radio_limited": "inconsistent",
-                          "unclear": "inconsistent"},
+    "adjust_prb_allocation": {
+        "prb_limited": "consistent",
+        "radio_limited": "inconsistent",
+        "unclear": "inconsistent",
+    },
+    "update_slice_resource_policy": {
+        "prb_limited": "consistent",
+        "radio_limited": "inconsistent",
+        "unclear": "inconsistent",
+    },
+    "adjust_link_adaptation": {
+        "prb_limited": "inconsistent",
+        "radio_limited": "consistent",
+        "unclear": "neutral",
+    },
+    "adjust_power_control": {
+        "prb_limited": "inconsistent",
+        "radio_limited": "consistent",
+        "unclear": "neutral",
+    },
+    "optimize_scheduler": {
+        "prb_limited": "neutral",
+        "radio_limited": "neutral",
+        "unclear": "neutral",
+    },
+    "adjust_qos_parameters": {
+        "prb_limited": "neutral",
+        "radio_limited": "neutral",
+        "unclear": "neutral",
+    },
+    "optimize_handover": {
+        "prb_limited": "inconsistent",
+        "radio_limited": "inconsistent",
+        "unclear": "inconsistent",
+    },
 }
 
-KPI_WORDS = {"throughput": ("throughput",),
-             "queueing_delay": ("queueing_delay", "queueing delay", "queuing delay", "delay",
-                                "latency")}
+KPI_WORDS = {
+    "throughput": ("throughput",),
+    "queueing_delay": ("queueing_delay", "queueing delay", "queuing delay", "delay", "latency"),
+}
 
 _NUMBER = re.compile(r"(?<![\w.])(\d+(?:\.\d+)?)(?:x|%)?(?!\w)(?!\.\d)")
 _WORD = re.compile(r"[a-z][a-z0-9_]{3,}")
-_STOP = {"with", "from", "that", "this", "than", "into", "when", "which", "their", "there",
-         "have", "been", "were", "will", "slice", "knowledge", "retrieved", "result",
-         "search_ran_knowledge", "pattern", "context", "invocation"}
+_STOP = {
+    "with",
+    "from",
+    "that",
+    "this",
+    "than",
+    "into",
+    "when",
+    "which",
+    "their",
+    "there",
+    "have",
+    "been",
+    "were",
+    "will",
+    "slice",
+    "knowledge",
+    "retrieved",
+    "result",
+    "search_ran_knowledge",
+    "pattern",
+    "context",
+    "invocation",
+}
 # What the agents saw of the tools: their descriptions count as knowledge.
-TOOL_DESCRIPTIONS = [f"{spec.name}: {inspect.getdoc(getattr(RANControls, spec.name))}"
-                     for spec in TOOL_SPECS] + [
-    f"{search_ran_knowledge.name}: {search_ran_knowledge.description}"]
+TOOL_DESCRIPTIONS = [
+    f"{spec.name}: {inspect.getdoc(getattr(RANControls, spec.name))}" for spec in TOOL_SPECS
+] + [f"{search_ran_knowledge.name}: {search_ran_knowledge.description}"]
 # Names that make an evidence source a statement about the context.
-_CONTEXT_NAMES = (set(TelemetryRecord.model_fields)
-                  | {arg for model in ARG_MODELS.values() for arg in model.model_fields}
-                  | set(REASONING_FIELDS)
-                  | {"budget"}) - {
-    "target", "rationale", "expected_effect", "confidence", "evidence_sources"}
+_CONTEXT_NAMES = (
+    set(TelemetryRecord.model_fields)
+    | {arg for model in ARG_MODELS.values() for arg in model.model_fields}
+    | set(REASONING_FIELDS)
+    | {"budget"}
+) - {"target", "rationale", "expected_effect", "confidence", "evidence_sources"}
 # What the working memory showed of a slice's records: its last k records.
 MEMORY_RECORDS = 10
-MEMORY_FIELDS = ("window_start_s", "slice_prb", "prb_utilisation", "dl_throughput_per_ue_mbps",
-                 "queueing_delay_ms")
-_CONTEXT_PREFIXES = ("sla", "slice_state", "slice state", "persistence", "working memory",
-                     "slice_records", "cell_records", "slice_actions", "cell_actions",
-                     "objective", "invocation", "prior ", "previous ", "other slices",
-                     "telemetry", "cell:", "cell conditions", "util:", "active_controls",
-                     "active controls", "context", "kpi", "measured", "current ", *TOOL_CAUSE)
+MEMORY_FIELDS = (
+    "window_start_s",
+    "slice_prb",
+    "prb_utilisation",
+    "dl_throughput_per_ue_mbps",
+    "queueing_delay_ms",
+)
+_CONTEXT_PREFIXES = (
+    "sla",
+    "slice_state",
+    "slice state",
+    "persistence",
+    "working memory",
+    "slice_records",
+    "cell_records",
+    "slice_actions",
+    "cell_actions",
+    "objective",
+    "invocation",
+    "prior ",
+    "previous ",
+    "other slices",
+    "telemetry",
+    "cell:",
+    "cell conditions",
+    "util:",
+    "active_controls",
+    "active controls",
+    "context",
+    "kpi",
+    "measured",
+    "current ",
+    *TOOL_CAUSE,
+)
 
 
 # --------------------------------------------------------------------------
@@ -147,8 +218,17 @@ def _derived(telemetry: dict[str, Any], sla: dict[str, Any]) -> list[float]:
         m, b = kpi.get("measured"), kpi.get("budget")
         if not m or not b:
             continue
-        values += [m / b, b / m, 100 * m / b, 100 * b / m, 100 * (1 - m / b), 100 * (m / b - 1),
-                   100 * (b - m) / m, m - b, b - m]
+        values += [
+            m / b,
+            b / m,
+            100 * m / b,
+            100 * b / m,
+            100 * (1 - m / b),
+            100 * (m / b - 1),
+            100 * (b - m) / m,
+            m - b,
+            b - m,
+        ]
     prb, cell, spare = (telemetry.get(k) for k in ("slice_prb", "cell_prb", "cell_spare_prb"))
     if prb and cell:
         values += [100 * prb / cell, cell - prb, 100 * (cell - prb) / cell]
@@ -162,11 +242,13 @@ def traceable(number: str, context: list[float]) -> bool:
     quoted, or within 0.1% of it."""
     value = float(number)
     decimals = len(number.split(".")[1]) if "." in number else 0
-    scale = 10 ** decimals
+    scale = 10**decimals
     for candidate in context:
-        if (abs(round(candidate, decimals) - value) < 1e-9
-                or abs(math.trunc(candidate * scale) / scale - value) < 1e-9
-                or abs(value - candidate) <= 0.001 * abs(candidate)):
+        if (
+            abs(round(candidate, decimals) - value) < 1e-9
+            or abs(math.trunc(candidate * scale) / scale - value) < 1e-9
+            or abs(value - candidate) <= 0.001 * abs(candidate)
+        ):
             return True
     return False
 
@@ -197,21 +279,30 @@ def _param_values(params: dict[str, Any], telemetry: dict[str, Any]) -> list[flo
     return values
 
 
-def _record_context(doc: dict[str, Any], history: list[dict[str, Any]],
-                    rows: list[dict[str, Any]] = ()) -> list[float]:
+def _record_context(
+    doc: dict[str, Any], history: list[dict[str, Any]], rows: list[dict[str, Any]] = ()
+) -> list[float]:
     """Numbers the Monitoring Agent could see: the record, the run's earlier
     records of the same cell and the dataset rows of the cell up to now
     (working memory, healthy records included), and the constants."""
     telemetry, sla = doc.get("telemetry") or {}, doc.get("sla") or {}
-    values = (_numeric_values(telemetry) + _numeric_values(sla) + _derived(telemetry, sla)
-              + _numeric_values(doc.get("persistence")) + _CONSTANTS)
+    values = (
+        _numeric_values(telemetry)
+        + _numeric_values(sla)
+        + _derived(telemetry, sla)
+        + _numeric_values(doc.get("persistence"))
+        + _CONSTANTS
+    )
     for row in rows:
         values += _numeric_values({key: row.get(key) for key in MEMORY_FIELDS})
     for earlier in history:
         values += _numeric_values(earlier.get("telemetry"))
         for run in (earlier.get("agents") or {}).values():
-            values += [v for a in run.get("actions", [])
-                       for v in _param_values(a.get("params") or {}, telemetry)]
+            values += [
+                v
+                for a in run.get("actions", [])
+                for v in _param_values(a.get("params") or {}, telemetry)
+            ]
     return values
 
 
@@ -220,8 +311,9 @@ def _knowledge(run: dict[str, Any]) -> list[str]:
     return [entry.get("result") or "" for entry in run.get("knowledge", [])]
 
 
-def _agent_context(doc: dict[str, Any], history: list[dict[str, Any]],
-                   agent: str, rows: list[dict[str, Any]] = ()) -> list[float]:
+def _agent_context(
+    doc: dict[str, Any], history: list[dict[str, Any]], agent: str, rows: list[dict[str, Any]] = ()
+) -> list[float]:
     """What a RIC agent could see on top: the objective, its retrieved
     knowledge and the calls already made on this record."""
     values = _record_context(doc, history, rows)
@@ -229,8 +321,11 @@ def _agent_context(doc: dict[str, Any], history: list[dict[str, Any]],
     for invocation in (doc.get("monitoring") or {}).get("selected_agents", []):
         values += _numeric_values(invocation.get("objective"))
     for name, run in (doc.get("agents") or {}).items():
-        values += [v for a in run.get("actions", [])
-                   for v in _param_values(a.get("params") or {}, telemetry)]
+        values += [
+            v
+            for a in run.get("actions", [])
+            for v in _param_values(a.get("params") or {}, telemetry)
+        ]
         if name == agent:
             values += [v for text in _knowledge(run) for v in _numeric_values(text)]
     return values
@@ -253,26 +348,31 @@ def expected_agents(violations: list[str], persistence: dict[str, int]) -> set[s
     return {"near_rt_ric", "non_rt_ric"} if observed >= NON_RT_MIN_PERSISTENCE else {"near_rt_ric"}
 
 
-def check_record(doc: dict[str, Any], history: list[dict[str, Any]],
-                 rows: list[dict[str, Any]] = ()) -> dict[str, Any]:
+def check_record(
+    doc: dict[str, Any], history: list[dict[str, Any]], rows: list[dict[str, Any]] = ()
+) -> dict[str, Any]:
     monitoring = doc.get("monitoring") or {}
-    llm = monitoring.get("llm_output") or monitoring   # stored only when overridden
+    llm = monitoring.get("llm_output") or monitoring  # stored only when overridden
     violations = (doc.get("sla") or {}).get("violations", [])
     persistence = doc.get("persistence") or {}
 
     recomputed = MonitoringAgent.analyze_sla(TelemetryRecord.model_validate(doc["telemetry"]))
     objectives = [i.get("objective") or "" for i in monitoring.get("selected_agents", [])]
-    numbers = number_check([monitoring.get("reason"), monitoring.get("global_situation"),
-                            *objectives], _record_context(doc, history, rows))
+    numbers = number_check(
+        [monitoring.get("reason"), monitoring.get("global_situation"), *objectives],
+        _record_context(doc, history, rows),
+    )
     return {
         "sla_recomputed_agrees": recomputed.violations == violations,
-        "llm_flags_violation": bool(llm.get("action_required")) and bool(llm.get("selected_agents")),
+        "llm_flags_violation": bool(llm.get("action_required"))
+        and bool(llm.get("selected_agents")),
         "llm_situation_ok": llm.get("situation") != "normal",
         "llm_severity_agrees": llm.get("severity") == monitoring.get("severity"),
         "llm_routing_agrees": {i["agent"] for i in llm.get("selected_agents", [])}
         == expected_agents(violations, persistence),
         "objective_names_kpis": all(_mentions(o, kpi) for o in objectives for kpi in violations)
-        if objectives else False,
+        if objectives
+        else False,
         "monitoring_numbers_quoted": numbers["quoted"],
         "monitoring_numbers_untraced": numbers["untraced"],
         "monitoring_untraced_values": " ".join(numbers["untraced_values"]),
@@ -298,8 +398,11 @@ def _share(telemetry: dict[str, Any]) -> float:
 
 def _evidence_kind(source: str) -> str:
     lowered = source.lower().strip()
-    if (lowered.endswith("(invocation context)") or lowered.startswith(_CONTEXT_PREFIXES)
-            or any(name in lowered for name in _CONTEXT_NAMES)):
+    if (
+        lowered.endswith("(invocation context)")
+        or lowered.startswith(_CONTEXT_PREFIXES)
+        or any(name in lowered for name in _CONTEXT_NAMES)
+    ):
         return "context"
     return "knowledge"
 
@@ -308,8 +411,9 @@ def _words(text: str) -> set[str]:
     return {w for w in _WORD.findall(text.lower()) if w not in _STOP}
 
 
-def evidence_check(sources: list[str] | None, knowledge: list[str],
-                   context: list[float]) -> dict[str, Any]:
+def evidence_check(
+    sources: list[str] | None, knowledge: list[str], context: list[float]
+) -> dict[str, Any]:
     """Context sources must carry traceable numbers; knowledge sources must
     share most of their words with what the agent retrieved or the tool
     descriptions it was given."""
@@ -321,19 +425,30 @@ def evidence_check(sources: list[str] | None, knowledge: list[str],
             ok = number_check([source], context)["untraced"] == 0
         else:
             words = _words(re.sub(r"\(knowledge retrieved\)", "", source, flags=re.I))
-            ok = bool(retrieved) and bool(words) and (
-                len(words & retrieved) / len(words) >= EVIDENCE_WORD_SUPPORT)
+            ok = (
+                bool(retrieved)
+                and bool(words)
+                and (len(words & retrieved) / len(words) >= EVIDENCE_WORD_SUPPORT)
+            )
         if ok:
             supported += 1
         else:
             unsupported.append(source)
-    return {"evidence_sources": len(sources), "evidence_supported": supported,
-            "evidence_knowledge": sum(_evidence_kind(s) == "knowledge" for s in sources),
-            "evidence_unsupported": " || ".join(unsupported)}
+    return {
+        "evidence_sources": len(sources),
+        "evidence_supported": supported,
+        "evidence_knowledge": sum(_evidence_kind(s) == "knowledge" for s in sources),
+        "evidence_unsupported": " || ".join(unsupported),
+    }
 
 
-def check_action(action: dict[str, Any], agent: str, doc: dict[str, Any],
-                 history: list[dict[str, Any]], rows: list[dict[str, Any]] = ()) -> dict[str, Any]:
+def check_action(
+    action: dict[str, Any],
+    agent: str,
+    doc: dict[str, Any],
+    history: list[dict[str, Any]],
+    rows: list[dict[str, Any]] = (),
+) -> dict[str, Any]:
     telemetry = doc.get("telemetry") or {}
     params = action.get("params") or {}
     tool = action.get("tool")
@@ -343,8 +458,11 @@ def check_action(action: dict[str, Any], agent: str, doc: dict[str, Any],
     if tool == "adjust_prb_allocation" and "prb_percentage" in params:
         requested = params["prb_percentage"]
         direction = requested > share
-        available = 100 * (telemetry["slice_prb"] + (telemetry.get("cell_spare_prb") or 0)) \
+        available = (
+            100
+            * (telemetry["slice_prb"] + (telemetry.get("cell_spare_prb") or 0))
             / telemetry["cell_prb"]
+        )
         feasible = requested <= available + 1e-9
         no_op = abs(requested - share) < 1
     elif tool == "update_slice_resource_policy" and "min_prb_ratio_pct" in params:
@@ -354,8 +472,7 @@ def check_action(action: dict[str, Any], agent: str, doc: dict[str, Any],
 
     reasoning = action.get("reasoning") or {}
     context = _agent_context(doc, history, agent, rows)
-    numbers = number_check([reasoning.get("rationale"), reasoning.get("expected_effect")],
-                           context)
+    numbers = number_check([reasoning.get("rationale"), reasoning.get("expected_effect")], context)
     run = (doc.get("agents") or {}).get(agent) or {}
     return {
         "diagnosis": cause,
@@ -384,14 +501,26 @@ def annotate(
     for index, doc in enumerate(ordered):
         telemetry = doc.get("telemetry") or {}
         cell = telemetry.get("cell_id")
-        history = [d for d in ordered[:index]
-                   if d["run_id"] == doc["run_id"] and d.get("telemetry", {}).get("cell_id") == cell]
-        seen = [row for row in (rows_by_run or {}).get(doc["run_id"], [])
-                if row.get("cell_id") == cell and row.get("run") == telemetry.get("run")
-                and row.get("window_start_s", 0) <= telemetry.get("window_start_s", 0)]
-        rows = [row for slice_id in {r.get("slice_id") for r in seen}
-                for row in sorted((r for r in seen if r.get("slice_id") == slice_id),
-                                  key=lambda r: r.get("window_start_s", 0))[-MEMORY_RECORDS:]]
+        history = [
+            d
+            for d in ordered[:index]
+            if d["run_id"] == doc["run_id"] and d.get("telemetry", {}).get("cell_id") == cell
+        ]
+        seen = [
+            row
+            for row in (rows_by_run or {}).get(doc["run_id"], [])
+            if row.get("cell_id") == cell
+            and row.get("run") == telemetry.get("run")
+            and row.get("window_start_s", 0) <= telemetry.get("window_start_s", 0)
+        ]
+        rows = [
+            row
+            for slice_id in {r.get("slice_id") for r in seen}
+            for row in sorted(
+                (r for r in seen if r.get("slice_id") == slice_id),
+                key=lambda r: r.get("window_start_s", 0),
+            )[-MEMORY_RECORDS:]
+        ]
         record_checks[(doc["run_id"], doc["seq"])] = check_record(doc, history, rows)
         for agent, run in (doc.get("agents") or {}).items():
             for position, action in enumerate(run.get("actions", [])):

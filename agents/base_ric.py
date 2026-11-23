@@ -92,14 +92,10 @@ class BaseRICAgent(ABC):
             return
 
         if self.trust_governance_agent is None:
-            raise RuntimeError(
-                f"{self.agent_name} requires a RAN Trust & Governance Agent."
-            )
+            raise RuntimeError(f"{self.agent_name} requires a RAN Trust & Governance Agent.")
 
         if not self.prompt_path.is_file():
-            raise FileNotFoundError(
-                f"{self.agent_name} prompt not found: {self.prompt_path}"
-            )
+            raise FileNotFoundError(f"{self.agent_name} prompt not found: {self.prompt_path}")
 
         if not self.action_tools:
             raise RuntimeError(
@@ -204,20 +200,22 @@ Do not claim an action executed unless its tool result confirms it.
             stage = action.governance.get("failed_stage")
             reason = action.governance.get("reason") or ""
             review = action.governance.get("llm_review") or {}
-            events.append(ActionEvent(
-                rec=context.get("record_id", ""),
-                t=context.get("window_start_s", 0.0),
-                slice=context.get("slice_id", ""),
-                agent=agent,
-                tool=action.tool,
-                params=action.params,
-                approved=bool(action.governance.get("approved")),
-                executed=action.execution.get("status") == "executed",
-                stage=stage,
-                why=reason[:160] if stage in DETERMINISTIC_STAGES else None,
-                review={k: review[k] for k in REVIEW_VERDICTS if k in review} or None,
-                applied=BaseRICAgent._applied(action),
-            ))
+            events.append(
+                ActionEvent(
+                    rec=context.get("record_id", ""),
+                    t=context.get("window_start_s", 0.0),
+                    slice=context.get("slice_id", ""),
+                    agent=agent,
+                    tool=action.tool,
+                    params=action.params,
+                    approved=bool(action.governance.get("approved")),
+                    executed=action.execution.get("status") == "executed",
+                    stage=stage,
+                    why=reason[:160] if stage in DETERMINISTIC_STAGES else None,
+                    review={k: review[k] for k in REVIEW_VERDICTS if k in review} or None,
+                    applied=BaseRICAgent._applied(action),
+                )
+            )
         return events
 
     @staticmethod
@@ -246,11 +244,18 @@ Do not claim an action executed unless its tool result confirms it.
             due = (action.execution.get("result") or {}).get("effective_step")
             if action.execution.get("status") != "executed" or due is None or not kpis:
                 continue
-            checks.append(PendingCheck(
-                rec=context.get("record_id", ""), t=context.get("window_start_s", 0.0),
-                slice=context.get("slice_id", ""), agent=agent, i=action.i,
-                tool=action.tool, due_step=int(due), kpis=kpis,
-            ))
+            checks.append(
+                PendingCheck(
+                    rec=context.get("record_id", ""),
+                    t=context.get("window_start_s", 0.0),
+                    slice=context.get("slice_id", ""),
+                    agent=agent,
+                    i=action.i,
+                    tool=action.tool,
+                    due_step=int(due),
+                    kpis=kpis,
+                )
+            )
         return checks
 
     @staticmethod
@@ -284,9 +289,7 @@ Do not claim an action executed unless its tool result confirms it.
         execution_data = entry.get("execution")
 
         proposal = (
-            RANActionProposal.model_validate(proposal_data)
-            if proposal_data is not None
-            else None
+            RANActionProposal.model_validate(proposal_data) if proposal_data is not None else None
         )
 
         governance = (
@@ -296,9 +299,7 @@ Do not claim an action executed unless its tool result confirms it.
         )
 
         execution = (
-            RANToolResult.model_validate(execution_data)
-            if execution_data is not None
-            else None
+            RANToolResult.model_validate(execution_data) if execution_data is not None else None
         )
 
         status = overall_status
@@ -320,8 +321,7 @@ Do not claim an action executed unless its tool result confirms it.
         if typed_result.status == "no_action":
             last = messages[-1] if messages else None
             logger.warning(
-                "%s: NO action tool was called. Tool calls: %s. "
-                "Final model message: %r",
+                "%s: NO action tool was called. Tool calls: %s. Final model message: %r",
                 self.agent_name,
                 calls,
                 getattr(last, "content", last),
@@ -338,24 +338,27 @@ Do not claim an action executed unless its tool result confirms it.
         """Invoke this RIC agent for one Monitoring Agent instruction."""
 
         if invocation.agent != self.agent_name:
-            raise ValueError(
-                f"{type(self).__name__} cannot handle agent={invocation.agent!r}"
-            )
+            raise ValueError(f"{type(self).__name__} cannot handle agent={invocation.agent!r}")
 
         context = invocation.context or {}
         record_id = context.get("record_id")
         run_id = context.get("run_id") or self.run_id
         cell, slice_id = context.get("target"), context.get("slice_id")
-        store = self.mongo_repository if (self.mongo_repository is not None
-                                          and run_id and record_id) else None
+        store = (
+            self.mongo_repository
+            if (self.mongo_repository is not None and run_id and record_id)
+            else None
+        )
 
         def push_action(action: ActionEntry) -> None:
-            store.push_action(run_id=run_id, record_id=record_id,
-                              agent=self.agent_name, entry=action)
+            store.push_action(
+                run_id=run_id, record_id=record_id, agent=self.agent_name, entry=action
+            )
 
         def push_knowledge(entry: KnowledgeEntry) -> None:
-            store.push_knowledge(run_id=run_id, record_id=record_id,
-                                 agent=self.agent_name, entry=entry)
+            store.push_knowledge(
+                run_id=run_id, record_id=record_id, agent=self.agent_name, entry=entry
+            )
 
         # Fresh audit collector for this invocation only; each call and each
         # knowledge lookup is written to the results store as it happens.
@@ -408,9 +411,14 @@ Do not claim an action executed unless its tool result confirms it.
 
             if store is not None:
                 selected = self._select_entry(audit.entries)[1] if audit.entries else None
-                store.finish_agent(run_id=run_id, record_id=record_id, agent=self.agent_name,
-                                   status=typed_result.status, selected_action=selected,
-                                   final_message=self._final_message(result.get("messages", [])))
+                store.finish_agent(
+                    run_id=run_id,
+                    record_id=record_id,
+                    agent=self.agent_name,
+                    status=typed_result.status,
+                    selected_action=selected,
+                    final_message=self._final_message(result.get("messages", [])),
+                )
             return typed_result
 
         except Exception as exc:
@@ -418,9 +426,13 @@ Do not claim an action executed unless its tool result confirms it.
             # but do not lose the cause either.
             logger.exception("%s invocation failed", self.agent_name)
             if store is not None:
-                store.finish_agent(run_id=run_id, record_id=record_id, agent=self.agent_name,
-                                   status="error",
-                                   error={"type": type(exc).__name__, "message": str(exc)})
+                store.finish_agent(
+                    run_id=run_id,
+                    record_id=record_id,
+                    agent=self.agent_name,
+                    status="error",
+                    error={"type": type(exc).__name__, "message": str(exc)},
+                )
             return RICResult(status="error")
 
         finally:
@@ -428,8 +440,10 @@ Do not claim an action executed unless its tool result confirms it.
             if self.memory is not None and cell and audit.actions:
                 try:
                     await self.memory.record_actions(
-                        cell, self._action_events(audit.actions, context, self.agent_name))
+                        cell, self._action_events(audit.actions, context, self.agent_name)
+                    )
                     await self.memory.add_pending(
-                        cell, self._pending_checks(audit.actions, context, self.agent_name))
+                        cell, self._pending_checks(audit.actions, context, self.agent_name)
+                    )
                 except Exception:
                     logger.exception("%s: could not update working memory", self.agent_name)

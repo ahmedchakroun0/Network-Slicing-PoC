@@ -63,16 +63,22 @@ def slice_key(cell: str, slice_id: str, kind: str) -> str:
 def _cell_keys(cell: str) -> list[str]:
     """Every key that belongs to one cell."""
     keys = [cell_key(cell, k) for k in ("meta", "records", "actions")]
-    keys += [slice_key(cell, s, k) for s in SLICES
-             for k in ("records", "actions", "persistence", "controls", "pending", "outcomes")]
+    keys += [
+        slice_key(cell, s, k)
+        for s in SLICES
+        for k in ("records", "actions", "persistence", "controls", "pending", "outcomes")
+    ]
     return keys
 
 
 def _shares(split: dict[str, Any]) -> dict[str, dict[str, float]]:
     """PRB share (%) of every slice, from a cell's PRB split {slice: PRBs}."""
     total = sum(split.values())
-    return {s: {"prb_percentage": round(100 * n / total, 1)} for s, n in split.items()} \
-        if total else {}
+    return (
+        {s: {"prb_percentage": round(100 * n / total, 1)} for s, n in split.items()}
+        if total
+        else {}
+    )
 
 
 def _controls_of(event: ActionEvent) -> dict[str, dict[str, float]]:
@@ -90,10 +96,12 @@ def _controls_of(event: ActionEvent) -> dict[str, dict[str, float]]:
     if event.tool == "update_slice_resource_policy":
         policy = applied.get("current") or {
             "min_prb_ratio_pct": event.params["min_prb_ratio_pct"],
-            "max_prb_ratio_pct": event.params["max_prb_ratio_pct"]}
+            "max_prb_ratio_pct": event.params["max_prb_ratio_pct"],
+        }
         controls = _shares(applied["prb"]) if isinstance(applied.get("prb"), dict) else {}
         controls.setdefault(event.slice, {}).update(
-            policy_min=policy["min_prb_ratio_pct"], policy_max=policy["max_prb_ratio_pct"])
+            policy_min=policy["min_prb_ratio_pct"], policy_max=policy["max_prb_ratio_pct"]
+        )
         return controls
     return {}
 
@@ -109,7 +117,8 @@ class RedisWorkingMemory:
     ):
         self.redis = redis
         self.max_events = (
-            max_events if max_events is not None
+            max_events
+            if max_events is not None
             else _env_int("MEMORY_MAX_RECORDS", DEFAULT_MAX_EVENTS)
         )
         self.ttl_seconds = (
@@ -146,13 +155,16 @@ class RedisWorkingMemory:
         pipe = self.redis.pipeline(transaction=False)
         if previous_run is not None and previous_run != record.run:
             pipe.delete(*_cell_keys(record.cell_id))
-        pipe.hset(meta, mapping={
-            "run": record.run,
-            "scheduler": record.scheduler,
-            f"prb:{record.slice_id}": record.slice_prb,
-            f"util:{record.slice_id}": round(record.prb_utilisation, 3),
-            "updated": record.record_id,
-        })
+        pipe.hset(
+            meta,
+            mapping={
+                "run": record.run,
+                "scheduler": record.scheduler,
+                f"prb:{record.slice_id}": record.slice_prb,
+                f"util:{record.slice_id}": round(record.prb_utilisation, 3),
+                "updated": record.record_id,
+            },
+        )
         pipe.sadd(CELLS_KEY, record.cell_id)
         self._expire(pipe, meta)
         await pipe.execute()
@@ -244,8 +256,11 @@ class RedisWorkingMemory:
             return
         pipe = self.redis.pipeline(transaction=False)
         for slice_id in dict.fromkeys(o.slice for o in outcomes):
-            self._push(pipe, slice_key(cell, slice_id, "outcomes"),
-                       [o.model_dump_json() for o in outcomes if o.slice == slice_id])
+            self._push(
+                pipe,
+                slice_key(cell, slice_id, "outcomes"),
+                [o.model_dump_json() for o in outcomes if o.slice == slice_id],
+            )
         await pipe.execute()
 
     # ------------------------------------------------------------------

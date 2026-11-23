@@ -76,8 +76,13 @@ def _step_payload(r: StepResult) -> dict[str, Any]:
 class EmulatorService:
     """One emulator instance plus its clock, lock and SSE subscribers."""
 
-    def __init__(self, bank: TraceBank, scenario: Scenario, mode: Literal["lockstep", "realtime"],
-                 step_period_s: float):
+    def __init__(
+        self,
+        bank: TraceBank,
+        scenario: Scenario,
+        mode: Literal["lockstep", "realtime"],
+        step_period_s: float,
+    ):
         self.bank = bank
         self.emu = Emulator(bank, scenario)
         self.mode = mode
@@ -90,7 +95,7 @@ class EmulatorService:
             out = [_step_payload(self.emu.step()) for _ in range(steps)]
         for payload in out:
             for q in self.subscribers:
-                if q.full():                    # slow consumer: drop its oldest event
+                if q.full():  # slow consumer: drop its oldest event
                     q.get_nowait()
                 q.put_nowait(payload)
         return out
@@ -110,9 +115,13 @@ class EmulatorService:
             await self.advance(1)
 
 
-def create_app(bank: TraceBank, scenario: Scenario, *,
-               mode: Literal["lockstep", "realtime"] = "lockstep",
-               step_period_s: float = 1.0) -> FastAPI:
+def create_app(
+    bank: TraceBank,
+    scenario: Scenario,
+    *,
+    mode: Literal["lockstep", "realtime"] = "lockstep",
+    step_period_s: float = 1.0,
+) -> FastAPI:
     svc = EmulatorService(bank, scenario, mode, step_period_s)
 
     @contextlib.asynccontextmanager
@@ -149,15 +158,18 @@ def create_app(bank: TraceBank, scenario: Scenario, *,
         return await svc.control(svc.emu.set_qos, cell, slice_id, body.priority_level)
 
     @app.put("/cells/{cell}/slices/{slice_id}/link-adaptation")
-    async def link_adaptation(cell: str, slice_id: SliceType,
-                              body: LinkAdaptationBody) -> dict[str, Any]:
-        return await svc.control(svc.emu.set_link_adaptation, cell, slice_id, body.mcs_offset,
-                                 body.target_bler)
+    async def link_adaptation(
+        cell: str, slice_id: SliceType, body: LinkAdaptationBody
+    ) -> dict[str, Any]:
+        return await svc.control(
+            svc.emu.set_link_adaptation, cell, slice_id, body.mcs_offset, body.target_bler
+        )
 
     @app.put("/cells/{cell}/slices/{slice_id}/policy")
     async def policy(cell: str, slice_id: SliceType, body: PolicyBody) -> dict[str, Any]:
-        return await svc.control(svc.emu.set_policy, cell, slice_id, body.min_prb_ratio_pct,
-                                 body.max_prb_ratio_pct)
+        return await svc.control(
+            svc.emu.set_policy, cell, slice_id, body.min_prb_ratio_pct, body.max_prb_ratio_pct
+        )
 
     # ------------------------------------------------------ simulation
     @app.post("/sim/reset")
@@ -205,7 +217,9 @@ def create_app(bank: TraceBank, scenario: Scenario, *,
         return {**svc.emu.state(), "mode": svc.mode}
 
     @app.get("/cells/{cell}/kpis")
-    async def kpis(cell: str, from_step: int = 0, to_step: int | None = None) -> list[dict[str, Any]]:
+    async def kpis(
+        cell: str, from_step: int = 0, to_step: int | None = None
+    ) -> list[dict[str, Any]]:
         try:
             return svc.emu.kpis(cell, from_step, to_step)
         except KeyError as exc:

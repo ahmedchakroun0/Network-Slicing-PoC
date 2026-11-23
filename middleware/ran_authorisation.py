@@ -72,9 +72,16 @@ class AuditSink:
             # The results store must never decide whether an action runs.
             logger.exception("Could not persist audit item %s", tool_call_id)
 
-    def add_knowledge(self, tool_call_id: str, tool: str, args: dict[str, Any], result: Any) -> None:
-        entry = KnowledgeEntry(tool_call_id=tool_call_id, at=datetime.now(UTC),
-                               tool=tool, args=args, result=str(result))
+    def add_knowledge(
+        self, tool_call_id: str, tool: str, args: dict[str, Any], result: Any
+    ) -> None:
+        entry = KnowledgeEntry(
+            tool_call_id=tool_call_id,
+            at=datetime.now(UTC),
+            tool=tool,
+            args=args,
+            result=str(result),
+        )
         self.knowledge.append(entry)
         self._emit(self._on_knowledge, entry, tool_call_id)
 
@@ -93,9 +100,7 @@ class AuditSink:
         self.entries.append(
             {
                 "tool_call_id": tool_call_id,
-                "proposal": (
-                    proposal.model_dump(mode="json") if proposal is not None else None
-                ),
+                "proposal": (proposal.model_dump(mode="json") if proposal is not None else None),
                 "governance": decision.model_dump(mode="json"),
                 "execution": execution.model_dump(mode="json"),
             }
@@ -110,8 +115,11 @@ class AuditSink:
             reasoning={k: submitted[k] for k in REASONING_FIELDS if k in submitted} or None,
             agent_message=agent_message,
             governance=decision.model_dump(mode="json"),
-            execution={"status": execution.status, "result": execution.result,
-                       "message": execution.message},
+            execution={
+                "status": execution.status,
+                "result": execution.result,
+                "message": execution.message,
+            },
         )
         self.actions.append(action)
         self._emit(self._on_action, action, tool_call_id)
@@ -141,7 +149,6 @@ def build_submission(tool_name, args):
         **reasoning,
     }
     return submitted, {**remaining, "target": target}
-
 
 
 class RANAuthorizationMiddleware(AgentMiddleware):
@@ -218,8 +225,9 @@ class RANAuthorizationMiddleware(AgentMiddleware):
             audit = RAN_AUDIT.get()
             if audit is not None:
                 content = response.content if isinstance(response, ToolMessage) else response
-                audit.add_knowledge(tool_call.get("id", ""), tool_name,
-                                    tool_call.get("args") or {}, content)
+                audit.add_knowledge(
+                    tool_call.get("id", ""), tool_name, tool_call.get("args") or {}, content
+                )
             return response
 
         # One traced span per protected call, whatever its outcome: a rejected
@@ -255,9 +263,7 @@ class RANAuthorizationMiddleware(AgentMiddleware):
                     {
                         "status": "error",
                         "tool_name": tool_name,
-                        "message": (
-                            "Audit collector not configured; protected action blocked."
-                        ),
+                        "message": ("Audit collector not configured; protected action blocked."),
                     }
                 ),
                 tool_call_id=tool_call_id,
@@ -300,9 +306,7 @@ class RANAuthorizationMiddleware(AgentMiddleware):
             decision = GovernanceResult(
                 approved=False, reason=limit_reason, failed_stage="invocation_limit"
             )
-            execution = self._tool_result(
-                tool_name, arguments, "rejected", message=limit_reason
-            )
+            execution = self._tool_result(tool_name, arguments, "rejected", message=limit_reason)
             audit.add(tool_call_id, submitted, None, decision, execution, agent_message)
             return ToolMessage(
                 content=json.dumps(
@@ -319,8 +323,7 @@ class RANAuthorizationMiddleware(AgentMiddleware):
             submitted_proposal = RANActionProposal.model_validate(submitted)
         except ValidationError as exc:
             details = "; ".join(
-                f"{'.'.join(str(p) for p in err['loc'])}: {err['msg']}"
-                for err in exc.errors()
+                f"{'.'.join(str(p) for p in err['loc'])}: {err['msg']}" for err in exc.errors()
             )
             reason = f"[invalid_proposal] {details}"
             decision = GovernanceResult(
@@ -328,9 +331,7 @@ class RANAuthorizationMiddleware(AgentMiddleware):
                 reason=reason,
                 failed_stage="invalid_proposal",
             )
-            execution = self._tool_result(
-                tool_name, arguments, "rejected", message=reason
-            )
+            execution = self._tool_result(tool_name, arguments, "rejected", message=reason)
             audit.add(tool_call_id, submitted, None, decision, execution, agent_message)
 
             return ToolMessage(
@@ -411,9 +412,7 @@ class RANAuthorizationMiddleware(AgentMiddleware):
             tool_response = await handler(request)
 
             raw_result = (
-                tool_response.content
-                if isinstance(tool_response, ToolMessage)
-                else tool_response
+                tool_response.content if isinstance(tool_response, ToolMessage) else tool_response
             )
 
             if isinstance(raw_result, str):
@@ -458,6 +457,7 @@ class RANAuthorizationMiddleware(AgentMiddleware):
                 ),
                 tool_call_id=tool_call_id,
             )
+
     @staticmethod
     def _ai_message(response) -> AIMessage | None:
         if isinstance(response, AIMessage):
@@ -506,8 +506,7 @@ class RANAuthorizationMiddleware(AgentMiddleware):
 
     async def _force_action(self, request) -> ModelResponse:
         tools = {
-            t.name: t for t in request.tools
-            if getattr(t, "name", None) in self.protected_tools
+            t.name: t for t in request.tools if getattr(t, "name", None) in self.protected_tools
         }
         if not tools:
             raise RuntimeError("No protected tools available to force.")
@@ -531,23 +530,29 @@ class RANAuthorizationMiddleware(AgentMiddleware):
             tool_name=(Literal[tuple(tools)], Field(description="Action tool to use.")),  # type: ignore[valid-type]
         )
         choice = await model.with_structured_output(Choice).ainvoke(
-            base + [HumanMessage(
-                "Choose the single action tool that best addresses the violated "
-                "KPIs named in your objective."
-            )]
+            base
+            + [
+                HumanMessage(
+                    "Choose the single action tool that best addresses the violated "
+                    "KPIs named in your objective."
+                )
+            ]
         )
         name = choice["tool_name"] if isinstance(choice, dict) else choice.tool_name
         tool = tools[name]
 
         # 2) fill its arguments using the tool's own schema
         filled = await model.with_structured_output(tool.args_schema).ainvoke(
-            base + [HumanMessage(
-                f"You chose `{name}`. Fill in its arguments.\n"
-                f"Tool description:\n{tool.description}\n\n"
-                "Copy target (and slice_id if present) exactly from the invocation "
-                "context. Give a specific rationale citing the violated KPI values, "
-                "a concrete expected_effect, and confidence between 0 and 1."
-            )]
+            base
+            + [
+                HumanMessage(
+                    f"You chose `{name}`. Fill in its arguments.\n"
+                    f"Tool description:\n{tool.description}\n\n"
+                    "Copy target (and slice_id if present) exactly from the invocation "
+                    "context. Give a specific rationale citing the violated KPI values, "
+                    "a concrete expected_effect, and confidence between 0 and 1."
+                )
+            ]
         )
         args = (
             filled.model_dump(exclude_none=True)
@@ -558,11 +563,13 @@ class RANAuthorizationMiddleware(AgentMiddleware):
         ai = AIMessage(
             content="",
             additional_kwargs={FORCED_FLAG: True},
-            tool_calls=[{
-                "name": name,
-                "args": args,
-                "id": f"call_{uuid.uuid4().hex[:12]}",
-                "type": "tool_call",
-            }],
+            tool_calls=[
+                {
+                    "name": name,
+                    "args": args,
+                    "id": f"call_{uuid.uuid4().hex[:12]}",
+                    "type": "tool_call",
+                }
+            ],
         )
         return ModelResponse(result=[ai])

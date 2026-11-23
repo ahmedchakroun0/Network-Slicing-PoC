@@ -22,8 +22,7 @@ from src.schema.working_memory import ActionOutcome, Outcome, PendingCheck
 TOLERANCE = 0.02
 
 
-def _classify(before: dict[str, float], after: dict[str, float],
-              still_violated: bool) -> Outcome:
+def _classify(before: dict[str, float], after: dict[str, float], still_violated: bool) -> Outcome:
     if not still_violated:
         return "resolved"
     changes = []
@@ -60,9 +59,18 @@ def verify(check: PendingCheck, record: TelemetryRecord, analysis: SLAAnalysis) 
     if len(after) < len(before):
         outcome: Outcome = "unknown"
     else:
-        outcome = _classify(before, after,
-                            still_violated=any(k in analysis.violations for k in check.kpis))
+        outcome = _classify(
+            before, after, still_violated=any(k in analysis.violations for k in check.kpis)
+        )
     return ActionOutcome(
-        rec=check.rec, t=check.t, slice=check.slice, agent=check.agent, i=check.i,
-        tool=check.tool, outcome=outcome, checked_rec=record.record_id,
-        checked_t=record.window_start_s, kpis=kpis)
+        rec=check.rec,
+        t=check.t,
+        slice=check.slice,
+        agent=check.agent,
+        i=check.i,
+        tool=check.tool,
+        outcome=outcome,
+        checked_rec=record.record_id,
+        checked_t=record.window_start_s,
+        kpis=kpis,
+    )
