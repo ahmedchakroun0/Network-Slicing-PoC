@@ -1540,3 +1540,97 @@ curl -s localhost:8100/sim/actions            # every control applied
 curl -s localhost:8100/sim/violations         # calls that got past governance (should be empty)
 curl -s "localhost:8100/cells/bs2/kpis?from_step=0"
 ```
+
+---
+
+# Agents as services: A2A between agents (`a2a_agents/`)
+
+In a real O-RAN deployment the Near-RT RIC, the Non-RT RIC (SMO) and the monitoring function don't
+share a process, and often don't share a host. With `--agents a2a` each agent runs as its own
+service, and the services reach each other only over the network:
+
+```
+ scripts/run_loop.py --agents a2a   (the experiment driver: steps the RAN clock; not an agent)
+        │  A2A  ran.monitoring.observe            (one task per emulator step)
+        ▼
+ Monitoring agent :8300 ──A2A ran.nearrt.mitigate────────► Near-RT RIC agent :8301 ─┐
+   SLA analysis, routing,  └─A2A ran.nonrt.propose_policy─► Non-RT RIC agent :8302 ─┤
+   record workflow                                                                  │
+                                    HTTP POST /authorize (every protected call)     │
+                                       Governance service :8310 ◄──────────────────┤
+                                                                                    │ MCP via LiteLLM
+ RAN emulator :8100 ◄──── MCP tool servers near_rt :8201 / non_rt :8202 ◄──────────┘
+ Shared infrastructure, reached over the network by every service: Redis (working memory),
+ MongoDB (results), LiteLLM (models, MCP tools, optional A2A gateway).
+```
+
+| Service | Interface | Calls |
+|---|---|---|
+| Monitoring agent | A2A Agent Card, skill `ran.monitoring.observe` | the RIC agents (A2A), Redis, MongoDB, LLM |
+| Near-RT RIC agent | A2A Agent Card, skill `ran.nearrt.mitigate` | governance, MCP `near_rt`, Redis, MongoDB, LLM |
+| Non-RT RIC agent | A2A Agent Card, skill `ran.nonrt.propose_policy` | governance, MCP `non_rt`, Redis, MongoDB, LLM |
+| Governance | HTTP `POST /authorize`, not an A2A peer | LLM (its review stage) |
+
+**Discovery.** No service has another's endpoint hard-coded. The Monitoring agent is given card URLs
+(`A2A_AGENT_CARDS`). At start-up it reads each card at `/.well-known/agent-card.json` and maps every
+RIC role to the agent declaring its skill. It refuses to start if a skill is missing.
+
+**Why governance is not an A2A agent.** A2A is for delegating a goal to an agent the caller chooses
+to use. Governance is the policy decision point that the RIC agents' tool middleware (the enforcement
+point) *must* consult before every protected call, and nobody may choose to skip it. It is a plain
+request/response service. If it is unreachable or refuses the caller, the call is rejected (stage
+`governance_unavailable`) and the tool is never executed.
+
+**Wire format.** One A2A task per invocation, JSON in and out. The payload travels as a text part with
+media type `application/json`, because a protobuf data part would turn every integer into a float:
+
+| Skill | Input | Output (task artifact) |
+|---|---|---|
+| `ran.monitoring.observe` | `{run_id, seq, records: [TelemetryRecord]}` | `{results: [{record_id, status, agents, stopped}], stopped}` |
+| `ran.nearrt.mitigate`, `ran.nonrt.propose_policy` | `{invocation: AgentInvocation, run_id}` | `{result: RICResult, usage, stopped}` |
+
+The trusted context that the Monitoring agent builds (SLA analysis, persistence, slice state, active
+controls) travels inside the `AgentInvocation`, as it did in process. A RIC agent that crashes or is
+unreachable is recorded on the record as an `A2ACallError` and doesn't stop the run. A Monitoring agent
+that is down stops the run (fail closed).
+
+**Model usage across processes.** Each service returns the model calls it made for a request
+(`usage`) and whether its provider is stopped (`stopped`). The caller merges both into the record, so
+`records.llm.by_caller` and the stop-on-rate-limit behaviour are the same as in process.
+
+**Tracing.** The caller's LangSmith run headers travel in the A2A message metadata, and the callee
+continues the same trace. A record is still one trace across the services.
+
+## Running it
+
+```bash
+./scripts/start_stack.sh --a2a          # emulator, MCP servers, LiteLLM, then governance,
+                                        # the two RIC agents and the Monitoring agent (logs/agent_*.log)
+poetry run python scripts/run_loop.py --scenario embb_prb_starvation --steps 10 --agents a2a
+```
+
+Or start each agent yourself, on any host, in this order (each needs the services it calls):
+
+```bash
+poetry run python -m a2a_agents governance            # :8310
+poetry run python -m a2a_agents near_rt_ric           # :8301   needs LiteLLM, governance
+poetry run python -m a2a_agents non_rt_ric            # :8302   needs LiteLLM, governance
+poetry run python -m a2a_agents monitoring            # :8300   needs both RIC agents
+curl -s localhost:8301/.well-known/agent-card.json    # an agent's card
+```
+
+`--host`, `--port` and `--public-url` (the URL advertised in the card) work for every service. The
+environment variables are listed in `.env.example`:
+- `MONITORING_URL`, `A2A_AGENT_CARDS` and `GOVERNANCE_URL` set who calls whom.
+- `A2A_TOKEN_<SERVICE>` is the bearer token a service requires. The card and `/health` stay public.
+- The timeouts are configurable too.
+
+**Through the LiteLLM A2A gateway.** `litellm_config.yaml` registers both RIC agents under `agents:`.
+Point the Monitoring agent at `http://localhost:4000/a2a/near_rt_ric,http://localhost:4000/a2a/non_rt_ric`
+and give it a LiteLLM key in `A2A_GATEWAY_KEY`. LiteLLM then logs every A2A call and checks that the
+key may call the agent. This is the baseline for the trust gateway.
+
+`--agents inprocess` (the default) keeps everything in one process. It is the baseline of the
+protocol-overhead experiment, and `scripts/demo_run_scripted.py` and the tests still use it.
+`tests/test_a2a_agents.py` runs the closed loop with every service as its own ASGI app and checks that
+it gives the in-process results.

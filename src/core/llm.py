@@ -148,6 +148,22 @@ class ProviderGuard(BaseCallbackHandler):
                 total[key] += value
         return {**total, "by_caller": by_caller, "models": dict(served)}
 
+    def merge(self, usage: dict[str, Any] | None, stopped: str | None = None,
+              rename: dict[str, str] | None = None) -> None:
+        """Add the usage another process reported (take_usage() of a remote
+        agent or of the governance service) to this record's usage, and stop
+        here too when the remote provider was stopped. `rename` maps the
+        remote caller names (e.g. "other" -> the remote agent's role)."""
+        if stopped is not None and self.stopped is None:
+            self.stopped = stopped
+        if not usage:
+            return
+        for caller, counts in (usage.get("by_caller") or {}).items():
+            mine = self.usage.setdefault((rename or {}).get(caller, caller), _usage())
+            for key, value in counts.items():
+                mine[key] = mine.get(key, 0) + value
+        self.served.update(usage.get("models") or {})
+
     def reset(self) -> None:
         self.stopped = None
         self._clear()

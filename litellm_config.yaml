@@ -85,3 +85,43 @@ router_settings:
     - mistral-network-slicing-model-2: ["mistral-network-slicing-model-2"]
     - cloudflare-network-slicing-model: ["nvidia-network-slicing-model"]
     - gemini-network-slicing-model: ["nvidia-network-slicing-model"]
+
+# A2A gateway: the RIC agents (a2a_agents/, python -m a2a_agents <role>).
+# For --agents a2a through the gateway, set on the Monitoring service:
+#   A2A_AGENT_CARDS=http://localhost:4000/a2a/near_rt_ric,http://localhost:4000/a2a/non_rt_ric
+#   A2A_GATEWAY_KEY=<a LiteLLM key allowed to call these two agents>
+# LiteLLM serves each card at /a2a/<agent_name>/.well-known/agent-card.json with
+# its own URL, logs every call and checks the caller key's agent permissions.
+# When the agents require a token (A2A_TOKEN_<ROLE>), add to each entry:
+#   static_headers: {Authorization: "Bearer <that agent's token>"}
+agents:
+  - agent_name: near_rt_ric
+    agent_card_params:
+      name: near-rt-ric-agent
+      description: "Near-RT RIC agent: fast, local RAN mitigation of one cell and slice (E2-style controls)."
+      url: http://127.0.0.1:8301
+      version: "0.1.0"
+      protocolVersion: "1.0"
+      capabilities: {streaming: false}
+      defaultInputModes: [application/json]
+      defaultOutputModes: [application/json]
+      skills:
+        - id: ran.nearrt.mitigate
+          name: Mitigate a RAN incident
+          description: "Input {invocation: AgentInvocation, run_id}; output {result: RICResult, usage, stopped}."
+          tags: [ran, near-rt, slicing, e2]
+  - agent_name: non_rt_ric
+    agent_card_params:
+      name: non-rt-ric-agent
+      description: "Non-RT RIC agent: policy-level answer to persistent degradation (A1-style policies)."
+      url: http://127.0.0.1:8302
+      version: "0.1.0"
+      protocolVersion: "1.0"
+      capabilities: {streaming: false}
+      defaultInputModes: [application/json]
+      defaultOutputModes: [application/json]
+      skills:
+        - id: ran.nonrt.propose_policy
+          name: Propose a slice resource policy
+          description: "Input {invocation: AgentInvocation, run_id}; output {result: RICResult, usage, stopped}."
+          tags: [ran, non-rt, slicing, a1]
